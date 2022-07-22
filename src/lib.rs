@@ -45,6 +45,8 @@
 
 // Each architecture-specific module is tasked to implement Pessimize for
 // primitive integers and floats, raw pointers, and SIMD vector types.
+#[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+mod arm;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod x86;
 // TODO: Add support for 32-bit ARM, AArch64 and RISC-V (check calling

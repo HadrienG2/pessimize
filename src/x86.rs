@@ -11,42 +11,11 @@ use target_arch::{__m128, __m128d, __m128i};
 #[cfg(target_feature = "avx")]
 use target_arch::{__m256, __m256d, __m256i};
 
-// Implementation of Pessimize for values that belong to a general-purpose register
-macro_rules! pessimize_general_values {
-    ($($t:ty),*) => {
-        $(
-            #[allow(asm_sub_register)]
-            impl Pessimize for $t {
-                #[inline(always)]
-                fn hide(mut self) -> Self {
-                    unsafe {
-                        asm!("/* {0} */", inout(reg) self, options(preserves_flags, nostack, nomem));
-                    }
-                    self
-                }
-
-                #[inline(always)]
-                fn assume_read(&self) {
-                    unsafe {
-                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack, nomem))
-                    }
-                }
-            }
-        )*
-    };
-}
-//
-pessimize_general_values!(i16, u16, i32, u32, i64, u64, isize, usize);
-//
-// Most x86 calling conventions do not use XMM registers for FP values, so we
-// use a GP register for FP values on 32-bit x86 irrespective of SSE support.
-#[cfg(not(target = "x86_64"))]
-pessimize_general_values!(f32, f64);
-
-// Implementation of Pessimize for values that require use of special registers
-macro_rules! pessimize_other_values {
+// Implementation of Pessimize for values without pointer semantics
+macro_rules! pessimize_values {
     ($reg:ident, $($t:ty),*) => {
         $(
+            #[allow(asm_sub_register)]
             impl Pessimize for $t {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
@@ -67,18 +36,24 @@ macro_rules! pessimize_other_values {
     };
 }
 //
-pessimize_other_values!(reg_byte, i8, u8);
+pessimize_values!(reg, i16, u16, i32, u32, i64, u64, isize, usize);
+//
+pessimize_values!(reg_byte, i8, u8);
 //
 #[cfg(target_feature = "sse")]
-pessimize_other_values!(xmm_reg, __m128, __m128d, __m128i);
+pessimize_values!(xmm_reg, __m128, __m128d, __m128i);
 //
+// Most 32-bit x86 calling conventions do not use XMM registers for FP values,
+// so we use a GP register for FP values on 32-bit even if SSE is available.
+#[cfg(not(target = "x86_64"))]
+pessimize_values!(reg, f32, f64);
 // x86_64 mandates SSE support and most x86_64 calling conventions use XMM
-// registers for FP values, so we an XMM register there.
+// registers for FP values, so use we an XMM register there.
 #[cfg(target = "x86_64")]
-pessimize_other_values!(xmm_reg, f32, f64);
+pessimize_values!(xmm_reg, f32, f64);
 //
 #[cfg(target_feature = "avx")]
-pessimize_other_values!(ymm_reg, __m256, __m256d, __m256i);
+pessimize_values!(ymm_reg, __m256, __m256d, __m256i);
 
 // TODO: Add nightly support for AVX-512 (including masks, which will
 //       require an architecture-specific extension) and BF16 vectors
