@@ -36,8 +36,8 @@ macro_rules! pessimize_values {
     };
 }
 //
-pessimize_values!(reg, i16, u16, i32, u32, isize, usize);
 pessimize_values!(reg_byte, i8, u8);
+pessimize_values!(reg, i16, u16, i32, u32, isize, usize);
 //
 // 64-bit values normally go to GP registers on x86_64, but since 32-bit has
 // no 64-bit GP registers, we try to use XMM registers instead if available
