@@ -38,16 +38,21 @@ macro_rules! pessimize_values {
 //
 pessimize_values!(reg, i16, u16, i32, u32, isize, usize);
 pessimize_values!(reg_byte, i8, u8);
+//
+// 64-bit values normally go to GP registers on x86_64, but since 32-bit has
+// no 64-bit GP registers, we try to use XMM registers instead if available
 #[cfg(target_arch = "x86_64")]
 pessimize_values!(reg, i64, u64);
+#[cfg(all(not(target_arch = "x86_64"), target_feature = "sse"))]
+pessimize_values!(xmm_reg, i64, u64);
 //
 // Given that CPUs without SSE should now all be extinct and that compilers try
 // to use SSE whenever at all possible, we assume that float data should go
-// to SSE registers if possible and to GP registers otherwise (on old 32-bit).
+// to SSE registers if possible and to the x87 stack otherwise (on old 32-bit).
 #[cfg(target_feature = "sse")]
 pessimize_values!(xmm_reg, f32, f64);
 #[cfg(not(target_feature = "sse"))]
-pessimize_values!(reg, f32);
+pessimize_values!(st, f32, f64);
 //
 #[cfg(target_feature = "sse")]
 pessimize_values!(xmm_reg, __m128, __m128d, __m128i);

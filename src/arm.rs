@@ -32,8 +32,13 @@ macro_rules! pessimize_values {
 }
 //
 pessimize_values!(reg, i8, u8, i16, u16, i32, u32, isize, usize);
+//
+// 64-bit values normally go to GP registers on aarch64, but since 32-bit has
+// no 64-bit GP registers, we try to use dreg instead if available
 #[cfg(target_arch = "aarch64")]
 pessimize_values!(reg, i64, u64);
+#[cfg(all(not(target_arch = "aarch64"), target_feature = "vfp2"))]
+pessimize_values!(dreg, i64, u64);
 //
 // On AArch64 with NEON, using NEON registers for f32 and f64 is standard
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
@@ -42,12 +47,12 @@ pessimize_values!(vreg, f32, f64);
 #[cfg(all(target_arch = "aarch64", not(target_feature = "neon")))]
 pessimize_values!(reg, f32, f64);
 // On 32-bit ARM with VFP2, using sregs and dregs for f32 and f64 is standard
-#[cfg(all(target_arch = "arm", target_feature = "vfp2"))]
+#[cfg(all(not(target_arch = "aarch64"), target_feature = "vfp2"))]
 pessimize_values!(sreg, f32);
-#[cfg(all(target_arch = "arm", target_feature = "vfp2"))]
+#[cfg(all(not(target_arch = "aarch64"), target_feature = "vfp2"))]
 pessimize_values!(dreg, f64);
 // On 32-bit ARM without VFP2, f32 is passed via GP registers
-#[cfg(all(target_arch = "arm", not(target_feature = "vfp2")))]
+#[cfg(all(not(target_arch = "aarch64"), not(target_feature = "vfp2")))]
 pessimize_values!(reg, f32);
 //
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
