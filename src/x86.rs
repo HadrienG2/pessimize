@@ -17,18 +17,18 @@ macro_rules! unoptimize_general_values {
         $(
             impl Unoptimize for $t {
                 #[inline(always)]
-                fn assume_read(&self) {
-                    unsafe {
-                        asm!("/* {0:r} */", in(reg) *self, options(preserves_flags, nostack, nomem))
-                    }
-                }
-
-                #[inline(always)]
                 fn black_box(mut self) -> Self {
                     unsafe {
                         asm!("/* {0:r} */", inout(reg) self, options(preserves_flags, nostack, nomem));
                     }
                     self
+                }
+
+                #[inline(always)]
+                fn assume_read(&self) {
+                    unsafe {
+                        asm!("/* {0:r} */", in(reg) *self, options(preserves_flags, nostack, nomem))
+                    }
                 }
             }
         )*
@@ -43,17 +43,10 @@ unoptimize_general_values!(i16, u16, i32, u32, i64, u64, isize, usize);
 unoptimize_general_values!(f32, f64);
 
 // Implementation of Unoptimize for values that require use of special registers
-macro_rules! unoptimize_special_values {
+macro_rules! unoptimize_other_values {
     ($reg:ident, $($t:ty),*) => {
         $(
             impl Unoptimize for $t {
-                #[inline(always)]
-                fn assume_read(&self) {
-                    unsafe {
-                        asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
-                    }
-                }
-
                 #[inline(always)]
                 fn black_box(mut self) -> Self {
                     unsafe {
@@ -61,23 +54,30 @@ macro_rules! unoptimize_special_values {
                     }
                     self
                 }
+
+                #[inline(always)]
+                fn assume_read(&self) {
+                    unsafe {
+                        asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
+                    }
+                }
             }
         )*
     };
 }
 //
-unoptimize_special_values!(reg_byte, i8, u8);
+unoptimize_other_values!(reg_byte, i8, u8);
 //
 #[cfg(target_feature = "sse")]
-unoptimize_special_values!(xmm_reg, __m128, __m128d, __m128i);
+unoptimize_other_values!(xmm_reg, __m128, __m128d, __m128i);
 //
 // x86_64 mandates SSE support and most x86_64 calling conventions use XMM
 // registers for FP values, so we an XMM register there.
 #[cfg(target = "x86_64")]
-unoptimize_special_values!(xmm_reg, f32, f64);
+unoptimize_other_values!(xmm_reg, f32, f64);
 //
 #[cfg(target_feature = "avx")]
-unoptimize_special_values!(ymm_reg, __m256, __m256d, __m256i);
+unoptimize_other_values!(ymm_reg, __m256, __m256d, __m256i);
 
 // TODO: Add nightly support for AVX-512 (including masks, which will
 //       require an architecture-specific extension) and BF16 vectors
@@ -89,18 +89,18 @@ macro_rules! unoptimize_pointers {
         $(
             impl<T: Sized> Unoptimize for $t {
                 #[inline(always)]
-                fn assume_read(&self) {
-                    unsafe {
-                        asm!("/* {0:r} */", in(reg) *self, options(preserves_flags, nostack, readonly))
-                    }
-                }
-
-                #[inline(always)]
                 fn black_box(mut self) -> Self {
                     unsafe {
                         asm!("/* {0} */", inout(reg) self, options(preserves_flags, nostack, nomem));
                     }
                     self
+                }
+
+                #[inline(always)]
+                fn assume_read(&self) {
+                    unsafe {
+                        asm!("/* {0:r} */", in(reg) *self, options(preserves_flags, nostack, readonly))
+                    }
                 }
             }
 

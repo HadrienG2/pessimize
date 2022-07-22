@@ -1,28 +1,36 @@
 //! This crate aims to implement minimally costly optimization barriers for
-//! every architecture that has asm!() support (currently x86(_64), 32-bit ARM,
-//! AArch64 and RISC-V).
+//! every architecture that has `asm!()` support (currently x86(_64),
+//! 32-bit ARM, AArch64 and RISC-V).
 //!
 //! You can use these barriers to prevent the compiler from optimizing out
 //! selected redundant or unnecessary computations in situations where such
 //! optimization is undesirable, like microbenchmarking.
 //!
 //! For a fully implemented architecture, the barriers will be implemented for
-//! - Primitive integers (iN and uN except for 128-bit, isize and usize)
+//! - Primitive integers (iN and uN, including isize and usize but excluding
+//!   128-bit integers)
 //! - Primitive floats (f32 and f64)
-//! - Thin pointers and references (basically &T-like other than &[T] or &dyn T)
-//! - Function pointers
-//! - SIMD vector types (with support for std::simd on nightly)
+//! - Thin pointers and references (`&T`-like other than `&[T]` or `&dyn T`,
+//!   including function pointers)
+//! - SIMD vector types (with support for `std::simd` on nightly)
 //!
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
 //! reference to an optimization barrier, at the cost of causing the value to
 //! be spilled to memory.
 //!
-//! For pointer-like entities, optimization barriers other than black_box will
+//! For pointer-like entities, optimization barriers other than `black_box` will
 //! have the side-effect of causing the compiler to assume that global and
 //! thread-local variable might have been accessed using similar semantics as
 //! the pointer itself. This will reduce applicable compiler optimizations for
-//! such variables. If you use those, you may want to only use black_box.
+//! such variables, so use of `black_box` should be preferred when global or
+//! thread-local variables are used.
+//!
+//! In general, `assume_read` and `assume_accessed` can have more surprising
+//! behavior than `black_box` (see their documentation for details), so you
+//! should strive to do what you want with `black_box` if possible, and only
+//! reach for `assume_read` and `assume_accessed` where the extra expressive
+//! power of these primitives is truly needed.
 
 #![cfg_attr(not(test), no_std)]
 #![deny(missing_docs)]
@@ -39,77 +47,145 @@ mod x86;
 /// Implemented for all the types described in the crate documentation
 ///
 pub trait Unoptimize {
-    /// Force the compiler to assume that a value, and data transitively
-    /// reachable via that value if it is a pointer, is being read by something.
-    ///
-    /// Apply this barrier to unused computation results in order to prevent the
-    /// compiler from optimizing out the associated computations.
-    ///
-    fn assume_read(&self);
-
     /// Re-emit the input value as its output (identity function), but force the
     /// compiler to assume that it is a completely different value.
     ///
-    /// If you want to re-do the exact same computation in a loop, pass its
-    /// inputs through this barrier to prevent the compiler from optimizing out
-    /// the redundant computations.
+    /// If you want to re-do the exact same computation in a loop, you can pass
+    /// its inputs through this barrier to prevent the compiler from optimizing
+    /// out the redundant computations.
+    ///
+    /// If you need a `black_box` alternative for a variable `x` that does not
+    /// implement `Unoptimize`, you can use `*((&x).black_box())`, at the cost
+    /// of forcing all data reachable via `x` which is currently cached in
+    /// registers to be spilled to memory and reloaded if needed later.
     ///
     fn black_box(self) -> Self;
+
+    /// Force the compiler to assume that a value, and data transitively
+    /// reachable via that value (for pointers/refs), is being used.
+    ///
+    /// You can apply this barrier to unused computation results in order to
+    /// prevent the compiler from optimizing out the associated computations.
+    ///
+    /// If you need an `assume_read` alternative for a variable `x` that does
+    /// not implement `Unoptimize`, you can use `(&x).assume_read()`, at the
+    /// cost of forcing any data from `x` which is currently cached in registers
+    /// to be spilled into memory.
+    ///
+    /// The `assume_read` implementation of `*const T` and `*mut T` may not work
+    /// as expected if an `&mut T` reference to the same data exists somewhere,
+    /// because dereferencing the pointer in that situation would be undefined
+    /// behavior, which by definition does not exist in the eye of the compiler.
+    ///
+    fn assume_read(&self);
 }
 
 /// Optimization barriers for thin pointers and references
 ///
-/// Implemented only for &T, &mut T, *const T and *mut T where T: Sized.
+/// Implemented only for `&T`, `&mut T`, `*const T` and `*mut T` where `T: Sized`.
 ///
 pub trait UnoptimizeRef {
     /// Force the compiler to assume that any data transitively reachable via a
     /// pointer/reference has been read, and modified if Rust allows for it.
     ///
-    /// The compiler may or may not manage to infer that data which is only
-    /// reachable via an &-reference and does not have interior mutability
-    /// semantics cannot be modified.
+    /// The compiler is allowed to assume that data which is only reachable via
+    /// an &-reference and does not have interior mutability semantics cannot be
+    /// modified, so you should not expect this pattern to work:
     ///
-    /// You can use `(&mut x).assume_accessed(); x` as an alternative to
-    /// `black_box(x)` when x does not implement Unoptimize, at the cost of
-    /// forcing the spilling of x's contents to memory if they are currently
-    /// resident in CPU registers.
+    /// ```
+    /// let x = 42;
+    /// let r = &x;
+    /// r.assume_accessed();
+    /// // Compiler may still infer that x and *r are both 42 here
+    /// ```
+    ///
+    /// Instead, if you have a shared reference to something and need the
+    /// compiler to assume that it is a shared reference to something completely
+    /// different, use `black_box` to obscure the shared reference's target.
+    ///
+    /// ```
+    /// let x = 42;
+    /// let mut r = &x;
+    /// r = r.black_box();
+    /// // Compiler still knows that x is 42 but cannot infer that *r is 42 here
+    /// ```
+    ///
+    /// Similar considerations apply to the use of `assume_accessed` on a
+    /// `*const T` or `*mut T` in the presence of an `&mut T` to the same
+    /// target, where the compiler may or may not manage to infer that these
+    /// pointers cannot be used to read or modify their targets since that would
+    /// be undefined behavior.
     ///
     fn assume_accessed(&self);
-}
-
-/// Force the compiler to assume that a value, and data transitively
-/// reachable via that value, is being read by something.
-///
-/// Apply this barrier to unused computation results in order to prevent the
-/// compiler from optimizing out the associated computations.
-///
-#[inline(always)]
-pub fn assume_read<T: Unoptimize>(x: &T) {
-    x.assume_read()
 }
 
 /// Re-emit the input value as its output (identity function), but force the
 /// compiler to assume that it is a completely different value.
 ///
-/// If you want to re-do the exact same computation in a loop, pass its
-/// inputs through this barrier to prevent the compiler from optimizing out
-/// the redundant computations.
+/// If you want to re-do the exact same computation in a loop, you can pass
+/// its inputs through this barrier to prevent the compiler from optimizing
+/// out the redundant computations.
+///
+/// If you need a `black_box` alternative for a variable `x` that does not
+/// implement Unoptimize, you can use `*black_box(&x)`, at the cost of forcing
+/// all data reachable via x which is currently cached in registers to be
+/// spilled to memory and reloaded if needed later.
 ///
 #[inline(always)]
 pub fn black_box<T: Unoptimize>(x: T) -> T {
     x.black_box()
 }
 
+/// Force the compiler to assume that a value, and data transitively
+/// reachable via that value (for pointers/refs), is being used.
+///
+/// You can apply this barrier to unused computation results in order to
+/// prevent the compiler from optimizing out the associated computations.
+///
+/// If you need an `assume_read` alternative for a variable `x` that does not
+/// implement `Unoptimize`, you can use `assume_read(&x)`, at the cost of
+/// forcing any data from x which is currently cached in registers to be
+/// spilled into memory.
+///
+/// The `assume_read` implementation of `*const T` and `*mut T` may not work
+/// as expected if an `&mut T` reference to the same data exists somewhere,
+/// because dereferencing the pointer in that situation would be undefined
+/// behavior, which by definition does not exist in the eye of the compiler.
+///
+#[inline(always)]
+pub fn assume_read<T: Unoptimize>(x: &T) {
+    x.assume_read()
+}
+
 /// Force the compiler to assume that any data transitively reachable via a
-/// pointer or reference has been read, and modified if Rust allows for it.
+/// pointer/reference has been read, and modified if Rust allows for it.
 ///
-/// The compiler may or may not manage to infer that data which is only
-/// reachable via an &-reference and does not have interior mutability semantics
-/// cannot be modified.
+/// The compiler is allowed to assume that data which is only reachable via
+/// an &-reference and does not have interior mutability semantics cannot be
+/// modified, so you should not expect this pattern to work:
 ///
-/// You can use `assume_accessed(&mut x); x` as an alternative to `black_box(x)`
-/// when x does not implement Unoptimize, at the cost of forcing the spilling of
-/// x's contents to memory if they are currently resident in CPU registers.
+/// ```
+/// let x = 42;
+/// let r = &x;
+/// assume_accessed(r);
+/// // Compiler may still infer that x and *r are both 42 here
+/// ```
+///
+/// Instead, if you have a shared reference to something and need the
+/// compiler to assume that it is a shared reference to something completely
+/// different, use `black_box` to obscure the shared reference's target.
+///
+/// ```
+/// let x = 42;
+/// let mut r = &x;
+/// r = black_box(r);
+/// // Compiler still knows that x is 42 but cannot infer that *r is 42 here
+/// ```
+///
+/// Similar considerations apply to the use of `assume_accessed` on a `*const T`
+/// or `*mut T` in the presence of an `&mut T` to the same target, where the
+/// compiler may or may not manage to infer that these pointers cannot be used
+/// to read or modify their targets since that would be undefined behavior.
 ///
 #[inline(always)]
 pub fn assume_accessed<R: UnoptimizeRef>(r: &mut R) {
@@ -122,15 +198,15 @@ macro_rules! unoptimize_references {
         $(
             impl<'a, T: Sized> Unoptimize for $t {
                 #[inline(always)]
-                fn assume_read(&self) {
-                    (*self as *const T).assume_read()
-                }
-
-                #[inline(always)]
                 fn black_box(self) -> Self {
                     unsafe {
                         core::mem::transmute((self as *const T).black_box())
                     }
+                }
+
+                #[inline(always)]
+                fn assume_read(&self) {
+                    (*self as *const T).assume_read()
                 }
             }
 
