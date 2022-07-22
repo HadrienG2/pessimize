@@ -65,8 +65,9 @@ pub trait UnoptimizeRef {
     /// Force the compiler to assume that any data transitively reachable via a
     /// pointer/reference has been read, and modified if Rust allows for it.
     ///
-    /// The compiler will not assume modification of data which is reachable
-    /// via an &-reference and does not have interior mutability semantics.
+    /// The compiler may or may not manage to infer that data which is only
+    /// reachable via an &-reference and does not have interior mutability
+    /// semantics cannot be modified.
     ///
     /// You can use `(&mut x).assume_accessed(); x` as an alternative to
     /// `black_box(x)` when x does not implement Unoptimize, at the cost of
@@ -102,8 +103,9 @@ pub fn black_box<T: Unoptimize>(x: T) -> T {
 /// Force the compiler to assume that any data transitively reachable via a
 /// pointer or reference has been read, and modified if Rust allows for it.
 ///
-/// The compiler will not assume modification of data which is only reachable
-/// via an &-reference and does not have interior mutability semantics.
+/// The compiler may or may not manage to infer that data which is only
+/// reachable via an &-reference and does not have interior mutability semantics
+/// cannot be modified.
 ///
 /// You can use `assume_accessed(&mut x); x` as an alternative to `black_box(x)`
 /// when x does not implement Unoptimize, at the cost of forcing the spilling of

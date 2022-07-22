@@ -79,7 +79,8 @@ unoptimize_special_values!(xmm_reg, f32, f64);
 #[cfg(target_feature = "avx")]
 unoptimize_special_values!(ymm_reg, __m256, __m256d, __m256i);
 
-// TODO: Add nightly support for AVX-512 (including masks) and BF16
+// TODO: Add nightly support for AVX-512 (including masks, which will
+//       require an architecture-specific extension) and BF16 vectors
 // TODO: Add nightly support for portable_simd types
 
 // Implementation of Unoptimize and UnoptimizeRef for pointers
