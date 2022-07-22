@@ -112,6 +112,7 @@ pub trait PessimizeRef {
     /// modified, so you should not expect this pattern to work:
     ///
     /// ```
+    /// # use pessimize::PessimizeRef;
     /// let x = 42;
     /// let r = &x;
     /// r.assume_accessed();
@@ -123,6 +124,7 @@ pub trait PessimizeRef {
     /// different, use `hide` to obscure the shared reference's target.
     ///
     /// ```
+    /// # use pessimize::Pessimize;
     /// let x = 42;
     /// let mut r = &x;
     /// r = r.hide();
@@ -202,9 +204,10 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 /// modified, so you should not expect this pattern to work:
 ///
 /// ```
+/// # use pessimize::assume_accessed;
 /// let x = 42;
 /// let r = &x;
-/// assume_accessed(r);
+/// assume_accessed(&r);
 /// // Compiler may still infer that x and *r are both 42 here
 /// ```
 ///
@@ -213,6 +216,7 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 /// different, use `hide` to obscure the shared reference's target.
 ///
 /// ```
+/// # use pessimize::hide;
 /// let x = 42;
 /// let mut r = &x;
 /// r = hide(r);
@@ -225,7 +229,7 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 /// used to modify or read their targets where that would be undefined behavior.
 ///
 #[inline(always)]
-pub fn assume_accessed<R: PessimizeRef>(r: &mut R) {
+pub fn assume_accessed<R: PessimizeRef>(r: &R) {
     r.assume_accessed()
 }
 
