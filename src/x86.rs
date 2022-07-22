@@ -15,11 +15,12 @@ use target_arch::{__m256, __m256d, __m256i};
 macro_rules! pessimize_general_values {
     ($($t:ty),*) => {
         $(
+            #[allow(asm_sub_register)]
             impl Pessimize for $t {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
                     unsafe {
-                        asm!("/* {0:r} */", inout(reg) self, options(preserves_flags, nostack, nomem));
+                        asm!("/* {0} */", inout(reg) self, options(preserves_flags, nostack, nomem));
                     }
                     self
                 }
@@ -27,7 +28,7 @@ macro_rules! pessimize_general_values {
                 #[inline(always)]
                 fn assume_read(&self) {
                     unsafe {
-                        asm!("/* {0:r} */", in(reg) *self, options(preserves_flags, nostack, nomem))
+                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack, nomem))
                     }
                 }
             }
@@ -87,6 +88,7 @@ pessimize_other_values!(ymm_reg, __m256, __m256d, __m256i);
 macro_rules! pessimize_pointers {
     ($($t:ty),*) => {
         $(
+            #[allow(asm_sub_register)]
             impl<T: Sized> Pessimize for $t {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
@@ -99,16 +101,17 @@ macro_rules! pessimize_pointers {
                 #[inline(always)]
                 fn assume_read(&self) {
                     unsafe {
-                        asm!("/* {0:r} */", in(reg) *self, options(preserves_flags, nostack, readonly))
+                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack, readonly))
                     }
                 }
             }
 
+            #[allow(asm_sub_register)]
             impl<T: Sized> PessimizeRef for $t {
                 #[inline(always)]
                 fn assume_accessed(&self) {
                     unsafe {
-                        asm!("/* {0:r} */", in(reg) *self, options(preserves_flags, nostack))
+                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack))
                     }
                 }
             }
