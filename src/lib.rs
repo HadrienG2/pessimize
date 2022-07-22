@@ -31,6 +31,14 @@
 //! should strive to do what you want with `hide` if possible, and only
 //! reach for `assume_read` and `assume_accessed` where the extra expressive
 //! power of these primitives is truly needed.
+//!
+//! You should favor use of this crate over `core::hint::black_box`, or
+//! third party cousins thereof, because...
+//! - It works on stable Rust
+//! - It has a better-defined API contract with stronger guarantees (unlike
+//!   `black_box`, for which "do nothing" is a valid implementation).
+//! - It exposes finer-grained operations, which clarify your code's intent and
+//!   reduce harmful side-effects.
 
 #![cfg_attr(not(test), no_std)]
 #![deny(missing_docs)]
@@ -57,7 +65,7 @@ pub trait Pessimize {
     /// If you need a `hide` alternative for a variable `x` that does not
     /// implement `Pessimize`, you can use `*((&x).hide())`, at the cost
     /// of forcing all data reachable via `x` which is currently cached in
-    /// registers to be spilled to memory and reloaded if needed later.
+    /// registers to be spilled to memory and reloaded when needed later on.
     ///
     fn hide(self) -> Self;
 
@@ -78,6 +86,11 @@ pub trait Pessimize {
     /// because dereferencing the pointer in that situation would be undefined
     /// behavior, which by definition does not exist in the eye of the compiler.
     ///
+    /// For pointer types, this operation may sometimes be pessimized into a
+    /// full `assume_accessed()` optimization barrier, as a result of rustc not
+    /// leveraging the underlying `readonly` optimization hint. It is hoped that
+    /// future versions of rustc will take stronger notice of that hint.
+    ///
     fn assume_read(&self);
 }
 
@@ -88,6 +101,9 @@ pub trait Pessimize {
 pub trait PessimizeRef {
     /// Force the compiler to assume that any data transitively reachable via a
     /// pointer/reference has been read, and modified if Rust rules allow for it.
+    ///
+    /// This will cause all target data which is currently cached in registers
+    /// to be spilled to memory and reloaded when needed later on.
     ///
     /// The compiler is allowed to assume that data which is only reachable via
     /// an &-reference and does not have interior mutability semantics cannot be
@@ -130,7 +146,7 @@ pub trait PessimizeRef {
 /// If you need a `hide` alternative for a variable `x` that does not
 /// implement `Pessimize`, you can use `*hide(&x)`, at the cost of forcing
 /// all data reachable via x which is currently cached in registers to be
-/// spilled to memory and reloaded if needed later.
+/// spilled to memory and reloaded when needed later on.
 ///
 /// If you are familiar with the unstable `core::hint::black_box` function or
 /// analogs in benchmarking libraries like Criterion, please note that although
@@ -163,6 +179,11 @@ pub fn hide<T: Pessimize>(x: T) -> T {
 /// because dereferencing the pointer in that situation would be undefined
 /// behavior, which by definition does not exist in the eye of the compiler.
 ///
+/// For pointer types, this operation may sometimes be pessimized into a
+/// full `assume_accessed()` optimization barrier, as a result of rustc not
+/// leveraging the underlying `readonly` optimization hint. It is hoped that
+/// future versions of rustc will take stronger notice of that hint.
+///
 #[inline(always)]
 pub fn assume_read<T: Pessimize>(x: &T) {
     x.assume_read()
@@ -170,6 +191,9 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 
 /// Force the compiler to assume that any data transitively reachable via a
 /// pointer/reference has been read, and modified if Rust rules allow for it.
+///
+/// This will cause all target data which is currently cached in registers
+/// to be spilled to memory and reloaded when needed later on.
 ///
 /// The compiler is allowed to assume that data which is only reachable via
 /// an &-reference and does not have interior mutability semantics cannot be
