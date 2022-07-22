@@ -42,7 +42,7 @@ mod x86;
 // TODO: Add support for 32-bit ARM, AArch64 and RISC-V (check calling
 //       conventions to know where floats should be put)
 
-/// Optimization barriers with value semantics
+/// Optimization barriers for supported values
 ///
 /// Implemented for all the types described in the crate documentation
 ///
@@ -62,7 +62,8 @@ pub trait Unoptimize {
     fn black_box(self) -> Self;
 
     /// Force the compiler to assume that a value, and data transitively
-    /// reachable via that value (for pointers/refs), is being used.
+    /// reachable via that value (for pointers/refs), is being used if Rust
+    /// rules allow for it.
     ///
     /// You can apply this barrier to unused computation results in order to
     /// prevent the compiler from optimizing out the associated computations.
@@ -86,7 +87,7 @@ pub trait Unoptimize {
 ///
 pub trait UnoptimizeRef {
     /// Force the compiler to assume that any data transitively reachable via a
-    /// pointer/reference has been read, and modified if Rust allows for it.
+    /// pointer/reference has been read, and modified if Rust rules allow for it.
     ///
     /// The compiler is allowed to assume that data which is only reachable via
     /// an &-reference and does not have interior mutability semantics cannot be
@@ -111,10 +112,10 @@ pub trait UnoptimizeRef {
     /// ```
     ///
     /// Similar considerations apply to the use of `assume_accessed` on a
-    /// `*const T` or `*mut T` in the presence of an `&mut T` to the same
-    /// target, where the compiler may or may not manage to infer that these
-    /// pointers cannot be used to read or modify their targets since that would
-    /// be undefined behavior.
+    /// `*const T` or `*mut T` in the presence of an `&T` or `&mut T` to the
+    /// same target, where the compiler may or may not manage to infer that
+    /// these pointers cannot be used to modify or read their targets where that
+    /// would be undefined behavior.
     ///
     fn assume_accessed(&self);
 }
@@ -137,7 +138,8 @@ pub fn black_box<T: Unoptimize>(x: T) -> T {
 }
 
 /// Force the compiler to assume that a value, and data transitively
-/// reachable via that value (for pointers/refs), is being used.
+/// reachable via that value (for pointers/refs), is being used if Rust
+/// rules allow for it.
 ///
 /// You can apply this barrier to unused computation results in order to
 /// prevent the compiler from optimizing out the associated computations.
@@ -158,7 +160,7 @@ pub fn assume_read<T: Unoptimize>(x: &T) {
 }
 
 /// Force the compiler to assume that any data transitively reachable via a
-/// pointer/reference has been read, and modified if Rust allows for it.
+/// pointer/reference has been read, and modified if Rust rules allow for it.
 ///
 /// The compiler is allowed to assume that data which is only reachable via
 /// an &-reference and does not have interior mutability semantics cannot be
@@ -183,9 +185,9 @@ pub fn assume_read<T: Unoptimize>(x: &T) {
 /// ```
 ///
 /// Similar considerations apply to the use of `assume_accessed` on a `*const T`
-/// or `*mut T` in the presence of an `&mut T` to the same target, where the
-/// compiler may or may not manage to infer that these pointers cannot be used
-/// to read or modify their targets since that would be undefined behavior.
+/// or `*mut T` in the presence of an `&T` or `&mut T` to the same target, where
+/// the compiler may or may not manage to infer that these pointers cannot be
+/// used to modify or read their targets where that would be undefined behavior.
 ///
 #[inline(always)]
 pub fn assume_accessed<R: UnoptimizeRef>(r: &mut R) {
