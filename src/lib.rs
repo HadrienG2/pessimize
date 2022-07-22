@@ -19,23 +19,23 @@
 //! reference to an optimization barrier, at the cost of causing the value to
 //! be spilled to memory.
 //!
-//! For pointer-like entities, optimization barriers other than `black_box` will
+//! For pointer-like entities, optimization barriers other than `hide` will
 //! have the side-effect of causing the compiler to assume that global and
 //! thread-local variable might have been accessed using similar semantics as
 //! the pointer itself. This will reduce applicable compiler optimizations for
-//! such variables, so use of `black_box` should be preferred when global or
+//! such variables, so use of `hide` should be preferred when global or
 //! thread-local variables are used.
 //!
 //! In general, `assume_read` and `assume_accessed` can have more surprising
-//! behavior than `black_box` (see their documentation for details), so you
-//! should strive to do what you want with `black_box` if possible, and only
+//! behavior than `hide` (see their documentation for details), so you
+//! should strive to do what you want with `hide` if possible, and only
 //! reach for `assume_read` and `assume_accessed` where the extra expressive
 //! power of these primitives is truly needed.
 
 #![cfg_attr(not(test), no_std)]
 #![deny(missing_docs)]
 
-// Each architecture-specific module is tasked to implement Unoptimize for
+// Each architecture-specific module is tasked to implement Pessimize for
 // primitive integers and floats, raw pointers, and SIMD vector types.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod x86;
@@ -46,7 +46,7 @@ mod x86;
 ///
 /// Implemented for all the types described in the crate documentation
 ///
-pub trait Unoptimize {
+pub trait Pessimize {
     /// Re-emit the input value as its output (identity function), but force the
     /// compiler to assume that it is a completely different value.
     ///
@@ -54,12 +54,12 @@ pub trait Unoptimize {
     /// its inputs through this barrier to prevent the compiler from optimizing
     /// out the redundant computations.
     ///
-    /// If you need a `black_box` alternative for a variable `x` that does not
-    /// implement `Unoptimize`, you can use `*((&x).black_box())`, at the cost
+    /// If you need a `hide` alternative for a variable `x` that does not
+    /// implement `Pessimize`, you can use `*((&x).hide())`, at the cost
     /// of forcing all data reachable via `x` which is currently cached in
     /// registers to be spilled to memory and reloaded if needed later.
     ///
-    fn black_box(self) -> Self;
+    fn hide(self) -> Self;
 
     /// Force the compiler to assume that a value, and data transitively
     /// reachable via that value (for pointers/refs), is being used if Rust
@@ -69,7 +69,7 @@ pub trait Unoptimize {
     /// prevent the compiler from optimizing out the associated computations.
     ///
     /// If you need an `assume_read` alternative for a variable `x` that does
-    /// not implement `Unoptimize`, you can use `(&x).assume_read()`, at the
+    /// not implement `Pessimize`, you can use `(&x).assume_read()`, at the
     /// cost of forcing any data from `x` which is currently cached in registers
     /// to be spilled into memory.
     ///
@@ -85,7 +85,7 @@ pub trait Unoptimize {
 ///
 /// Implemented only for `&T`, `&mut T`, `*const T` and `*mut T` where `T: Sized`.
 ///
-pub trait UnoptimizeRef {
+pub trait PessimizeRef {
     /// Force the compiler to assume that any data transitively reachable via a
     /// pointer/reference has been read, and modified if Rust rules allow for it.
     ///
@@ -102,12 +102,12 @@ pub trait UnoptimizeRef {
     ///
     /// Instead, if you have a shared reference to something and need the
     /// compiler to assume that it is a shared reference to something completely
-    /// different, use `black_box` to obscure the shared reference's target.
+    /// different, use `hide` to obscure the shared reference's target.
     ///
     /// ```
     /// let x = 42;
     /// let mut r = &x;
-    /// r = r.black_box();
+    /// r = r.hide();
     /// // Compiler still knows that x is 42 but cannot infer that *r is 42 here
     /// ```
     ///
@@ -127,14 +127,23 @@ pub trait UnoptimizeRef {
 /// its inputs through this barrier to prevent the compiler from optimizing
 /// out the redundant computations.
 ///
-/// If you need a `black_box` alternative for a variable `x` that does not
-/// implement Unoptimize, you can use `*black_box(&x)`, at the cost of forcing
+/// If you need a `hide` alternative for a variable `x` that does not
+/// implement `Pessimize`, you can use `*hide(&x)`, at the cost of forcing
 /// all data reachable via x which is currently cached in registers to be
 /// spilled to memory and reloaded if needed later.
 ///
+/// If you are familiar with the unstable `core::hint::black_box` function or
+/// analogs in benchmarking libraries like Criterion, please note that although
+/// this function has a similar API signature, it does not have the same
+/// semantics and cannot be used as a direct replacement. For example,
+/// `black_box(&mut x)` should have the effect of `assume_accessed(&mut x)` in
+/// this crate's vocabulary, whereas `hide` does not enforce any compiler
+/// assumptions concerning the original value, it just turns it into another
+/// value that looks unrelated in the eye of the compiler.
+///
 #[inline(always)]
-pub fn black_box<T: Unoptimize>(x: T) -> T {
-    x.black_box()
+pub fn hide<T: Pessimize>(x: T) -> T {
+    x.hide()
 }
 
 /// Force the compiler to assume that a value, and data transitively
@@ -145,7 +154,7 @@ pub fn black_box<T: Unoptimize>(x: T) -> T {
 /// prevent the compiler from optimizing out the associated computations.
 ///
 /// If you need an `assume_read` alternative for a variable `x` that does not
-/// implement `Unoptimize`, you can use `assume_read(&x)`, at the cost of
+/// implement `Pessimize`, you can use `assume_read(&x)`, at the cost of
 /// forcing any data from x which is currently cached in registers to be
 /// spilled into memory.
 ///
@@ -155,7 +164,7 @@ pub fn black_box<T: Unoptimize>(x: T) -> T {
 /// behavior, which by definition does not exist in the eye of the compiler.
 ///
 #[inline(always)]
-pub fn assume_read<T: Unoptimize>(x: &T) {
+pub fn assume_read<T: Pessimize>(x: &T) {
     x.assume_read()
 }
 
@@ -175,12 +184,12 @@ pub fn assume_read<T: Unoptimize>(x: &T) {
 ///
 /// Instead, if you have a shared reference to something and need the
 /// compiler to assume that it is a shared reference to something completely
-/// different, use `black_box` to obscure the shared reference's target.
+/// different, use `hide` to obscure the shared reference's target.
 ///
 /// ```
 /// let x = 42;
 /// let mut r = &x;
-/// r = black_box(r);
+/// r = hide(r);
 /// // Compiler still knows that x is 42 but cannot infer that *r is 42 here
 /// ```
 ///
@@ -190,19 +199,19 @@ pub fn assume_read<T: Unoptimize>(x: &T) {
 /// used to modify or read their targets where that would be undefined behavior.
 ///
 #[inline(always)]
-pub fn assume_accessed<R: UnoptimizeRef>(r: &mut R) {
+pub fn assume_accessed<R: PessimizeRef>(r: &mut R) {
     r.assume_accessed()
 }
 
-// Implementation of Unoptimize and UnoptimizeRef for references
-macro_rules! unoptimize_references {
+// Implementation of Pessimize and PessimizeRef for references
+macro_rules! pessimize_references {
     ($($t:ty),*) => {
         $(
-            impl<'a, T: Sized> Unoptimize for $t {
+            impl<'a, T: Sized> Pessimize for $t {
                 #[inline(always)]
-                fn black_box(self) -> Self {
+                fn hide(self) -> Self {
                     unsafe {
-                        core::mem::transmute((self as *const T).black_box())
+                        core::mem::transmute((self as *const T).hide())
                     }
                 }
 
@@ -212,7 +221,7 @@ macro_rules! unoptimize_references {
                 }
             }
 
-            impl<'a, T: Sized> UnoptimizeRef for $t {
+            impl<'a, T: Sized> PessimizeRef for $t {
                 #[inline(always)]
                 fn assume_accessed(&self) {
                     (*self as *const T).assume_accessed()
@@ -222,7 +231,7 @@ macro_rules! unoptimize_references {
     };
 }
 //
-unoptimize_references!(&'a T, &'a mut T);
+pessimize_references!(&'a T, &'a mut T);
 
 // FIXME: Inspect effect on assembly, then add benchmark-like tests
 //        automatically testing the optimization inhibition effect
@@ -232,11 +241,11 @@ mod tests {
     use super::*;
     use std::fmt::Debug;
 
-    fn test_value(x: impl Unoptimize + Copy + Debug + PartialEq) {
+    fn test_value(x: impl Pessimize + Copy + Debug + PartialEq) {
         let old_x = x;
         x.assume_read();
         assert_eq!(x, old_x);
-        assert_eq!(super::black_box(x), old_x);
+        assert_eq!(super::hide(x), old_x);
     }
 
     #[test]
@@ -302,12 +311,12 @@ mod tests {
 
     const VALUE: usize = usize::MAX;
 
-    unsafe fn test_pointer(p: impl Unoptimize + UnoptimizeRef + UnsafeDeref<Target = usize>) {
+    unsafe fn test_pointer(p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = usize>) {
         p.assume_read();
         assert_eq!(*p.unsafe_deref(), VALUE);
         p.assume_accessed();
         assert_eq!(*p.unsafe_deref(), VALUE);
-        let p = super::black_box(p);
+        let p = super::hide(p);
         assert_eq!(*p.unsafe_deref(), VALUE);
     }
 
@@ -328,7 +337,7 @@ mod tests {
         assert_eq!(function(), VALUE);
         (&function).assume_accessed();
         assert_eq!(function(), VALUE);
-        let function2 = super::black_box(&function);
+        let function2 = super::hide(&function);
         assert_eq!(function2(), VALUE);
     }
 }

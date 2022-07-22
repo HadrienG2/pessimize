@@ -1,6 +1,6 @@
-//! Implementations of Unoptimize and UnoptimizeRef for x86 and x86_64
+//! Implementations of Pessimize and PessimizeRef for x86 and x86_64
 
-use super::{Unoptimize, UnoptimizeRef};
+use super::{Pessimize, PessimizeRef};
 use core::arch::asm;
 #[cfg(not(target_arch = "x86_64"))]
 use core::arch::x86 as target_arch;
@@ -11,13 +11,13 @@ use target_arch::{__m128, __m128d, __m128i};
 #[cfg(target_feature = "avx")]
 use target_arch::{__m256, __m256d, __m256i};
 
-// Implementation of Unoptimize for values that belong to a general-purpose register
-macro_rules! unoptimize_general_values {
+// Implementation of Pessimize for values that belong to a general-purpose register
+macro_rules! pessimize_general_values {
     ($($t:ty),*) => {
         $(
-            impl Unoptimize for $t {
+            impl Pessimize for $t {
                 #[inline(always)]
-                fn black_box(mut self) -> Self {
+                fn hide(mut self) -> Self {
                     unsafe {
                         asm!("/* {0:r} */", inout(reg) self, options(preserves_flags, nostack, nomem));
                     }
@@ -35,20 +35,20 @@ macro_rules! unoptimize_general_values {
     };
 }
 //
-unoptimize_general_values!(i16, u16, i32, u32, i64, u64, isize, usize);
+pessimize_general_values!(i16, u16, i32, u32, i64, u64, isize, usize);
 //
 // Most x86 calling conventions do not use XMM registers for FP values, so we
 // use a GP register for FP values on 32-bit x86 irrespective of SSE support.
 #[cfg(not(target = "x86_64"))]
-unoptimize_general_values!(f32, f64);
+pessimize_general_values!(f32, f64);
 
-// Implementation of Unoptimize for values that require use of special registers
-macro_rules! unoptimize_other_values {
+// Implementation of Pessimize for values that require use of special registers
+macro_rules! pessimize_other_values {
     ($reg:ident, $($t:ty),*) => {
         $(
-            impl Unoptimize for $t {
+            impl Pessimize for $t {
                 #[inline(always)]
-                fn black_box(mut self) -> Self {
+                fn hide(mut self) -> Self {
                     unsafe {
                         asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem));
                     }
@@ -66,30 +66,30 @@ macro_rules! unoptimize_other_values {
     };
 }
 //
-unoptimize_other_values!(reg_byte, i8, u8);
+pessimize_other_values!(reg_byte, i8, u8);
 //
 #[cfg(target_feature = "sse")]
-unoptimize_other_values!(xmm_reg, __m128, __m128d, __m128i);
+pessimize_other_values!(xmm_reg, __m128, __m128d, __m128i);
 //
 // x86_64 mandates SSE support and most x86_64 calling conventions use XMM
 // registers for FP values, so we an XMM register there.
 #[cfg(target = "x86_64")]
-unoptimize_other_values!(xmm_reg, f32, f64);
+pessimize_other_values!(xmm_reg, f32, f64);
 //
 #[cfg(target_feature = "avx")]
-unoptimize_other_values!(ymm_reg, __m256, __m256d, __m256i);
+pessimize_other_values!(ymm_reg, __m256, __m256d, __m256i);
 
 // TODO: Add nightly support for AVX-512 (including masks, which will
 //       require an architecture-specific extension) and BF16 vectors
 // TODO: Add nightly support for portable_simd types
 
-// Implementation of Unoptimize and UnoptimizeRef for pointers
-macro_rules! unoptimize_pointers {
+// Implementation of Pessimize and PessimizeRef for pointers
+macro_rules! pessimize_pointers {
     ($($t:ty),*) => {
         $(
-            impl<T: Sized> Unoptimize for $t {
+            impl<T: Sized> Pessimize for $t {
                 #[inline(always)]
-                fn black_box(mut self) -> Self {
+                fn hide(mut self) -> Self {
                     unsafe {
                         asm!("/* {0} */", inout(reg) self, options(preserves_flags, nostack, nomem));
                     }
@@ -104,7 +104,7 @@ macro_rules! unoptimize_pointers {
                 }
             }
 
-            impl<T: Sized> UnoptimizeRef for $t {
+            impl<T: Sized> PessimizeRef for $t {
                 #[inline(always)]
                 fn assume_accessed(&self) {
                     unsafe {
@@ -116,7 +116,7 @@ macro_rules! unoptimize_pointers {
     };
 }
 //
-unoptimize_pointers!(*const T, *mut T);
+pessimize_pointers!(*const T, *mut T);
 
 // TODO: Remember to also run CI in AVX mode
 #[cfg(test)]
@@ -141,7 +141,7 @@ mod tests {
             let x2 = x;
             x.assume_read();
             assert!(all_eq(x, x2));
-            assert!(all_eq(x.black_box(), x2));
+            assert!(all_eq(x.hide(), x2));
         };
 
         test(zeros);
@@ -168,7 +168,7 @@ mod tests {
             let x2 = x;
             x.assume_read();
             assert!(all_eq(x, x2));
-            assert!(all_eq(x.black_box(), x2));
+            assert!(all_eq(x.hide(), x2));
         };
 
         test(zeros);
