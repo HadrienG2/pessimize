@@ -1,6 +1,6 @@
-//! Implementations of Pessimize and PessimizeRef for x86 and x86_64
+//! Implementations of Pessimize for x86 and x86_64
 
-use super::{Pessimize, PessimizeRef};
+use super::Pessimize;
 use core::arch::asm;
 #[cfg(not(target_arch = "x86_64"))]
 use core::arch::x86 as target_arch;
@@ -36,21 +36,21 @@ macro_rules! pessimize_values {
     };
 }
 //
-pessimize_values!(reg, i16, u16, i32, u32, i64, u64, isize, usize);
-//
+pessimize_values!(reg, i16, u16, i32, u32, isize, usize);
 pessimize_values!(reg_byte, i8, u8);
+#[cfg(target_arch = "x86_64")]
+pessimize_values!(reg, i64, u64);
+//
+// Given that CPUs without SSE should now all be extinct and that compilers try
+// to use SSE whenever at all possible, we assume that float data should go
+// to SSE registers if possible and to GP registers otherwise (on old 32-bit).
+#[cfg(target_feature = "sse")]
+pessimize_values!(xmm_reg, f32, f64);
+#[cfg(not(target_feature = "sse"))]
+pessimize_values!(reg, f32);
 //
 #[cfg(target_feature = "sse")]
 pessimize_values!(xmm_reg, __m128, __m128d, __m128i);
-//
-// Most 32-bit x86 calling conventions do not use XMM registers for FP values,
-// so we use a GP register for FP values on 32-bit even if SSE is available.
-#[cfg(not(target = "x86_64"))]
-pessimize_values!(reg, f32, f64);
-// x86_64 mandates SSE support and most x86_64 calling conventions use XMM
-// registers for FP values, so use we an XMM register there.
-#[cfg(target = "x86_64")]
-pessimize_values!(xmm_reg, f32, f64);
 //
 #[cfg(target_feature = "avx")]
 pessimize_values!(ymm_reg, __m256, __m256d, __m256i);
@@ -59,44 +59,7 @@ pessimize_values!(ymm_reg, __m256, __m256d, __m256i);
 //       require an architecture-specific extension) and BF16 vectors
 // TODO: Add nightly support for portable_simd types
 
-// Implementation of Pessimize and PessimizeRef for pointers
-macro_rules! pessimize_pointers {
-    ($($t:ty),*) => {
-        $(
-            #[allow(asm_sub_register)]
-            impl<T: Sized> Pessimize for $t {
-                #[inline(always)]
-                fn hide(mut self) -> Self {
-                    unsafe {
-                        asm!("/* {0} */", inout(reg) self, options(preserves_flags, nostack, nomem));
-                    }
-                    self
-                }
-
-                #[inline(always)]
-                fn assume_read(&self) {
-                    unsafe {
-                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack, readonly))
-                    }
-                }
-            }
-
-            #[allow(asm_sub_register)]
-            impl<T: Sized> PessimizeRef for $t {
-                #[inline(always)]
-                fn assume_accessed(&self) {
-                    unsafe {
-                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack))
-                    }
-                }
-            }
-        )*
-    };
-}
-//
-pessimize_pointers!(*const T, *mut T);
-
-// TODO: Remember to also run CI in AVX mode
+// TODO: Remember to also run CI in AVX mode, and ideally in 32-bit mode too
 #[cfg(test)]
 mod tests {
     use super::*;

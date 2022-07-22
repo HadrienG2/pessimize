@@ -44,13 +44,15 @@
 #![deny(missing_docs)]
 
 // Each architecture-specific module is tasked to implement Pessimize for
-// primitive integers and floats, raw pointers, and SIMD vector types.
+// primitive integers and floats and SIMD vector types.
 #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
 mod arm;
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+mod riscv;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod x86;
-// TODO: Add support for 32-bit ARM, AArch64 and RISC-V (check calling
-//       conventions to know where floats should be put)
+
+use core::arch::asm;
 
 /// Optimization barriers for supported values
 ///
@@ -232,6 +234,43 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 pub fn assume_accessed<R: PessimizeRef>(r: &R) {
     r.assume_accessed()
 }
+
+// Implementation of Pessimize and PessimizeRef for pointers
+macro_rules! pessimize_pointers {
+    ($($t:ty),*) => {
+        $(
+            #[allow(asm_sub_register)]
+            impl<T: Sized> Pessimize for $t {
+                #[inline(always)]
+                fn hide(mut self) -> Self {
+                    unsafe {
+                        asm!("/* {0} */", inout(reg) self, options(preserves_flags, nostack, nomem));
+                    }
+                    self
+                }
+
+                #[inline(always)]
+                fn assume_read(&self) {
+                    unsafe {
+                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack, readonly))
+                    }
+                }
+            }
+
+            #[allow(asm_sub_register)]
+            impl<T: Sized> PessimizeRef for $t {
+                #[inline(always)]
+                fn assume_accessed(&self) {
+                    unsafe {
+                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack))
+                    }
+                }
+            }
+        )*
+    };
+}
+//
+pessimize_pointers!(*const T, *mut T);
 
 // Implementation of Pessimize and PessimizeRef for references
 macro_rules! pessimize_references {
