@@ -32,7 +32,7 @@
 //! reach for `assume_read` and `assume_accessed` where the extra expressive
 //! power of these primitives is truly needed.
 //!
-//! You should favor use of this crate over `core::hint::black_box`, or
+//! You should consider use of this crate over `core::hint::black_box`, or
 //! third party cousins thereof, because...
 //! - It works on stable Rust
 //! - It has a better-defined API contract with stronger guarantees (unlike
