@@ -101,20 +101,18 @@ mod safe_arch {
 // TODO: Remember to also run CI in AVX mode, AVX2, and ideally in 32-bit mode too
 #[cfg(test)]
 mod tests {
-    use crate::{tests::test_value, Pessimize};
+    use crate::{tests::test_value_type, Pessimize};
     use std::fmt::Debug;
 
     fn test_simd<
         Scalar: Copy + Default,
         const LANES: usize,
-        T: Copy + Debug + From<[Scalar; LANES]> + PartialEq + Pessimize,
+        T: Copy + Debug + Default + From<[Scalar; LANES]> + PartialEq + Pessimize,
     >(
         min: Scalar,
         max: Scalar,
     ) {
-        test_value(T::from([min; LANES]));
-        test_value(T::from([Scalar::default(); LANES]));
-        test_value(T::from([max; LANES]));
+        test_value_type(T::from([min; LANES]), T::from([max; LANES]));
     }
 
     #[cfg(target_feature = "sse")]

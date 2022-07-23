@@ -328,11 +328,8 @@ pub(crate) mod tests {
         assert_eq!(*super::hide(p).unsafe_deref(), expected_target);
     }
 
-    pub(crate) fn test_value(mut x: impl Pessimize + Copy + Debug + PartialEq) {
+    fn test_all_pointers(mut x: impl Copy + Debug + PartialEq) {
         let old_x = x.clone();
-        x.assume_read();
-        assert_eq!(x, old_x);
-        assert_eq!(super::hide(x), old_x);
         unsafe {
             test_pointer(&x as *const _, old_x);
             test_pointer(&mut x as *mut _, old_x);
@@ -341,7 +338,15 @@ pub(crate) mod tests {
         }
     }
 
-    fn test_primitive<T: Copy + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
+    fn test_value(x: impl Pessimize + Copy + Debug + PartialEq) {
+        let old_x = x.clone();
+        x.assume_read();
+        assert_eq!(x, old_x);
+        assert_eq!(super::hide(x), old_x);
+        test_all_pointers(x);
+    }
+
+    pub fn test_value_type<T: Copy + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
         test_value(min);
         test_value(T::default());
         test_value(max);
@@ -352,7 +357,7 @@ pub(crate) mod tests {
             $(
                 #[test]
                 fn $t() {
-                    test_primitive::<$t>($t::MIN, $t::MAX);
+                    test_value_type::<$t>($t::MIN, $t::MAX);
                 }
             )*
         };
@@ -378,6 +383,14 @@ pub(crate) mod tests {
         target_arch = "x86_64",
     ))]
     primitive_tests!(f64);
+
+    // Non-primitive value that can still be optimized out by reference
+    #[test]
+    fn non_native() {
+        test_all_pointers([isize::MIN; 1024]);
+        test_all_pointers([0; 1024]);
+        test_all_pointers([isize::MAX; 1024]);
+    }
 
     const MIN: isize = isize::MIN;
     fn min() -> isize {
