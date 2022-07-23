@@ -105,42 +105,45 @@ mod tests {
     use std::fmt::Debug;
 
     fn test_simd<
-        Scalar: Copy + From<i8>,
+        Scalar: Copy + Default + From<i8>,
         const LANES: usize,
         T: Clone + Debug + From<[Scalar; LANES]> + PartialEq + Pessimize,
-    >() {
+    >(
+        min: Scalar,
+        max: Scalar,
+    ) {
         let test_value = |v: T| {
             let v2 = v.clone();
             v.assume_read();
             assert_eq!(v, v2);
             assert_eq!(v.hide(), v2);
         };
-        test_value(T::from([i8::MIN.into(); LANES]));
-        test_value(T::from([0.into(); LANES]));
-        test_value(T::from([i8::MAX.into(); LANES]));
+        test_value(T::from([min; LANES]));
+        test_value(T::from([Scalar::default(); LANES]));
+        test_value(T::from([max; LANES]));
     }
 
     #[cfg(target_feature = "sse")]
     #[test]
     fn sse() {
         use safe_arch::{m128, m128d, m128i};
-        test_simd::<f32, 4, m128>();
-        test_simd::<f64, 2, m128d>();
-        test_simd::<i8, 16, m128i>();
+        test_simd::<f32, 4, m128>(f32::MIN, f32::MAX);
+        test_simd::<f64, 2, m128d>(f64::MIN, f64::MAX);
+        test_simd::<i8, 16, m128i>(i8::MIN, i8::MAX);
     }
 
     #[cfg(target_feature = "avx")]
     #[test]
     fn avx() {
         use safe_arch::{m256, m256d};
-        test_simd::<f32, 8, m256>();
-        test_simd::<f64, 4, m256d>();
+        test_simd::<f32, 8, m256>(f32::MIN, f32::MAX);
+        test_simd::<f64, 4, m256d>(f64::MIN, f64::MAX);
     }
 
     #[cfg(target_feature = "avx2")]
     #[test]
     fn avx2() {
         use safe_arch::m256i;
-        test_simd::<i8, 32, m256i>();
+        test_simd::<i8, 32, m256i>(i8::MIN, i8::MAX);
     }
 }
