@@ -313,15 +313,32 @@ pessimize_references!(&'a T, &'a mut T);
 //        automatically testing the optimization inhibition effect
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::fmt::Debug;
 
-    fn test_value(x: impl Pessimize + Copy + Debug + PartialEq) {
-        let old_x = x;
+    unsafe fn test_pointer<Value: Clone + Debug + PartialEq>(
+        p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = Value>,
+        expected_target: Value,
+    ) {
+        p.assume_read();
+        assert_eq!(*p.unsafe_deref(), expected_target);
+        p.assume_accessed();
+        assert_eq!(*p.unsafe_deref(), expected_target);
+        assert_eq!(*super::hide(p).unsafe_deref(), expected_target);
+    }
+
+    pub(crate) fn test_value(mut x: impl Pessimize + Copy + Debug + PartialEq) {
+        let old_x = x.clone();
         x.assume_read();
         assert_eq!(x, old_x);
         assert_eq!(super::hide(x), old_x);
+        unsafe {
+            test_pointer(&x as *const _, old_x);
+            test_pointer(&mut x as *mut _, old_x);
+            test_pointer(&x, old_x);
+            test_pointer(&mut x, old_x);
+        }
     }
 
     #[test]
@@ -352,6 +369,37 @@ mod tests {
         test_value(f64::MAX);
     }
 
+    const MIN: isize = isize::MIN;
+    fn min() -> isize {
+        MIN
+    }
+
+    const ZERO: isize = 0;
+    fn zero() -> isize {
+        ZERO
+    }
+
+    const MAX: isize = isize::MAX;
+    fn max() -> isize {
+        MAX
+    }
+
+    fn test_function_pointer(fptr: &impl Fn() -> isize, expected_result: isize) {
+        (fptr).assume_read();
+        assert_eq!(fptr(), expected_result);
+        (fptr).assume_accessed();
+        assert_eq!(fptr(), expected_result);
+        assert_eq!(super::hide(fptr)(), expected_result);
+    }
+
+    #[test]
+    fn function_pointer() {
+        test_function_pointer(&min, MIN);
+        test_function_pointer(&zero, ZERO);
+        test_function_pointer(&max, MAX);
+    }
+
+    // Abstraction layer to handle references and pointers homogeneously
     trait UnsafeDeref {
         type Target;
         unsafe fn unsafe_deref(&self) -> &Self::Target;
@@ -383,37 +431,5 @@ mod tests {
         unsafe fn unsafe_deref(&self) -> &Self::Target {
             &**self
         }
-    }
-
-    const VALUE: usize = usize::MAX;
-
-    unsafe fn test_pointer(p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = usize>) {
-        p.assume_read();
-        assert_eq!(*p.unsafe_deref(), VALUE);
-        p.assume_accessed();
-        assert_eq!(*p.unsafe_deref(), VALUE);
-        let p = super::hide(p);
-        assert_eq!(*p.unsafe_deref(), VALUE);
-    }
-
-    fn function() -> usize {
-        VALUE
-    }
-
-    #[test]
-    fn pointers() {
-        let mut value = VALUE;
-        unsafe {
-            test_pointer(&value as *const _);
-            test_pointer(&mut value as *mut _);
-            test_pointer(&value);
-            test_pointer(&mut value);
-        }
-        (&function).assume_read();
-        assert_eq!(function(), VALUE);
-        (&function).assume_accessed();
-        assert_eq!(function(), VALUE);
-        let function2 = super::hide(&function);
-        assert_eq!(function2(), VALUE);
     }
 }
