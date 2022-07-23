@@ -102,19 +102,13 @@ mod safe_arch {
 #[cfg(test)]
 mod tests {
     use crate::Pessimize;
-    use std::{
-        fmt::Debug,
-        ops::{BitAnd, Not},
-    };
+    use std::fmt::Debug;
 
     fn test_simd<
-        T: Clone + Default + Debug + BitAnd + Not<Output = T> + PartialEq + Pessimize,
         Scalar: Copy + From<i8>,
         const LANES: usize,
-    >()
-    where
-        T: From<[Scalar; LANES]>,
-    {
+        T: Clone + Debug + From<[Scalar; LANES]> + PartialEq + Pessimize,
+    >() {
         let test_value = |v: T| {
             let v2 = v.clone();
             v.assume_read();
@@ -130,23 +124,23 @@ mod tests {
     #[test]
     fn sse() {
         use safe_arch::{m128, m128d, m128i};
-        test_simd::<m128, f32, 4>();
-        test_simd::<m128d, f64, 2>();
-        test_simd::<m128i, i8, 16>();
+        test_simd::<f32, 4, m128>();
+        test_simd::<f64, 2, m128d>();
+        test_simd::<i8, 16, m128i>();
     }
 
     #[cfg(target_feature = "avx")]
     #[test]
     fn avx() {
         use safe_arch::{m256, m256d};
-        test_simd::<m256, f32, 8>();
-        test_simd::<m256d, f64, 4>();
+        test_simd::<f32, 8, m256>();
+        test_simd::<f64, 4, m256d>();
     }
 
     #[cfg(target_feature = "avx2")]
     #[test]
     fn avx2() {
         use safe_arch::m256i;
-        test_simd::<m256i, i8, 32>();
+        test_simd::<i8, 32, m256i>();
     }
 }
