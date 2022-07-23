@@ -327,9 +327,6 @@ macro_rules! pessimize_references {
 //
 pessimize_references!(&'a T, &'a mut T);
 
-// FIXME: Inspect effect on assembly, then add benchmark-like tests
-//        automatically testing the optimization inhibition effect
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
