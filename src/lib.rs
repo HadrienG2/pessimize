@@ -12,8 +12,12 @@
 //! - Primitive floats (f32 and f64)
 //! - Thin pointers and references (`&T`-like other than `&[T]` or `&dyn T`,
 //!   including function pointers)
-//! - SIMD vector types (with optional support for `safe_arch` and `std::simd`
+//! - SIMD vector types (with optional support for `safe_arch` and `core::simd`
 //!   via feature flags)
+//!
+//! Some legacy and embedded architectures will not support 64-bit primitive
+//! types. The rule of thumb is, if your target CPU can fit primitive type T in
+//! a single architectural register, then that type should implement Pessimize.
 //!
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
@@ -236,6 +240,20 @@ pub fn assume_accessed<R: PessimizeRef>(r: &R) {
     r.assume_accessed()
 }
 
+// Implementation of Pessimize for bool based on that for u8
+impl Pessimize for bool {
+    #[inline(always)]
+    fn hide(self) -> Self {
+        // This is safe because hide() returns the same u8, which is a valid bool
+        unsafe { core::mem::transmute((self as u8).hide()) }
+    }
+
+    #[inline(always)]
+    fn assume_read(&self) {
+        (*self as u8).assume_read()
+    }
+}
+
 // Implementation of Pessimize and PessimizeRef for pointers
 macro_rules! pessimize_pointers {
     ($($t:ty),*) => {
@@ -315,7 +333,13 @@ pessimize_references!(&'a T, &'a mut T);
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use std::fmt::Debug;
+    use std::{
+        fmt::Debug,
+        time::{Duration, Instant},
+    };
+
+    // === Tests asserting that the barriers don't modify anything ===
+    // ===    (should be run on both debug and release builds)     ===
 
     unsafe fn test_pointer<Value: Clone + Debug + PartialEq>(
         p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = Value>,
@@ -325,7 +349,7 @@ pub(crate) mod tests {
         assert_eq!(*p.unsafe_deref(), expected_target);
         p.assume_accessed();
         assert_eq!(*p.unsafe_deref(), expected_target);
-        assert_eq!(*super::hide(p).unsafe_deref(), expected_target);
+        assert_eq!(*(p.hide().unsafe_deref()), expected_target);
     }
 
     fn test_all_pointers(mut x: impl Copy + Debug + PartialEq) {
@@ -342,7 +366,7 @@ pub(crate) mod tests {
         let old_x = x.clone();
         x.assume_read();
         assert_eq!(x, old_x);
-        assert_eq!(super::hide(x), old_x);
+        assert_eq!(x.hide(), old_x);
         test_all_pointers(x);
     }
 
@@ -352,45 +376,168 @@ pub(crate) mod tests {
         test_value(max);
     }
 
+    // === Tests asserting that the barriers prevent optimization ===
+    // ===         (should only be run on release builds)         ===
+
+    // --- Basic harness ---
+
+    /// Maximum realistic operation processing frequency
+    /// This can be Nx higher than the clock rate on an N-way superscalar CPU
+    const MAX_PROCESSING_FREQ: u64 = 100_000_000_000;
+
+    /// Maximum expected clock granularity
+    /// The system clock is expected to always be able to measure this duration
+    const MIN_DURATION: Duration = Duration::from_millis(2);
+
+    /// Minimum number of loop iterations for which a duration greater than or
+    /// equal to MIN_DURATION should be measured
+    const MIN_ITERATIONS: u64 =
+        2 * MAX_PROCESSING_FREQ * MIN_DURATION.as_nanos() as u64 / 1_000_000_000;
+
+    fn assert_unoptimized(mut op: impl FnMut()) {
+        let start = Instant::now();
+        for _ in 0..MIN_ITERATIONS {
+            op();
+        }
+        assert!(start.elapsed() >= MIN_DURATION);
+    }
+
+    // --- Tests for values with native Pessimize support ---
+
+    fn test_unoptimized_eq<T: Copy + Default + PartialEq + Pessimize>() {
+        let x = T::default();
+        let y = T::default();
+        assert_unoptimized(|| (hide(x) == hide(y)).assume_read());
+    }
+    //
+    fn test_unoptimized_load_via_hide<T: Copy + Default + Pessimize>() {
+        let x = T::default();
+        let r = &x;
+        assert_unoptimized(|| (*hide(r)).assume_read());
+    }
+    //
+    fn test_unoptimized_load_via_assume_accessed<T: Copy + Default + Pessimize>() {
+        let mut x = T::default();
+        let r = &mut x;
+        assert_unoptimized(|| {
+            r.assume_accessed();
+            (*r).assume_read()
+        });
+    }
+    //
+    pub fn test_unoptimized_value<T: Copy + Default + PartialEq + Pessimize>() {
+        test_unoptimized_eq::<T>();
+        test_unoptimized_load_via_hide::<T>();
+        test_unoptimized_load_via_assume_accessed::<T>();
+    }
+
+    // === Generate a test suite for all primitive types ===
+
+    // --- Numeric types ---
+
     macro_rules! primitive_tests {
-        ($($t:ident),*) => {
+        ( $( ( $t:ident, $t_optim_test_name:ident ) ),* ) => {
             $(
+                // Basic test that can run in debug and release mode
                 #[test]
                 fn $t() {
                     test_value_type::<$t>($t::MIN, $t::MAX);
+                }
+
+                // Advanced test that only makes sense in release mode
+                #[test]
+                #[ignore]
+                fn $t_optim_test_name() {
+                    test_unoptimized_value::<$t>();
                 }
             )*
         };
     }
     //
-    primitive_tests!(i8, u8, i16, u16, i32, u32, isize, usize, f32);
+    primitive_tests!(
+        (i8, i8_optim),
+        (u8, u8_optim),
+        (i16, i16_optim),
+        (u16, u16_optim),
+        (i32, i32_optim),
+        (u32, u32_optim),
+        (isize, isize_optim),
+        (usize, usize_optim),
+        (f32, f32_optim)
+    );
     //
     #[cfg(any(
         target_arch = "aarch64",
         all(target_arch = "arm", target_feature = "vfp2"),
         target_arch = "riscv64",
-        all(target_arch = "x86", target_feature = "sse"),
+        all(target_arch = "x86", target_feature = "sse2"),
         target_arch = "x86_64",
     ))]
-    primitive_tests!(i64, u64);
+    primitive_tests!((i64, i64_optim), (u64, u64_optim));
     //
     #[cfg(any(
         target_arch = "aarch64",
         all(target_arch = "arm", target_feature = "vfp2"),
         all(target_arch = "riscv32", target_feature = "d"),
         target_arch = "riscv64",
-        all(target_arch = "x86", target_feature = "sse"),
+        all(target_arch = "x86", target_feature = "sse2"),
         target_arch = "x86_64",
     ))]
-    primitive_tests!(f64);
+    primitive_tests!((f64, f64_optim));
 
-    // Non-primitive value that can still be optimized out by reference
+    // --- bool ---
+
+    // Basic test that can run in debug and release mode
+    #[test]
+    fn bool() {
+        test_value_type::<bool>(false, true);
+    }
+
+    // Advanced test that only makes sense in release mode
+    #[test]
+    #[ignore]
+    fn bool_optim() {
+        test_unoptimized_value::<bool>();
+    }
+
+    // === Test suite for types that only implement Pessimize by reference ===
+
+    // --- Array too big to fit in a register ---
+
+    // What is considered too big (in units of isize)
+    const BIG: usize = 32;
+
+    // Should be run on both debug and release builds
     #[test]
     fn non_native() {
-        test_all_pointers([isize::MIN; 1024]);
+        test_all_pointers([isize::MIN; BIG]);
         test_all_pointers([0; 1024]);
-        test_all_pointers([isize::MAX; 1024]);
+        test_all_pointers([isize::MAX; BIG]);
     }
+
+    // Should only be run on release builds
+    #[test]
+    #[ignore]
+    fn non_native_optim() {
+        // Copy optimization inhibition using hide
+        let src = [0isize; BIG];
+        let mut dst = [0isize; BIG];
+        assert_unoptimized(|| {
+            dst = *hide(&src);
+            (&dst).assume_read();
+        });
+
+        // Copy optimization inhibition using assume_accessed
+        let mut src = [0isize; BIG];
+        let mut dst = [0isize; BIG];
+        assert_unoptimized(|| {
+            (&mut src).assume_accessed();
+            dst = src;
+            (&dst).assume_read();
+        });
+    }
+
+    // --- Function pointers ---
 
     const MIN: isize = isize::MIN;
     fn min() -> isize {
@@ -415,12 +562,31 @@ pub(crate) mod tests {
         assert_eq!(super::hide(fptr)(), expected_result);
     }
 
+    fn test_function_pointer_optim(fptr: &impl Fn() -> isize) {
+        assert_unoptimized(|| {
+            let new_fptr = hide(fptr);
+            new_fptr().assume_read()
+        })
+    }
+
+    // Should be run on both debug and release builds
     #[test]
     fn function_pointer() {
         test_function_pointer(&min, MIN);
         test_function_pointer(&zero, ZERO);
         test_function_pointer(&max, MAX);
     }
+
+    // Should only be run on release builds
+    #[test]
+    #[ignore]
+    fn function_pointer_optim() {
+        test_function_pointer_optim(&min);
+        test_function_pointer_optim(&zero);
+        test_function_pointer_optim(&max);
+    }
+
+    // === Uninteresting helpers ===
 
     // Abstraction layer to handle references and pointers homogeneously
     trait UnsafeDeref {
