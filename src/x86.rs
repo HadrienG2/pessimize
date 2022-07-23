@@ -105,7 +105,7 @@ mod tests {
     use std::fmt::Debug;
 
     fn test_simd<
-        Scalar: Copy + Default + From<i8>,
+        Scalar: Copy + Default,
         const LANES: usize,
         T: Copy + Debug + From<[Scalar; LANES]> + PartialEq + Pessimize,
     >(

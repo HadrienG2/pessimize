@@ -341,33 +341,43 @@ pub(crate) mod tests {
         }
     }
 
-    #[test]
-    fn values() {
-        test_value(i8::MIN);
-        test_value(i8::MAX);
-        test_value(u8::MIN);
-        test_value(u8::MAX);
-        test_value(i16::MIN);
-        test_value(i16::MAX);
-        test_value(u16::MIN);
-        test_value(u16::MAX);
-        test_value(i32::MIN);
-        test_value(i32::MAX);
-        test_value(u32::MIN);
-        test_value(u32::MAX);
-        test_value(i64::MIN);
-        test_value(i64::MAX);
-        test_value(u64::MIN);
-        test_value(u64::MAX);
-        test_value(isize::MIN);
-        test_value(isize::MAX);
-        test_value(usize::MIN);
-        test_value(usize::MAX);
-        test_value(f32::MIN);
-        test_value(f32::MAX);
-        test_value(f64::MIN);
-        test_value(f64::MAX);
+    fn test_primitive<T: Copy + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
+        test_value(min);
+        test_value(T::default());
+        test_value(max);
     }
+
+    macro_rules! primitive_tests {
+        ($($t:ident),*) => {
+            $(
+                #[test]
+                fn $t() {
+                    test_primitive::<$t>($t::MIN, $t::MAX);
+                }
+            )*
+        };
+    }
+    //
+    primitive_tests!(i8, u8, i16, u16, i32, u32, isize, usize, f32);
+    //
+    #[cfg(any(
+        target_arch = "aarch64",
+        all(target_arch = "arm", target_feature = "vfp2"),
+        target_arch = "riscv64",
+        all(target_arch = "x86", target_feature = "sse"),
+        target_arch = "x86_64",
+    ))]
+    primitive_tests!(i64, u64);
+    //
+    #[cfg(any(
+        target_arch = "aarch64",
+        all(target_arch = "arm", target_feature = "vfp2"),
+        all(target_arch = "riscv32", target_feature = "d"),
+        target_arch = "riscv64",
+        all(target_arch = "x86", target_feature = "sse"),
+        target_arch = "x86_64",
+    ))]
+    primitive_tests!(f64);
 
     const MIN: isize = isize::MIN;
     fn min() -> isize {
