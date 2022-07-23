@@ -60,64 +60,93 @@ pessimize_values!(xmm_reg, __m128, __m128d, __m128i);
 #[cfg(target_feature = "avx")]
 pessimize_values!(ymm_reg, __m256, __m256d, __m256i);
 
+// Support safe_arch types if enabled
+#[cfg(any(feature = "safe_arch", test))]
+mod safe_arch {
+    use crate::Pessimize;
+    #[cfg(target_feature = "sse")]
+    use safe_arch::{m128, m128d, m128i};
+    #[cfg(target_feature = "avx")]
+    use safe_arch::{m256, m256d, m256i};
+
+    macro_rules! pessimize_safe_arch {
+        ($($t:ty),*) => {
+            $(
+                impl Pessimize for $t {
+                    #[inline(always)]
+                    fn hide(self) -> Self {
+                        Self(self.0.hide())
+                    }
+
+                    #[inline(always)]
+                    fn assume_read(&self) {
+                        self.0.assume_read()
+                    }
+                }
+            )*
+        };
+    }
+
+    #[cfg(target_feature = "sse")]
+    pessimize_safe_arch!(m128, m128d, m128i);
+
+    #[cfg(target_feature = "avx")]
+    pessimize_safe_arch!(m256, m256d, m256i);
+}
+
 // TODO: Add nightly support for AVX-512 (including masks, which will
 //       require an architecture-specific extension) and BF16 vectors
 // TODO: Add nightly support for portable_simd types
 
-// TODO: Remember to also run CI in AVX mode, and ideally in 32-bit mode too
+// TODO: Remember to also run CI in AVX mode, AVX2, and ideally in 32-bit mode too
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::Pessimize;
+    use std::{
+        fmt::Debug,
+        ops::{BitAnd, Not},
+    };
+
+    fn test_simd<
+        T: Clone + Default + Debug + BitAnd + Not<Output = T> + PartialEq + Pessimize,
+        Scalar: Copy + From<i8>,
+        const LANES: usize,
+    >()
+    where
+        T: From<[Scalar; LANES]>,
+    {
+        let test_value = |v: T| {
+            let v2 = v.clone();
+            v.assume_read();
+            assert_eq!(v, v2);
+            assert_eq!(v.hide(), v2);
+        };
+        test_value(T::from([i8::MIN.into(); LANES]));
+        test_value(T::from([0.into(); LANES]));
+        test_value(T::from([i8::MAX.into(); LANES]));
+    }
 
     #[cfg(target_feature = "sse")]
     #[test]
-    fn xmm() {
-        use target_arch::{_mm_andnot_si128, _mm_cmpeq_epi8, _mm_movemask_epi8, _mm_setzero_si128};
-
-        let zeros = unsafe { _mm_setzero_si128() };
-        let ones = unsafe { _mm_andnot_si128(zeros, zeros) };
-        let all_eq = |x, y| unsafe {
-            let cmp = _mm_cmpeq_epi8(x, y);
-            _mm_movemask_epi8(cmp) == 0xFFFF
-        };
-        assert!(all_eq(zeros, zeros));
-        assert!(all_eq(ones, zeros));
-
-        let test = |x: __m128i| {
-            let x2 = x;
-            x.assume_read();
-            assert!(all_eq(x, x2));
-            assert!(all_eq(x.hide(), x2));
-        };
-
-        test(zeros);
-        test(ones);
+    fn sse() {
+        use safe_arch::{m128, m128d, m128i};
+        test_simd::<m128, f32, 4>();
+        test_simd::<m128d, f64, 2>();
+        test_simd::<m128i, i8, 16>();
     }
 
     #[cfg(target_feature = "avx")]
     #[test]
-    fn ymm() {
-        use target_arch::{
-            _mm256_andnot_si256, _mm256_cmpeq_epi8, _mm256_movemask_epi8, _mm256_setzero_si256,
-        };
+    fn avx() {
+        use safe_arch::{m256, m256d};
+        test_simd::<m256, f32, 8>();
+        test_simd::<m256d, f64, 4>();
+    }
 
-        let zeros = unsafe { _mm256_setzero_si256() };
-        let ones = unsafe { _mm256_andnot_si256(zeros, zeros) };
-        let all_eq = |x, y| unsafe {
-            let cmp = _mm256_cmpeq_epi8(x, y);
-            _mm256_movemask_epi8(cmp) == !0
-        };
-        assert!(all_eq(zeros, zeros));
-        assert!(all_eq(ones, zeros));
-
-        let test = |x: __m256i| {
-            let x2 = x;
-            x.assume_read();
-            assert!(all_eq(x, x2));
-            assert!(all_eq(x.hide(), x2));
-        };
-
-        test(zeros);
-        test(ones);
+    #[cfg(target_feature = "avx2")]
+    #[test]
+    fn avx2() {
+        use safe_arch::m256i;
+        test_simd::<m256i, i8, 32>();
     }
 }

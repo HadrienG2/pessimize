@@ -12,7 +12,8 @@
 //! - Primitive floats (f32 and f64)
 //! - Thin pointers and references (`&T`-like other than `&[T]` or `&dyn T`,
 //!   including function pointers)
-//! - SIMD vector types (with support for `std::simd` on nightly)
+//! - SIMD vector types (with optional support for `safe_arch` and `std::simd`
+//!   via feature flags)
 //!
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
@@ -44,7 +45,7 @@
 #![deny(missing_docs)]
 
 // Each architecture-specific module is tasked to implement Pessimize for
-// primitive integers and floats and SIMD vector types.
+// primitive integers, floats and SIMD vector types.
 #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
 mod arm;
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
@@ -280,6 +281,12 @@ macro_rules! pessimize_references {
                 #[inline(always)]
                 fn hide(self) -> Self {
                     unsafe {
+                        // While this may sound like a questionable operation
+                        // for &mut T, as it may lead to the transient existence
+                        // of two &mut to the same data, it is actually not UB
+                        // according to the current Unsafe Code Guidelines
+                        // consensus, which is that **using** the two
+                        // coexisting references is what causes UB.
                         core::mem::transmute((self as *const T).hide())
                     }
                 }
