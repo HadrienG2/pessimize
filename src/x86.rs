@@ -2,6 +2,7 @@
 
 use super::Pessimize;
 use core::arch::asm;
+#[allow(unused)]
 #[cfg(not(target_arch = "x86_64"))]
 use core::arch::x86 as target_arch;
 #[cfg(target_arch = "x86_64")]
@@ -52,17 +53,15 @@ pessimize_values!(xmm_reg, i64, u64);
 //
 // Given that CPUs without SSE should now all be extinct and that compilers try
 // to use SSE whenever at all possible, we assume that float data should go
-// to SSE registers if possible and to the x87 stack otherwise (on old 32-bit).
+// to SSE registers if possible and to GP registers otherwise (on old 32-bit).
 #[cfg(target_feature = "sse")]
 pessimize_values!(xmm_reg, f32);
 #[cfg(not(target_feature = "sse"))]
-pessimize_values!(st, f32);
+pessimize_values!(reg, f32);
 //
 // Ditto for double precision, but we need SSE2 for that
 #[cfg(target_feature = "sse2")]
 pessimize_values!(xmm_reg, f64);
-#[cfg(not(target_feature = "sse2"))]
-pessimize_values!(st, f64);
 //
 #[cfg(target_feature = "sse")]
 pessimize_values!(xmm_reg, __m128);
@@ -82,6 +81,7 @@ pessimize_values!(ymm_reg, __m256i);
 // Support safe_arch types if enabled
 #[cfg(any(feature = "safe_arch", test))]
 mod safe_arch {
+    #[allow(unused)]
     use crate::Pessimize;
     #[cfg(target_feature = "sse")]
     use safe_arch::m128;
@@ -92,6 +92,7 @@ mod safe_arch {
     #[cfg(target_feature = "avx")]
     use safe_arch::{m256, m256d};
 
+    #[allow(unused)]
     macro_rules! pessimize_safe_arch {
         ($($t:ty),*) => {
             $(
@@ -125,15 +126,16 @@ mod safe_arch {
 
 // TODO: Add nightly support for portable_simd types
 
-// TODO: Remember to also run CI in AVX mode, AVX2, and ideally in 32-bit mode too
 #[cfg(test)]
 mod tests {
+    #[allow(unused)]
     use crate::{
         tests::{test_unoptimized_value, test_value_type},
         Pessimize,
     };
     use std::fmt::Debug;
 
+    #[allow(unused)]
     fn test_simd<
         Scalar: Copy + Default,
         const LANES: usize,

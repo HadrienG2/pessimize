@@ -1,16 +1,15 @@
 //! Implementations of Pessimize for arm and aarch64
 
 use super::Pessimize;
-#[cfg(target_arch = "aarch64")]
-use core::arch::aarch64 as target_arch;
-use core::arch::asm;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-use target_arch::{float64x1_t, float64x2_t};
+use core::arch::aarch64::{float64x1_t, float64x2_t};
+use core::arch::asm;
 
 // Implementation of Pessimize for values without pointer semantics
 macro_rules! pessimize_values {
     ($reg:ident, $($t:ty),*) => {
         $(
+            #[allow(asm_sub_register)]
             impl Pessimize for $t {
                 #[inline(always)]
                 fn hide(mut self) -> Self {

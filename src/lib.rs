@@ -327,6 +327,8 @@ macro_rules! pessimize_references {
 //
 pessimize_references!(&'a T, &'a mut T);
 
+// TODO: Set up CI in the spirit of test-everything.sh
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
