@@ -370,10 +370,22 @@ pub(crate) mod tests {
         test_all_pointers(x);
     }
 
-    pub fn test_value_type<T: Copy + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
+    fn test_value_type<T: Copy + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
         test_value(min);
         test_value(T::default());
         test_value(max);
+    }
+
+    #[allow(unused)]
+    pub fn test_simd<
+        Scalar: Copy + Default,
+        const LANES: usize,
+        T: Copy + Debug + Default + From<[Scalar; LANES]> + PartialEq + Pessimize,
+    >(
+        min: Scalar,
+        max: Scalar,
+    ) {
+        test_value_type(T::from([min; LANES]), T::from([max; LANES]));
     }
 
     // === Tests asserting that the barriers prevent optimization ===

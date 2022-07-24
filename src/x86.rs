@@ -188,22 +188,9 @@ mod safe_arch {
 mod tests {
     #[allow(unused)]
     use crate::{
-        tests::{test_unoptimized_value, test_value_type},
+        tests::{test_simd, test_unoptimized_value},
         Pessimize,
     };
-    use std::fmt::Debug;
-
-    #[allow(unused)]
-    fn test_simd<
-        Scalar: Copy + Default,
-        const LANES: usize,
-        T: Copy + Debug + Default + From<[Scalar; LANES]> + PartialEq + Pessimize,
-    >(
-        min: Scalar,
-        max: Scalar,
-    ) {
-        test_value_type(T::from([min; LANES]), T::from([max; LANES]));
-    }
 
     #[cfg(target_feature = "sse")]
     #[test]

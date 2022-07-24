@@ -62,22 +62,10 @@ pessimize_values!(vreg, float64x1_t, float64x2_t);
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused)]
     use super::*;
     #[allow(unused)]
-    use crate::tests::{test_unoptimized_value, test_value_type};
-    use std::fmt::Debug;
-
-    #[allow(unused)]
-    fn test_simd<
-        Scalar: Copy + Default,
-        const LANES: usize,
-        T: Copy + Debug + Default + From<[Scalar; LANES]> + PartialEq + Pessimize,
-    >(
-        min: Scalar,
-        max: Scalar,
-    ) {
-        test_value_type(T::from([min; LANES]), T::from([max; LANES]));
-    }
+    use crate::tests::{test_simd, test_unoptimized_value};
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
     mod neon {
