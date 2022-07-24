@@ -7,9 +7,10 @@ use core::arch::asm;
 
 // Implementation of Pessimize for values without pointer semantics
 macro_rules! pessimize_values {
-    ($reg:ident, $($t:ty),*) => {
+    ($m:meta { $reg:ident: ($($t:ty),*) }) => {
         $(
             #[allow(asm_sub_register)]
+            #[$m]
             impl Pessimize for $t {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
@@ -30,35 +31,41 @@ macro_rules! pessimize_values {
     };
 }
 //
-pessimize_values!(reg, i8, u8, i16, u16, i32, u32, isize, usize);
+pessimize_values!(allow(missing_docs) { reg: (i8, u8, i16, u16, i32, u32, isize, usize) });
 //
 // 64-bit values normally go to GP registers on aarch64, but since 32-bit has
 // no 64-bit GP registers, we try to use dreg instead if available
 #[cfg(target_arch = "aarch64")]
-pessimize_values!(reg, i64, u64);
-#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "vfp2")))]
-#[cfg(all(not(target_arch = "aarch64"), any(target_feature = "vfp2", doc)))]
-pessimize_values!(dreg, i64, u64);
+pessimize_values!(allow(missing_docs) { reg: (i64, u64) });
+#[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
+pessimize_values!(
+    cfg_attr(feature = "nightly", doc(cfg(target_feature = "vfp2")))
+    { dreg: (i64, u64) }
+);
 //
 // On AArch64 with NEON, using NEON registers for f32 and f64 is standard
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-pessimize_values!(vreg, f32, f64);
+pessimize_values!(allow(missing_docs) { vreg: (f32, f64) });
 // On AArch64 without NEON, f32 and f64 are passed via GP registers instead
 #[cfg(all(target_arch = "aarch64", not(target_feature = "neon"), not(doc)))]
-pessimize_values!(reg, f32, f64);
+pessimize_values!(allow(missing_docs) { reg: (f32, f64) });
 // On 32-bit ARM with VFP2, using sregs and dregs for f32 and f64 is standard
-#[cfg(all(not(target_arch = "aarch64"), any(target_feature = "vfp2", doc)))]
-pessimize_values!(sreg, f32);
-#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "vfp2")))]
-#[cfg(all(not(target_arch = "aarch64"), any(target_feature = "vfp2", doc)))]
-pessimize_values!(dreg, f64);
+#[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
+pessimize_values!(allow(missing_docs) { sreg: (f32) });
+#[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
+pessimize_values!(
+    cfg_attr(feature = "nightly", doc(cfg(target_feature = "vfp2")))
+    { dreg: (f64) }
+);
 // On 32-bit ARM without VFP2, f32 is passed via GP registers
-#[cfg(all(not(target_arch = "aarch64"), not(target_feature = "vfp2"), not(doc)))]
-pessimize_values!(reg, f32);
+#[cfg(all(target_arch = "arm", not(target_feature = "vfp2"), not(doc)))]
+pessimize_values!(allow(missing_docs) { reg: (f32) });
 //
-#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "neon")))]
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-pessimize_values!(vreg, float64x1_t, float64x2_t);
+pessimize_values!(
+    cfg_attr(feature = "nightly", doc(cfg(target_feature = "neon")))
+    { vreg: (float64x1_t, float64x2_t) }
+);
 
 // TODO: Add nightly support for SIMD types which are currently gated by stdsimd
 // TODO: Add nightly support for portable_simd types
