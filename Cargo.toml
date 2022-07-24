@@ -13,3 +13,19 @@ safe_arch = { version = "0.6", optional = true }
 
 [dev-dependencies]
 safe_arch = "0.6"
+
+[package.metadata.docs.rs]
+# This makes docs.rs build with all features enabled and
+# also it will indicate what fn needs what cpu feature.
+rustdoc-args = [
+    "-C", "target-feature=sse",
+    "-C", "target-feature=sse2",
+    "-C", "target-feature=avx",
+    "-C", "target-feature=avx2",
+    "-C", "target-feature=avx512f",
+    "-C", "target-feature=avx512bw",
+    "-C", "target-feature=avx512vl",
+    "-C", "target-feature=bf16",
+    "--cfg", "docs_rs"
+]
+all-features = true
