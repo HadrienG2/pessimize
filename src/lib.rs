@@ -361,7 +361,7 @@ pub(crate) mod tests {
         }
     }
 
-    fn test_value(x: impl Pessimize + Copy + Debug + PartialEq) {
+    fn test_value(x: impl Copy + Debug + PartialEq + Pessimize) {
         let old_x = x.clone();
         x.assume_read();
         assert_eq!(x, old_x);

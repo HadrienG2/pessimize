@@ -60,4 +60,86 @@ pessimize_values!(vreg, float64x1_t, float64x2_t);
 // TODO: Add nightly support for SIMD types which are currently gated by stdsimd
 // TODO: Add nightly support for portable_simd types
 
-// FIXME: Add tests in the same spirit as the x86 ones
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[allow(unused)]
+    use crate::tests::{test_unoptimized_value, test_value_type};
+    use std::fmt::Debug;
+
+    #[allow(unused)]
+    fn test_simd<
+        Scalar: Copy + Default,
+        const LANES: usize,
+        T: Copy + Debug + Default + From<[Scalar; LANES]> + PartialEq + Pessimize,
+    >(
+        min: Scalar,
+        max: Scalar,
+    ) {
+        test_value_type(T::from([min; LANES]), T::from([max; LANES]));
+    }
+
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+    mod neon {
+        use super::*;
+        use core::arch::aarch64;
+
+        #[test]
+        fn neon() {
+            test_simd::<f64, 1, F64x1>(f64::MIN, f64::MAX);
+            test_simd::<f64, 2, F64x2>(f64::MIN, f64::MAX);
+        }
+
+        #[test]
+        #[ignore]
+        fn neon_optim() {
+            test_unoptimized_value::<F64x1>();
+            test_unoptimized_value::<F64x2>();
+        }
+
+        // Minimal NEON abstraction layer to be able to reuse main tests
+        macro_rules! abstract_float64xN_t {
+            ($name:ident, $inner:ty, $lanes:expr, $load:ident, $store:ident) => {
+                #[derive(Clone, Copy, Debug)]
+                struct $name($inner);
+
+                impl From<[f64; $lanes]> for $name {
+                    fn from(x: [f64; $lanes]) -> Self {
+                        Self(unsafe { aarch64::$load(&x as *const [f64; $lanes] as *const f64) })
+                    }
+                }
+
+                impl Default for $name {
+                    fn default() -> Self {
+                        Self::from([0.0; $lanes])
+                    }
+                }
+
+                impl PartialEq for $name {
+                    fn eq(&self, other: &Self) -> bool {
+                        let value = |x: &Self| -> [f64; $lanes] {
+                            let mut result = [0.0; $lanes];
+                            unsafe {
+                                aarch64::$store(&mut result as *mut [f64; $lanes] as *mut f64, x.0)
+                            }
+                            result
+                        };
+                        value(self) == value(other)
+                    }
+                }
+
+                impl Pessimize for $name {
+                    fn hide(self) -> Self {
+                        Self(self.0.hide())
+                    }
+
+                    fn assume_read(&self) {
+                        self.0.assume_read()
+                    }
+                }
+            };
+        }
+        abstract_float64xN_t!(F64x1, float64x1_t, 1, vld1_f64, vst1_f64);
+        abstract_float64xN_t!(F64x2, float64x2_t, 2, vld1q_f64, vst1q_f64);
+    }
+}
