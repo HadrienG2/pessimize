@@ -4,18 +4,23 @@ set -euo pipefail
 ### CROSS-COMPILED PLATFORMS ###
 # TODO: Try to run tests via qemu
 
+# Arguments: target rustflags extra_features +nightly
 function cross_build_base() {
-    command="cargo $3 build --tests --target=$1"
+    command="cargo $4 build --tests --target=$1 --features=safe_arch$3"
+    printf "\nRUSTFLAGS=\"$2\" $command\n"
+    RUSTFLAGS=\"$2\" $($command)
+    command="cargo $4 doc --target=$1 --features=safe_arch$3"
     printf "\nRUSTFLAGS=\"$2\" $command\n"
     RUSTFLAGS=\"$2\" $($command)
 }
-#
+
+# Arguments: target rustflags
 function cross_build() {
-    cross_build_base "$1" "$2" ''
+    cross_build_base "$1" "$2" "" ''
 }
 #
 function cross_nightly_build() {
-    cross_build_base "$1 --features=nightly" "$2" '+nightly'
+    cross_build_base "$1" "$2" ",nightly" '+nightly'
 }
 
 for rustflags in '' '-C target-feature=-neon' '-C target-feature=+neon'; do

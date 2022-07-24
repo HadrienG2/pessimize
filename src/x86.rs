@@ -7,19 +7,18 @@ use core::arch::asm;
 use core::arch::x86 as target_arch;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64 as target_arch;
-#[cfg(target_feature = "sse")]
+#[cfg(any(target_feature = "sse", doc))]
 use target_arch::__m128;
-#[cfg(target_feature = "avx2")]
+#[cfg(any(target_feature = "avx2", doc))]
 use target_arch::__m256i;
 #[cfg(all(
     feature = "nightly",
-    target_feature = "avx512vl",
-    target_feature = "bf16"
+    any(all(target_feature = "avx512vl", target_feature = "bf16"), doc)
 ))]
 use target_arch::{__m128bh, __m256bh};
-#[cfg(target_feature = "sse2")]
+#[cfg(any(target_feature = "sse2", doc))]
 use target_arch::{__m128d, __m128i};
-#[cfg(target_feature = "avx")]
+#[cfg(any(target_feature = "avx", doc))]
 use target_arch::{__m256, __m256d};
 
 // Implementation of Pessimize for values without pointer semantics
@@ -53,48 +52,48 @@ pessimize_values!(reg_byte: (i8, u8), reg: (i16, u16, i32, u32, isize, usize));
 // no 64-bit GP registers, we try to use XMM registers instead if available
 #[cfg(target_arch = "x86_64")]
 pessimize_values!(reg: (i64, u64));
-#[cfg(all(not(target_arch = "x86_64"), target_feature = "sse2"))]
+#[cfg(all(not(target_arch = "x86_64"), any(target_feature = "sse2", doc)))]
 pessimize_values!(xmm_reg: (i64, u64));
 //
 // Given that CPUs without SSE should now all be extinct and that compilers try
 // to use SSE whenever at all possible, we assume that float data should go
 // to SSE registers if possible and to GP registers otherwise (on old 32-bit).
-#[cfg(target_feature = "sse")]
+#[cfg(any(target_feature = "sse", doc))]
 pessimize_values!(xmm_reg: (f32));
-#[cfg(not(target_feature = "sse"))]
+#[cfg(all(not(target_feature = "sse"), not(doc)))]
 pessimize_values!(reg: (f32));
 //
 // Ditto for double precision, but we need SSE2 for that
-#[cfg(target_feature = "sse2")]
+#[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(xmm_reg: (f64));
 //
-#[cfg(target_feature = "sse")]
+#[cfg(any(target_feature = "sse", doc))]
 pessimize_values!(xmm_reg: (__m128));
 //
-#[cfg(target_feature = "sse2")]
+#[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(xmm_reg: (__m128d, __m128i));
 //
-#[cfg(target_feature = "avx")]
+#[cfg(any(target_feature = "avx", doc))]
 pessimize_values!(ymm_reg: (__m256, __m256d));
 //
-#[cfg(target_feature = "avx2")]
+#[cfg(any(target_feature = "avx2", doc))]
 pessimize_values!(ymm_reg: (__m256i));
 //
 /// AVX-512 specific functionality
-#[cfg(all(feature = "nightly", target_feature = "avx512f"))]
+#[cfg(all(feature = "nightly", any(target_feature = "avx512f", doc)))]
 pub mod avx512 {
     use super::*;
-    #[cfg(target_feature = "bf16")]
+    #[cfg(any(target_feature = "bf16", doc))]
     use target_arch::__m512bh;
     use target_arch::{__m512, __m512d, __m512i};
 
     // Basic register type support
-    #[cfg(all(target_feature = "avx512vl", target_feature = "bf16"))]
+    #[cfg(any(all(target_feature = "avx512vl", target_feature = "bf16"), doc))]
     pessimize_values!(xmm_reg: (__m128bh), ymm_reg: (__m256bh));
     //
     pessimize_values!(zmm_reg: (__m512, __m512d, __m512i));
     //
-    #[cfg(target_feature = "bf16")]
+    #[cfg(any(target_feature = "bf16", doc))]
     pessimize_values!(zmm_reg: (__m512bh));
 
     /// Like Pessimize, but assumes the input data is resident in an AVX-512
@@ -132,7 +131,7 @@ pub mod avx512 {
     //
     pessimize_mask!(i8, u8, i16, u16);
     //
-    #[cfg(target_feature = "avx512bw")]
+    #[cfg(any(target_feature = "avx512bw", doc))]
     pessimize_mask!(i32, u32, i64, u64);
 }
 
@@ -141,13 +140,13 @@ pub mod avx512 {
 mod safe_arch {
     #[allow(unused)]
     use crate::Pessimize;
-    #[cfg(target_feature = "sse")]
+    #[cfg(any(target_feature = "sse", doc))]
     use safe_arch::m128;
-    #[cfg(target_feature = "avx2")]
+    #[cfg(any(target_feature = "avx2", doc))]
     use safe_arch::m256i;
-    #[cfg(target_feature = "sse2")]
+    #[cfg(any(target_feature = "sse2", doc))]
     use safe_arch::{m128d, m128i};
-    #[cfg(target_feature = "avx")]
+    #[cfg(any(target_feature = "avx", doc))]
     use safe_arch::{m256, m256d};
 
     #[allow(unused)]
@@ -169,16 +168,16 @@ mod safe_arch {
         };
     }
 
-    #[cfg(target_feature = "sse")]
+    #[cfg(any(target_feature = "sse", doc))]
     pessimize_safe_arch!(m128);
 
-    #[cfg(target_feature = "sse2")]
+    #[cfg(any(target_feature = "sse2", doc))]
     pessimize_safe_arch!(m128d, m128i);
 
-    #[cfg(target_feature = "avx")]
+    #[cfg(any(target_feature = "avx", doc))]
     pessimize_safe_arch!(m256, m256d);
 
-    #[cfg(target_feature = "avx2")]
+    #[cfg(any(target_feature = "avx2", doc))]
     pessimize_safe_arch!(m256i);
 }
 
