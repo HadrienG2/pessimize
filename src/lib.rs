@@ -46,7 +46,7 @@
 //!   reduce harmful side-effects.
 
 #![cfg_attr(not(test), no_std)]
-#![cfg_attr(feature = "nightly", feature(stdsimd, portable_simd))]
+#![cfg_attr(feature = "nightly", feature(doc_cfg, stdsimd, portable_simd))]
 #![deny(missing_docs)]
 
 // Each architecture-specific module is tasked to implement Pessimize for

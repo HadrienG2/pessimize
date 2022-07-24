@@ -52,6 +52,7 @@ pessimize_values!(reg_byte: (i8, u8), reg: (i16, u16, i32, u32, isize, usize));
 // no 64-bit GP registers, we try to use XMM registers instead if available
 #[cfg(target_arch = "x86_64")]
 pessimize_values!(reg: (i64, u64));
+#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse2")))]
 #[cfg(all(not(target_arch = "x86_64"), any(target_feature = "sse2", doc)))]
 pessimize_values!(xmm_reg: (i64, u64));
 //
@@ -64,22 +65,31 @@ pessimize_values!(xmm_reg: (f32));
 pessimize_values!(reg: (f32));
 //
 // Ditto for double precision, but we need SSE2 for that
+#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse2")))]
 #[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(xmm_reg: (f64));
 //
+#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse")))]
 #[cfg(any(target_feature = "sse", doc))]
 pessimize_values!(xmm_reg: (__m128));
 //
+#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse2")))]
 #[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(xmm_reg: (__m128d, __m128i));
 //
+#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx")))]
 #[cfg(any(target_feature = "avx", doc))]
 pessimize_values!(ymm_reg: (__m256, __m256d));
 //
+#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx2")))]
 #[cfg(any(target_feature = "avx2", doc))]
 pessimize_values!(ymm_reg: (__m256i));
 //
 /// AVX-512 specific functionality
+#[cfg_attr(
+    feature = "nightly",
+    doc(cfg(all(feature = "nightly", target_feature = "avx512f")))
+)]
 #[cfg(all(feature = "nightly", any(target_feature = "avx512f", doc)))]
 pub mod avx512 {
     use super::*;
@@ -88,11 +98,24 @@ pub mod avx512 {
     use target_arch::{__m512, __m512d, __m512i};
 
     // Basic register type support
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(
+            target_feature = "avx512f",
+            target_feature = "avx512vl",
+            target_feature = "bf16"
+        )))
+    )]
     #[cfg(any(all(target_feature = "avx512vl", target_feature = "bf16"), doc))]
     pessimize_values!(xmm_reg: (__m128bh), ymm_reg: (__m256bh));
     //
+    #[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx512f")))]
     pessimize_values!(zmm_reg: (__m512, __m512d, __m512i));
     //
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(target_feature = "avx512f", target_feature = "bf16")))
+    )]
     #[cfg(any(target_feature = "bf16", doc))]
     pessimize_values!(zmm_reg: (__m512bh));
 
@@ -129,8 +152,13 @@ pub mod avx512 {
         };
     }
     //
+    #[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx512f")))]
     pessimize_mask!(i8, u8, i16, u16);
     //
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(target_feature = "avx512f", target_feature = "avx512bw")))
+    )]
     #[cfg(any(target_feature = "avx512bw", doc))]
     pessimize_mask!(i32, u32, i64, u64);
 }
@@ -168,15 +196,31 @@ mod safe_arch {
         };
     }
 
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(feature = "safe_arch", target_feature = "sse")))
+    )]
     #[cfg(any(target_feature = "sse", doc))]
     pessimize_safe_arch!(m128);
 
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(feature = "safe_arch", target_feature = "sse2")))
+    )]
     #[cfg(any(target_feature = "sse2", doc))]
     pessimize_safe_arch!(m128d, m128i);
 
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(feature = "safe_arch", target_feature = "avx")))
+    )]
     #[cfg(any(target_feature = "avx", doc))]
     pessimize_safe_arch!(m256, m256d);
 
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(feature = "safe_arch", target_feature = "avx2")))
+    )]
     #[cfg(any(target_feature = "avx2", doc))]
     pessimize_safe_arch!(m256i);
 }
