@@ -98,6 +98,16 @@ pub mod avx512 {
     use target_arch::{__m512, __m512d, __m512i};
 
     // Basic register type support
+    #[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx512f")))]
+    pessimize_values!(zmm_reg: (__m512, __m512d, __m512i));
+    //
+    #[cfg_attr(
+        feature = "nightly",
+        doc(cfg(all(target_feature = "avx512f", target_feature = "bf16")))
+    )]
+    #[cfg(any(target_feature = "bf16", doc))]
+    pessimize_values!(zmm_reg: (__m512bh));
+    //
     #[cfg_attr(
         feature = "nightly",
         doc(cfg(all(
@@ -108,16 +118,6 @@ pub mod avx512 {
     )]
     #[cfg(any(all(target_feature = "avx512vl", target_feature = "bf16"), doc))]
     pessimize_values!(xmm_reg: (__m128bh), ymm_reg: (__m256bh));
-    //
-    #[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx512f")))]
-    pessimize_values!(zmm_reg: (__m512, __m512d, __m512i));
-    //
-    #[cfg_attr(
-        feature = "nightly",
-        doc(cfg(all(target_feature = "avx512f", target_feature = "bf16")))
-    )]
-    #[cfg(any(target_feature = "bf16", doc))]
-    pessimize_values!(zmm_reg: (__m512bh));
 
     /// Like Pessimize, but assumes the input data is resident in an AVX-512
     /// mask register (kreg), which will reduce overhead if this is true.
@@ -152,13 +152,9 @@ pub mod avx512 {
         };
     }
     //
-    #[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx512f")))]
     pessimize_mask!(i8, u8, i16, u16);
     //
-    #[cfg_attr(
-        feature = "nightly",
-        doc(cfg(all(target_feature = "avx512f", target_feature = "avx512bw")))
-    )]
+    #[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx512bw")))]
     #[cfg(any(target_feature = "avx512bw", doc))]
     pessimize_mask!(i32, u32, i64, u64);
 }
