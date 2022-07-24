@@ -46,6 +46,7 @@
 //!   reduce harmful side-effects.
 
 #![cfg_attr(not(test), no_std)]
+#![cfg_attr(feature = "nightly", feature(stdsimd, portable_simd))]
 #![deny(missing_docs)]
 
 // Each architecture-specific module is tasked to implement Pessimize for
@@ -55,7 +56,7 @@ mod arm;
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 mod riscv;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-mod x86;
+pub mod x86;
 
 use core::arch::asm;
 
