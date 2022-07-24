@@ -61,4 +61,3 @@ pessimize_values!(vreg, float64x1_t, float64x2_t);
 // TODO: Add nightly support for portable_simd types
 
 // FIXME: Add tests in the same spirit as the x86 ones
-// FIXME: Check if I can get a CI build

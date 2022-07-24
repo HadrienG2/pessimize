@@ -42,6 +42,3 @@ pessimize_values!(reg, f32);
 pessimize_values!(freg, f64);
 #[cfg(all(target_arch = "riscv64", not(target_feature = "d")))]
 pessimize_values!(reg, f64);
-
-// FIXME: Add tests in the same spirit as the x86 ones
-// FIXME: Check if I can get a CI build
