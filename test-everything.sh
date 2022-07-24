@@ -4,10 +4,18 @@ set -euo pipefail
 ### CROSS-COMPILED PLATFORMS ###
 # TODO: Try to run tests via qemu
 
-function cross_build() {
-    command="cargo build --tests --target=$1"
+function cross_build_base() {
+    command="cargo $3 build --tests --target=$1"
     printf "\nRUSTFLAGS=\"$2\" $command\n"
     RUSTFLAGS=\"$2\" $($command)
+}
+#
+function cross_build() {
+    cross_build_base "$1" "$2" ''
+}
+#
+function cross_nightly_build() {
+    cross_build_base "$1 --features=nightly" "$2" '+nightly'
 }
 
 for rustflags in '' '-C target-feature=-neon' '-C target-feature=+neon'; do
@@ -38,6 +46,14 @@ for rustflags in '' \
                  '-C target-feature=-f -C target-feature=+d' \
                  '-C target-feature=+f -C target-feature=+d'; do
     cross_build riscv64gc-unknown-linux-gnu "$rustflags"
+done
+
+for rustflags in '-C target-feature=+avx512f' \
+                 '-C target-feature=+avx512f -C target-feature=+avx512bw' \
+                 '-C target-feature=+avx512f -C target-feature=+avx512vl' \
+                 '-C target-feature=+avx512f -C target-feature=+bf16' \
+                 '-C target-feature=+avx512f -C target-feature=+avx512vl -C target-feature=+bf16'; do
+    cross_nightly_build x86_64-unknown-linux-gnu "$rustflags"
 done
 
 ### NATIVE PLATFORM ###
