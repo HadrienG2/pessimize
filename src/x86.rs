@@ -735,6 +735,7 @@ mod tests {
             portable_avx512_tests_optim!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
         }
 
-        // FIXME: Add avx512bf16 tests
+        // TODO: Add avx512bf16 tests once there are enough operations to allow
+        //       for it (at least conversion from BF16 back to F32).
     }
 }
