@@ -22,7 +22,8 @@
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
 //! reference to an optimization barrier, at the cost of causing the value to
-//! be spilled to memory.
+//! be spilled to memory. On nightly, this can be provided as a default
+//! implementation of Pessimize via specialization.
 //!
 //! For pointer-like entities, optimization barriers other than `hide` will
 //! have the side-effect of causing the compiler to assume that global and
@@ -46,7 +47,10 @@
 //!   reduce harmful side-effects.
 
 #![cfg_attr(not(test), no_std)]
-#![cfg_attr(feature = "nightly", feature(doc_cfg, stdsimd, portable_simd))]
+#![cfg_attr(
+    feature = "nightly",
+    feature(doc_cfg, min_specialization, portable_simd, stdsimd)
+)]
 #![deny(missing_docs)]
 
 // Each architecture-specific module is tasked to implement Pessimize for
@@ -400,6 +404,25 @@ macro_rules! pessimize_references {
 }
 //
 pessimize_references!(&'a T, &'a mut T);
+
+// Default implementation of Pessimize by reference
+#[cfg(feature = "nightly")]
+#[doc(cfg(feature = "nightly"))]
+impl<T> Pessimize for T {
+    #[inline(always)]
+    default fn hide(self) -> Self {
+        unsafe {
+            let result = (&self as *const Self).hide().read();
+            core::mem::forget(self);
+            result
+        }
+    }
+
+    #[inline(always)]
+    default fn assume_read(&self) {
+        (&self).assume_read()
+    }
+}
 
 // TODO: Set up CI in the spirit of test-everything.sh
 
