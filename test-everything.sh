@@ -20,7 +20,7 @@ function cross_build_base() {
 }
 
 # Arguments: target rustflags
-# FIXME: Merge into one and try nightly everywhere once appropriate toolchains
+# FIXME: Merge those to try nightly everywhere once appropriate toolchains
 #        and targets are installed
 function cross_build() {
     cross_build_base "$1" "$2" "" ''
