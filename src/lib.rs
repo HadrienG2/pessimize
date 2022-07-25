@@ -333,6 +333,8 @@ pessimize_references!(&'a T, &'a mut T);
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    #[cfg(feature = "nightly")]
+    use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
     use std::{
         fmt::Debug,
         time::{Duration, Instant},
@@ -386,6 +388,21 @@ pub(crate) mod tests {
         max: Scalar,
     ) {
         test_value_type(T::from([min; LANES]), T::from([max; LANES]));
+    }
+
+    #[allow(unused)]
+    #[cfg(feature = "nightly")]
+    pub fn test_portable_simd<
+        Scalar: Debug + Default + PartialEq + SimdElement,
+        const LANES: usize,
+    >(
+        min: Scalar,
+        max: Scalar,
+    ) where
+        LaneCount<LANES>: SupportedLaneCount,
+        Simd<Scalar, LANES>: Pessimize,
+    {
+        test_simd::<Scalar, LANES, Simd<Scalar, LANES>>(min, max)
     }
 
     // === Tests asserting that the barriers prevent optimization ===

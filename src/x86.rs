@@ -22,7 +22,6 @@ use target_arch::{__m128d, __m128i};
 use target_arch::{__m256, __m256d};
 
 // Implementation of Pessimize for values without pointer semantics
-// FIXME: Clean up cfg(doc()) handling, then generalize to other arches
 macro_rules! pessimize_values {
     ( $m:meta { $($reg:ident: ($($t:ty),*)),* }) => {
         $($(
@@ -49,11 +48,12 @@ macro_rules! pessimize_values {
 }
 //
 pessimize_values!(allow(missing_docs) { reg_byte: (i8, u8), reg: (i16, u16, i32, u32, isize, usize) });
-//
+
 // 64-bit values normally go to GP registers on x86_64, but since 32-bit has
 // no 64-bit GP registers, we try to use XMM registers instead if available
 #[cfg(target_arch = "x86_64")]
 pessimize_values!(allow(missing_docs) { reg: (i64, u64) });
+//
 #[cfg(all(target_arch = "x86", any(target_feature = "sse2", doc)))]
 pessimize_values!(
     cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse2")))
@@ -61,7 +61,7 @@ pessimize_values!(
         xmm_reg: (i64, u64)
     }
 );
-//
+
 // Given that CPUs without SSE should now all be extinct and that compilers try
 // to use SSE whenever at all possible, we assume that float data should go
 // to SSE registers if possible and to GP registers otherwise (on old 32-bit).
@@ -72,6 +72,7 @@ pessimize_values!(
         xmm_reg: (f32)
     }
 );
+//
 #[cfg(all(not(target_feature = "sse"), not(doc)))]
 pessimize_values!(
     allow(missing_docs)
@@ -79,7 +80,7 @@ pessimize_values!(
         reg: (f32)
     }
 );
-//
+
 // Ditto for double precision, but we need SSE2 for that
 #[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(
@@ -88,7 +89,8 @@ pessimize_values!(
         xmm_reg: (f64)
     }
 );
-//
+
+// Then come SIMD registers
 #[cfg(any(target_feature = "sse", doc))]
 pessimize_values!(
     cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse")))
@@ -120,7 +122,7 @@ pessimize_values!(
         ymm_reg: (__m256i)
     }
 );
-//
+
 /// AVX-512 specific functionality
 #[cfg_attr(
     feature = "nightly",
@@ -143,7 +145,7 @@ pub mod avx512 {
     //
     #[cfg(any(target_feature = "bf16", doc))]
     pessimize_values!(
-        doc(cfg(all(target_feature = "avx512f", target_feature = "bf16")))
+        doc(cfg(target_feature = "bf16"))
         {
             zmm_reg: (__m512bh)
         }
@@ -152,7 +154,6 @@ pub mod avx512 {
     #[cfg(any(all(target_feature = "avx512vl", target_feature = "bf16"), doc))]
     pessimize_values!(
         doc(cfg(all(
-            target_feature = "avx512f",
             target_feature = "avx512vl",
             target_feature = "bf16"
         )))
@@ -195,7 +196,7 @@ pub mod avx512 {
     //
     #[cfg(any(target_feature = "avx512bw", doc))]
     pessimize_mask!(
-        doc(cfg(all(target_feature = "avx512f", target_feature = "avx512bw")))
+        doc(cfg(target_feature = "avx512bw"))
         { i32, u32, i64, u64 }
     );
 }
@@ -330,13 +331,13 @@ mod portable_simd {
     //
     #[cfg(all(target_arch = "x86", any(target_feature = "sse2", doc)))]
     pessimize_portable_simd!(
-        doc(cfg(all(feature = "nightly", target_arch = "x86", target_feature = "sse2")))
+        doc(cfg(all(feature = "nightly", target_feature = "sse2")))
         { __m128i: (Simd<isize, 4>, Simd<usize, 4>) }
     );
     //
     #[cfg(all(target_arch = "x86_64", any(target_feature = "sse2", doc)))]
     pessimize_portable_simd!(
-        doc(cfg(all(feature = "nightly", target_arch = "x86_64", target_feature = "sse2")))
+        doc(cfg(all(feature = "nightly", target_feature = "sse2")))
         { __m128i: (Simd<isize, 2>, Simd<usize, 2>) }
     );
 
@@ -366,13 +367,13 @@ mod portable_simd {
     //
     #[cfg(all(target_arch = "x86", any(target_feature = "avx2", doc)))]
     pessimize_portable_simd!(
-        doc(cfg(all(feature = "nightly", target_arch = "x86", target_feature = "avx2")))
+        doc(cfg(all(feature = "nightly", target_feature = "avx2")))
         { __m256i: (Simd<isize, 8>, Simd<usize, 8>) }
     );
     //
     #[cfg(all(target_arch = "x86_64", any(target_feature = "avx2", doc)))]
     pessimize_portable_simd!(
-        doc(cfg(all(feature = "nightly", target_arch = "x86_64", target_feature = "avx2")))
+        doc(cfg(all(feature = "nightly", target_feature = "avx2")))
         { __m256i: (Simd<isize, 4>, Simd<usize, 4>) }
     );
 
@@ -388,7 +389,7 @@ mod portable_simd {
     //
     #[cfg(all(target_arch = "x86", any(target_feature = "avx512f", doc)))]
     pessimize_portable_simd!(
-        doc(cfg(all(feature = "nightly", target_arch = "x86", target_feature = "avx512f")))
+        doc(cfg(all(feature = "nightly", target_feature = "avx512f")))
         { __m512i: (Simd<isize, 16>, Simd<usize, 16>) }
     );
     //
@@ -396,7 +397,6 @@ mod portable_simd {
     pessimize_portable_simd!(
         doc(cfg(all(
             feature = "nightly",
-            target_arch = "x86_64",
             target_feature = "avx512f"
         )))
         { __m512i: (Simd<isize, 8>, Simd<usize, 8>) }
@@ -406,7 +406,6 @@ mod portable_simd {
     pessimize_portable_simd!(
         doc(cfg(all(
             feature = "nightly",
-            target_feature = "avx512f",
             target_feature = "avx512bw"
         )))
         { __m512i: (Simd<i8, 64>, Simd<u8, 64>, Simd<i16, 32>, Simd<u16, 32>) }
@@ -446,7 +445,6 @@ mod portable_simd {
     pessimize_portable_mask!(
         doc(cfg(all(
             feature = "nightly",
-            target_arch = "x86",
             target_feature = "avx512f"
         )))
         {
@@ -458,7 +456,6 @@ mod portable_simd {
     pessimize_portable_mask!(
         doc(cfg(all(
             feature = "nightly",
-            target_arch = "x86_64",
             target_feature = "avx512f"
         )))
         {
@@ -466,11 +463,10 @@ mod portable_simd {
         }
     );
     //
-    #[cfg(all(target_feature = "avx512f", any(target_feature = "avx512bw", doc)))]
+    #[cfg(any(target_feature = "avx512bw", doc))]
     pessimize_portable_mask!(
         doc(cfg(all(
             feature = "nightly",
-            target_feature = "avx512f",
             target_feature = "avx512bw"
         )))
         {
@@ -479,37 +475,17 @@ mod portable_simd {
         }
     );
     //
-    #[cfg(any(all(target_feature = "avx512f", target_feature = "avx512vl"), doc))]
+    #[cfg(any(target_feature = "avx512vl", doc))]
     pessimize_portable_mask!(
         doc(cfg(all(
             feature = "nightly",
-            target_feature = "avx512f",
             target_feature = "avx512vl"
         )))
         {
             Mask<f32, 4>, Mask<i32, 4>, Mask<u32, 4>,
             Mask<f32, 8>, Mask<i32, 8>, Mask<u32, 8>,
             Mask<f64, 2>, Mask<i64, 2>, Mask<u64, 2>,
-            Mask<f64, 4>, Mask<i64, 4>, Mask<u64, 4>
-        }
-    );
-    //
-    #[cfg(any(
-        all(
-            target_feature = "avx512f",
-            target_feature = "avx512bw",
-            target_feature = "avx512vl"
-        ),
-        doc
-    ))]
-    pessimize_portable_mask!(
-        doc(cfg(all(
-            feature = "nightly",
-            target_feature = "avx512f",
-            target_feature = "avx512bw",
-            target_feature = "avx512vl"
-        )))
-        {
+            Mask<f64, 4>, Mask<i64, 4>, Mask<u64, 4>,
             Mask<i8, 16>, Mask<u8, 16>,
             Mask<i8, 32>, Mask<u8, 32>,
             Mask<i16, 8>, Mask<u16, 8>,
@@ -520,17 +496,23 @@ mod portable_simd {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "nightly")]
+    use crate::tests::test_portable_simd;
     #[allow(unused)]
     use crate::{
         tests::{test_simd, test_unoptimized_value},
         Pessimize,
     };
+    #[cfg(feature = "nightly")]
+    use std::simd::Simd;
 
     #[cfg(target_feature = "sse")]
     #[test]
     fn sse() {
         use safe_arch::m128;
         test_simd::<f32, 4, m128>(f32::MIN, f32::MAX);
+        #[cfg(feature = "nightly")]
+        test_portable_simd::<f32, 4>(f32::MIN, f32::MAX);
     }
 
     #[cfg(target_feature = "sse")]
@@ -539,6 +521,8 @@ mod tests {
     fn sse_optim() {
         use safe_arch::m128;
         test_unoptimized_value::<m128>();
+        #[cfg(feature = "nightly")]
+        test_unoptimized_value::<Simd<f32, 4>>();
     }
 
     #[cfg(target_feature = "sse2")]
@@ -547,6 +531,17 @@ mod tests {
         use safe_arch::{m128d, m128i};
         test_simd::<f64, 2, m128d>(f64::MIN, f64::MAX);
         test_simd::<i8, 16, m128i>(i8::MIN, i8::MAX);
+        #[cfg(feature = "nightly")]
+        {
+            test_portable_simd::<i8, 16>(i8::MIN, i8::MAX);
+            test_portable_simd::<u8, 16>(u8::MIN, u8::MAX);
+            test_portable_simd::<i16, 8>(i16::MIN, i16::MAX);
+            test_portable_simd::<u16, 8>(u16::MIN, u16::MAX);
+            test_portable_simd::<i32, 4>(i32::MIN, i32::MAX);
+            test_portable_simd::<u32, 4>(u32::MIN, u32::MAX);
+            test_portable_simd::<i64, 2>(i64::MIN, i64::MAX);
+            test_portable_simd::<u64, 2>(u64::MIN, u64::MAX);
+        }
     }
 
     #[cfg(target_feature = "sse2")]
@@ -556,6 +551,17 @@ mod tests {
         use safe_arch::{m128d, m128i};
         test_unoptimized_value::<m128d>();
         test_unoptimized_value::<m128i>();
+        #[cfg(feature = "nightly")]
+        {
+            test_unoptimized_value::<Simd<i8, 16>>();
+            test_unoptimized_value::<Simd<u8, 16>>();
+            test_unoptimized_value::<Simd<i16, 8>>();
+            test_unoptimized_value::<Simd<u16, 8>>();
+            test_unoptimized_value::<Simd<i32, 4>>();
+            test_unoptimized_value::<Simd<u32, 4>>();
+            test_unoptimized_value::<Simd<i64, 2>>();
+            test_unoptimized_value::<Simd<u64, 2>>();
+        }
     }
 
     #[cfg(target_feature = "avx")]
@@ -564,6 +570,11 @@ mod tests {
         use safe_arch::{m256, m256d};
         test_simd::<f32, 8, m256>(f32::MIN, f32::MAX);
         test_simd::<f64, 4, m256d>(f64::MIN, f64::MAX);
+        #[cfg(feature = "nightly")]
+        {
+            test_portable_simd::<f32, 8>(f32::MIN, f32::MAX);
+            test_portable_simd::<f64, 4>(f64::MIN, f64::MAX);
+        }
     }
 
     #[cfg(target_feature = "avx")]
@@ -573,6 +584,11 @@ mod tests {
         use safe_arch::{m256, m256d};
         test_unoptimized_value::<m256>();
         test_unoptimized_value::<m256d>();
+        #[cfg(feature = "nightly")]
+        {
+            test_unoptimized_value::<Simd<f32, 8>>();
+            test_unoptimized_value::<Simd<f64, 4>>();
+        }
     }
 
     #[cfg(target_feature = "avx2")]
@@ -580,6 +596,17 @@ mod tests {
     fn avx2() {
         use safe_arch::m256i;
         test_simd::<i8, 32, m256i>(i8::MIN, i8::MAX);
+        #[cfg(feature = "nightly")]
+        {
+            test_portable_simd::<i8, 32>(i8::MIN, i8::MAX);
+            test_portable_simd::<u8, 32>(u8::MIN, u8::MAX);
+            test_portable_simd::<i16, 16>(i16::MIN, i16::MAX);
+            test_portable_simd::<u16, 16>(u16::MIN, u16::MAX);
+            test_portable_simd::<i32, 8>(i32::MIN, i32::MAX);
+            test_portable_simd::<u32, 8>(u32::MIN, u32::MAX);
+            test_portable_simd::<i64, 4>(i64::MIN, i64::MAX);
+            test_portable_simd::<u64, 4>(u64::MIN, u64::MAX);
+        }
     }
 
     #[cfg(target_feature = "avx2")]
@@ -588,8 +615,19 @@ mod tests {
     fn avx2_optim() {
         use safe_arch::m256i;
         test_unoptimized_value::<m256i>();
+        #[cfg(feature = "nightly")]
+        {
+            test_unoptimized_value::<Simd<i8, 32>>();
+            test_unoptimized_value::<Simd<u8, 32>>();
+            test_unoptimized_value::<Simd<i16, 16>>();
+            test_unoptimized_value::<Simd<u16, 16>>();
+            test_unoptimized_value::<Simd<i32, 8>>();
+            test_unoptimized_value::<Simd<u32, 8>>();
+            test_unoptimized_value::<Simd<i64, 4>>();
+            test_unoptimized_value::<Simd<u64, 4>>();
+        }
     }
 
     // FIXME: Add tests for AVX-512 and BF16
-    // FIXME: Add tests for portable_simd
+    // FIXME: Add tests for portable_simd masks
 }
