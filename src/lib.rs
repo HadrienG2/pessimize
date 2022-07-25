@@ -255,6 +255,77 @@ impl Pessimize for bool {
     }
 }
 
+#[doc(hidden)]
+#[macro_export]
+/// Implementation of Pessimize for values without pointer semantics
+macro_rules! pessimize_values {
+    (
+        $doc_cfg:meta
+        {
+            $(
+                $reg:ident: ( $($value_type:ty),* )
+            ),*
+        }
+    ) => {
+        $($(
+            #[allow(asm_sub_register)]
+            #[$doc_cfg]
+            impl Pessimize for $value_type {
+                #[inline(always)]
+                fn hide(mut self) -> Self {
+                    unsafe {
+                        asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem));
+                    }
+                    self
+                }
+
+                #[inline(always)]
+                fn assume_read(&self) {
+                    unsafe {
+                        asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
+                    }
+                }
+            }
+        )*)*
+    };
+}
+
+/// Generate Pessimize implementation for a portable_simd Simd type
+#[allow(unused)]
+#[cfg(feature = "nightly")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! pessimize_portable_simd {
+    (
+        $doc_cfg:meta
+        {
+            $(
+                $inner:ident: ( $($simd_type:ty),* )
+            ),*
+        }
+    ) => {
+        $($(
+            #[$doc_cfg]
+            impl Pessimize for $simd_type {
+                #[inline(always)]
+                fn hide(self) -> Self {
+                    // FIXME: This probably works, but it would be nicer if
+                    //        portable_simd provided a conversion from
+                    //        architectural SIMD types.
+                    unsafe {
+                        core::mem::transmute($inner::from(self).hide())
+                    }
+                }
+
+                #[inline(always)]
+                fn assume_read(&self) {
+                    $inner::from(*self).assume_read()
+                }
+            }
+        )*)*
+    };
+}
+
 // Implementation of Pessimize and PessimizeRef for pointers
 macro_rules! pessimize_pointers {
     ($($t:ty),*) => {

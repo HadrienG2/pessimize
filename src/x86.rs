@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for x86 and x86_64
 
-use super::Pessimize;
+use super::{pessimize_values, Pessimize};
 use core::arch::asm;
 #[allow(unused)]
 #[cfg(target_arch = "x86")]
@@ -21,32 +21,6 @@ use target_arch::{__m128d, __m128i};
 #[cfg(any(target_feature = "avx", doc))]
 use target_arch::{__m256, __m256d};
 
-// Implementation of Pessimize for values without pointer semantics
-macro_rules! pessimize_values {
-    ( $m:meta { $($reg:ident: ($($t:ty),*)),* }) => {
-        $($(
-            #[allow(asm_sub_register)]
-            #[$m]
-            impl Pessimize for $t {
-                #[inline(always)]
-                fn hide(mut self) -> Self {
-                    unsafe {
-                        asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem));
-                    }
-                    self
-                }
-
-                #[inline(always)]
-                fn assume_read(&self) {
-                    unsafe {
-                        asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
-                    }
-                }
-            }
-        )*)*
-    };
-}
-//
 pessimize_values!(allow(missing_docs) { reg_byte: (i8, u8), reg: (i16, u16, i32, u32, isize, usize) });
 
 // 64-bit values normally go to GP registers on x86_64, but since 32-bit has
@@ -169,10 +143,13 @@ pub mod avx512 {
     pub struct Mask<T>(pub T);
     //
     macro_rules! pessimize_mask {
-        ($m:meta { $($t:ty),* }) => {
+        (
+            $doc_cfg:meta
+            { $($mask_impl:ty),* }
+        ) => {
             $(
-                #[$m]
-                impl Pessimize for Mask<$t> {
+                #[$doc_cfg]
+                impl Pessimize for Mask<$mask_impl> {
                     #[inline(always)]
                     fn hide(mut self) -> Self {
                         unsafe {
@@ -217,10 +194,13 @@ mod safe_arch {
 
     #[allow(unused)]
     macro_rules! pessimize_safe_arch {
-        ($m:meta { $($t:ty),* }) => {
+        (
+            $doc_cfg:meta
+            { $($safe_arch_type:ty),* }
+        ) => {
             $(
-                #[$m]
-                impl Pessimize for $t {
+                #[$doc_cfg]
+                impl Pessimize for $safe_arch_type {
                     #[inline(always)]
                     fn hide(self) -> Self {
                         Self(self.0.hide())
@@ -275,34 +255,9 @@ mod safe_arch {
 #[cfg(feature = "nightly")]
 mod portable_simd {
     #[allow(unused)]
-    use super::*;
+    use crate::{pessimize_portable_simd, x86::*, Pessimize};
     #[allow(unused)]
     use core::simd::{Mask, Simd, ToBitMask};
-
-    #[allow(unused)]
-    macro_rules! pessimize_portable_simd {
-        ($m:meta { $( $inner:ident: ($($t:ty),*) ),* }) => {
-            $($(
-                #[$m]
-                impl Pessimize for $t {
-                    #[inline(always)]
-                    fn hide(self) -> Self {
-                        // FIXME: This probably works, but it would be nicer if
-                        //        portable_simd provided a conversion from
-                        //        architectural SIMD types.
-                        unsafe {
-                            core::mem::transmute($inner::from(self).hide())
-                        }
-                    }
-
-                    #[inline(always)]
-                    fn assume_read(&self) {
-                        $inner::from(*self).assume_read()
-                    }
-                }
-            )*)*
-        };
-    }
 
     #[cfg(any(target_feature = "sse", doc))]
     pessimize_portable_simd!(
@@ -411,16 +366,20 @@ mod portable_simd {
         { __m512i: (Simd<i8, 64>, Simd<u8, 64>, Simd<i16, 32>, Simd<u16, 32>) }
     );
 
+    // Generate Pessimize implementation for a portable_simd Mask type
     #[cfg(any(target_feature = "avx512f", doc))]
     macro_rules! pessimize_portable_mask {
-        ($m:meta { $($t:ty),* }) => {
+        (
+            $doc_cfg:meta
+            { $($mask_type:ty),* }
+        ) => {
             $(
-                #[$m]
-                impl Pessimize for $t {
+                #[$doc_cfg]
+                impl Pessimize for $mask_type {
                     #[inline(always)]
                     fn hide(self) -> Self {
                         Self::from_bitmask(
-                            super::avx512::Mask(self.to_bitmask()).hide().0
+                            avx512::Mask(self.to_bitmask()).hide().0
                         )
                     }
 
