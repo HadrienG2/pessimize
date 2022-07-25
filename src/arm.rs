@@ -106,6 +106,7 @@ mod tests {
 
                 impl From<[f64; $lanes]> for $name {
                     fn from(x: [f64; $lanes]) -> Self {
+                        // FIXME: Check alignment requirements, not sure if this is right
                         Self(unsafe { aarch64::$load(&x as *const [f64; $lanes] as *const f64) })
                     }
                 }
@@ -121,6 +122,7 @@ mod tests {
                         let value = |x: &Self| -> [f64; $lanes] {
                             let mut result = [0.0; $lanes];
                             unsafe {
+                                // FIXME: Check alignment requirements, not sure if this is right
                                 aarch64::$store(&mut result as *mut [f64; $lanes] as *mut f64, x.0)
                             }
                             result
