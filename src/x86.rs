@@ -541,6 +541,16 @@ mod tests {
                 (i64, 2), (u64, 2)
             }
         );
+        #[cfg(target_arch = "x86")]
+        portable_simd_tests!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 4), (usize, 4) }
+        );
+        #[cfg(target_arch = "x86_64")]
+        portable_simd_tests!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 2), (usize, 2) }
+        );
     }
 
     #[cfg(target_feature = "sse2")]
@@ -558,6 +568,16 @@ mod tests {
                 (i32, 4), (u32, 4),
                 (i64, 2), (u64, 2)
             }
+        );
+        #[cfg(target_arch = "x86")]
+        portable_simd_tests_optim!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 4), (usize, 4) }
+        );
+        #[cfg(target_arch = "x86_64")]
+        portable_simd_tests_optim!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 2), (usize, 2) }
         );
     }
 
@@ -600,6 +620,16 @@ mod tests {
                 (i64, 4), (u64, 4)
             }
         );
+        #[cfg(target_arch = "x86")]
+        portable_simd_tests!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 8), (usize, 8) }
+        );
+        #[cfg(target_arch = "x86_64")]
+        portable_simd_tests!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 4), (usize, 4) }
+        );
     }
 
     #[cfg(target_feature = "avx2")]
@@ -616,6 +646,16 @@ mod tests {
                 (i32, 8), (u32, 8),
                 (i64, 4), (u64, 4)
             }
+        );
+        #[cfg(target_arch = "x86")]
+        portable_simd_tests_optim!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 8), (usize, 8) }
+        );
+        #[cfg(target_arch = "x86_64")]
+        portable_simd_tests_optim!(
+            cfg(target_feature = "avx512vl")
+            { (isize, 4), (usize, 4) }
         );
     }
 
