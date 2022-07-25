@@ -4,12 +4,18 @@ set -euo pipefail
 ### CROSS-COMPILED PLATFORMS ###
 # TODO: Try to run tests via qemu
 
+# Runs a cargo command with certain RUSTFLAGS, echoing it beforehand
+# Arguments: rustflags command
+function cargo_echo() {
+    command="cargo $2"
+    printf "\nRUSTFLAGS=\"$1\" $command\n"
+    RUSTFLAGS="$1" $command
+}
+
 # Arguments: target rustflags extra_features +nightly
 function cross_build_base() {
     for subcommand in 'clippy' 'clippy --tests' 'build' 'build --tests' doc; do
-        command="cargo $4 ${subcommand} --target=$1 $3"
-        printf "\nRUSTFLAGS=\"$2\" $command\n"
-        RUSTFLAGS=\"$2\" $($command)
+        cargo_echo "$2" "$4 ${subcommand} --target=$1 $3"
     done
 }
 
@@ -69,11 +75,14 @@ done
 for rustflags in '' \
                  '-C target-feature=+avx' \
                  '-C target-feature=+avx -C target-feature=+avx2'; do
-    RUSTFLAGS="${rustflags}" cargo build
-    RUSTFLAGS="${rustflags}" cargo build --features=safe_arch
+    for subcommand in clippy build; do
+        for features in '' '--features=safe_arch'; do
+            cargo_echo "$rustflags" "$subcommand $features"
+        done
+    done
     for config in '' '--release -- --include-ignored'; do
-            RUSTFLAGS="${rustflags}" cargo test ${config}
-            RUSTFLAGS="${rustflags}" cargo test ${config}
-            RUSTFLAGS="${rustflags}" cargo +nightly test --features=nightly ${config}
+        for op in 'test' '+nightly test --features=nightly'; do
+            cargo_echo "$rustflags" "$op $config"
+        done
     done
 done

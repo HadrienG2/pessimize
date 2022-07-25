@@ -258,6 +258,8 @@ mod portable_simd {
     use crate::{pessimize_portable_simd, x86::*, Pessimize};
     #[allow(unused)]
     use core::simd::{Mask, Simd, ToBitMask};
+    #[cfg(any(target_feature = "avx512f", doc))]
+    use target_arch::{__m512, __m512d, __m512i};
 
     #[cfg(any(target_feature = "sse", doc))]
     pessimize_portable_simd!(
@@ -391,13 +393,11 @@ mod portable_simd {
             )*
         };
     }
-    //
+
     #[cfg(any(target_feature = "avx512f", doc))]
     pessimize_portable_mask!(
-        doc(cfg(all(feature = "nightly", target_feature = "avx512f"))) {
-            Mask<f32, 16>, Mask<i32, 16>, Mask<u32, 16>,
-            Mask<f64, 8>, Mask<i64, 8>, Mask<u64, 8>
-        }
+        doc(cfg(all(feature = "nightly", target_feature = "avx512f")))
+        { Mask<i32, 16>, Mask<i64, 8> }
     );
     //
     #[cfg(all(target_arch = "x86", any(target_feature = "avx512f", doc)))]
@@ -406,9 +406,7 @@ mod portable_simd {
             feature = "nightly",
             target_feature = "avx512f"
         )))
-        {
-            Mask<usize, 16>, Mask<isize, 16>
-        }
+        { Mask<isize, 16> }
     );
     //
     #[cfg(all(target_arch = "x86_64", any(target_feature = "avx512f", doc)))]
@@ -417,23 +415,18 @@ mod portable_simd {
             feature = "nightly",
             target_feature = "avx512f"
         )))
-        {
-            Mask<usize, 8>, Mask<isize, 8>
-        }
+        { Mask<isize, 8> }
     );
-    //
+
     #[cfg(any(target_feature = "avx512bw", doc))]
     pessimize_portable_mask!(
         doc(cfg(all(
             feature = "nightly",
             target_feature = "avx512bw"
         )))
-        {
-            Mask<i8, 64>, Mask<u8, 64>,
-            Mask<i16, 32>, Mask<u16, 32>
-        }
+        { Mask<i8, 64>, Mask<i16, 32> }
     );
-    //
+
     #[cfg(any(target_feature = "avx512vl", doc))]
     pessimize_portable_mask!(
         doc(cfg(all(
@@ -441,15 +434,29 @@ mod portable_simd {
             target_feature = "avx512vl"
         )))
         {
-            Mask<f32, 4>, Mask<i32, 4>, Mask<u32, 4>,
-            Mask<f32, 8>, Mask<i32, 8>, Mask<u32, 8>,
-            Mask<f64, 2>, Mask<i64, 2>, Mask<u64, 2>,
-            Mask<f64, 4>, Mask<i64, 4>, Mask<u64, 4>,
-            Mask<i8, 16>, Mask<u8, 16>,
-            Mask<i8, 32>, Mask<u8, 32>,
-            Mask<i16, 8>, Mask<u16, 8>,
-            Mask<i16, 16>, Mask<u16, 16>
+            Mask<i8, 16>, Mask<i8, 32>,
+            Mask<i16, 8>, Mask<i16, 16>,
+            Mask<i32, 4>, Mask<i32, 8>,
+            Mask<i64, 2>, Mask<i64, 4>
         }
+    );
+    //
+    #[cfg(all(target_arch = "x86", any(target_feature = "avx512vl", doc)))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_feature = "avx512vl"
+        )))
+        { Mask<isize, 4>, Mask<isize, 8> }
+    );
+    //
+    #[cfg(all(target_arch = "x86_64", any(target_feature = "avx512vl", doc)))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_feature = "avx512vl"
+        )))
+        { Mask<isize, 2>, Mask<isize, 4> }
     );
 }
 
@@ -477,29 +484,31 @@ mod tests {
         test_simd::<bool, LANES, Mask<T, LANES>>(false, true)
     }
 
+    #[cfg(feature = "nightly")]
     macro_rules! portable_simd_tests {
-        ( $mask_cfg:meta { $( ( $elem:ty, $lanes:expr ) ),* } ) => {
-            #[cfg(feature = "nightly")]
-            {
-                $( test_portable_simd::<$elem, $lanes>(<$elem>::MIN, <$elem>::MAX); )*
-                #[$mask_cfg]
-                {
-                    $( test_portable_simd_mask::<$elem, $lanes>(); )*
-                }
-            }
+        ( $( ( $elem:ty, $lanes:expr ) ),* ) => {
+            $( test_portable_simd::<$elem, $lanes>(<$elem>::MIN, <$elem>::MAX); )*
         }
     }
 
+    #[cfg(feature = "nightly")]
+    macro_rules! portable_mask_tests {
+        ( $( ( $elem:ty, $lanes:expr ) ),* ) => {
+            $( test_portable_simd_mask::<$elem, $lanes>(); )*
+        }
+    }
+
+    #[cfg(feature = "nightly")]
     macro_rules! portable_simd_tests_optim {
-        ( $mask_cfg:meta { $( ( $elem:ty, $lanes:expr ) ),* } ) => {
-            #[cfg(feature = "nightly")]
-            {
-                $( test_unoptimized_value::<Simd<$elem, $lanes>>(); )*
-                #[$mask_cfg]
-                {
-                    $( test_unoptimized_value::<Mask<$elem, $lanes>>(); )*
-                }
-            }
+        ( $( ( $elem:ty, $lanes:expr ) ),* ) => {
+            $( test_unoptimized_value::<Simd<$elem, $lanes>>(); )*
+        }
+    }
+
+    #[cfg(feature = "nightly")]
+    macro_rules! portable_mask_tests_optim {
+        ( $( ( $elem:ty, $lanes:expr ) ),* ) => {
+            $( test_unoptimized_value::<Mask<$elem, $lanes>>(); )*
         }
     }
 
@@ -508,10 +517,12 @@ mod tests {
     fn sse() {
         use safe_arch::m128;
         test_simd::<f32, 4, m128>(f32::MIN, f32::MAX);
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
-            { (f32, 4) }
-        );
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests!((f32, 4));
+            #[cfg(target_feature = "avx512vl")]
+            portable_mask_tests!((i32, 4));
+        }
     }
 
     #[cfg(target_feature = "sse")]
@@ -520,10 +531,12 @@ mod tests {
     fn sse_optim() {
         use safe_arch::m128;
         test_unoptimized_value::<m128>();
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
-            { (f32, 4) }
-        );
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests_optim!((f32, 4));
+            #[cfg(target_feature = "avx512vl")]
+            portable_mask_tests_optim!((i32, 4));
+        }
     }
 
     #[cfg(target_feature = "sse2")]
@@ -532,25 +545,31 @@ mod tests {
         use safe_arch::{m128d, m128i};
         test_simd::<f64, 2, m128d>(f64::MIN, f64::MAX);
         test_simd::<i8, 16, m128i>(i8::MIN, i8::MAX);
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests!(
+                (i8, 16),
+                (u8, 16),
+                (i16, 8),
+                (u16, 8),
+                (i32, 4),
+                (u32, 4),
+                (i64, 2),
+                (u64, 2)
+            );
+            #[cfg(target_arch = "x86")]
+            portable_simd_tests!((isize, 4), (usize, 4));
+            #[cfg(target_arch = "x86_64")]
+            portable_simd_tests!((isize, 2), (usize, 2));
+            #[cfg(target_feature = "avx512vl")]
             {
-                (i8, 16), (u8, 16),
-                (i16, 8), (u16, 8),
-                (i32, 4), (u32, 4),
-                (i64, 2), (u64, 2)
+                portable_mask_tests!((i8, 16), (i16, 8), (i64, 2));
+                #[cfg(target_arch = "x86")]
+                portable_mask_tests!((isize, 4));
+                #[cfg(target_arch = "x86_64")]
+                portable_mask_tests!((isize, 2));
             }
-        );
-        #[cfg(target_arch = "x86")]
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 4), (usize, 4) }
-        );
-        #[cfg(target_arch = "x86_64")]
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 2), (usize, 2) }
-        );
+        }
     }
 
     #[cfg(target_feature = "sse2")]
@@ -560,25 +579,31 @@ mod tests {
         use safe_arch::{m128d, m128i};
         test_unoptimized_value::<m128d>();
         test_unoptimized_value::<m128i>();
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests_optim!(
+                (i8, 16),
+                (u8, 16),
+                (i16, 8),
+                (u16, 8),
+                (i32, 4),
+                (u32, 4),
+                (i64, 2),
+                (u64, 2)
+            );
+            #[cfg(target_arch = "x86")]
+            portable_simd_tests_optim!((isize, 4), (usize, 4));
+            #[cfg(target_arch = "x86_64")]
+            portable_simd_tests_optim!((isize, 2), (usize, 2));
+            #[cfg(target_feature = "avx512vl")]
             {
-                (i8, 16), (u8, 16),
-                (i16, 8), (u16, 8),
-                (i32, 4), (u32, 4),
-                (i64, 2), (u64, 2)
+                portable_mask_tests_optim!((i8, 16), (i16, 8), (i64, 2));
+                #[cfg(target_arch = "x86")]
+                portable_mask_tests_optim!((isize, 4));
+                #[cfg(target_arch = "x86_64")]
+                portable_mask_tests_optim!((isize, 2));
             }
-        );
-        #[cfg(target_arch = "x86")]
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 4), (usize, 4) }
-        );
-        #[cfg(target_arch = "x86_64")]
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 2), (usize, 2) }
-        );
+        }
     }
 
     #[cfg(target_feature = "avx")]
@@ -587,10 +612,12 @@ mod tests {
         use safe_arch::{m256, m256d};
         test_simd::<f32, 8, m256>(f32::MIN, f32::MAX);
         test_simd::<f64, 4, m256d>(f64::MIN, f64::MAX);
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
-            { (f32, 8), (f64, 4) }
-        );
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests!((f32, 8), (f64, 4));
+            #[cfg(target_feature = "avx512vl")]
+            portable_mask_tests!((i32, 8), (i64, 4));
+        }
     }
 
     #[cfg(target_feature = "avx")]
@@ -600,10 +627,12 @@ mod tests {
         use safe_arch::{m256, m256d};
         test_unoptimized_value::<m256>();
         test_unoptimized_value::<m256d>();
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
-            { (f32, 8), (f64, 4) }
-        );
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests_optim!((f32, 8), (f64, 4));
+            #[cfg(target_feature = "avx512vl")]
+            portable_mask_tests_optim!((i32, 8), (i64, 4));
+        }
     }
 
     #[cfg(target_feature = "avx2")]
@@ -611,25 +640,31 @@ mod tests {
     fn avx2() {
         use safe_arch::m256i;
         test_simd::<i8, 32, m256i>(i8::MIN, i8::MAX);
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests!(
+                (i8, 32),
+                (u8, 32),
+                (i16, 16),
+                (u16, 16),
+                (i32, 8),
+                (u32, 8),
+                (i64, 4),
+                (u64, 4)
+            );
+            #[cfg(target_arch = "x86")]
+            portable_simd_tests!((isize, 8), (usize, 8));
+            #[cfg(target_arch = "x86_64")]
+            portable_simd_tests!((isize, 4), (usize, 4));
+            #[cfg(target_feature = "avx512vl")]
             {
-                (i8, 32), (u8, 32),
-                (i16, 16), (u16, 16),
-                (i32, 8), (u32, 8),
-                (i64, 4), (u64, 4)
+                portable_mask_tests!((i8, 32), (i16, 16));
+                #[cfg(target_arch = "x86")]
+                portable_mask_tests!((isize, 8));
+                #[cfg(target_arch = "x86_64")]
+                portable_mask_tests!((isize, 4));
             }
-        );
-        #[cfg(target_arch = "x86")]
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 8), (usize, 8) }
-        );
-        #[cfg(target_arch = "x86_64")]
-        portable_simd_tests!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 4), (usize, 4) }
-        );
+        }
     }
 
     #[cfg(target_feature = "avx2")]
@@ -638,101 +673,97 @@ mod tests {
     fn avx2_optim() {
         use safe_arch::m256i;
         test_unoptimized_value::<m256i>();
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
+        #[cfg(feature = "nightly")]
+        {
+            portable_simd_tests_optim!(
+                (i8, 32),
+                (u8, 32),
+                (i16, 16),
+                (u16, 16),
+                (i32, 8),
+                (u32, 8),
+                (i64, 4),
+                (u64, 4)
+            );
+            #[cfg(target_arch = "x86")]
+            portable_simd_tests_optim!((isize, 8), (usize, 8));
+            #[cfg(target_arch = "x86_64")]
+            portable_simd_tests_optim!((isize, 4), (usize, 4));
+            #[cfg(target_feature = "avx512vl")]
             {
-                (i8, 32), (u8, 32),
-                (i16, 16), (u16, 16),
-                (i32, 8), (u32, 8),
-                (i64, 4), (u64, 4)
+                portable_mask_tests_optim!((i8, 32), (i16, 16));
+                #[cfg(target_arch = "x86")]
+                portable_mask_tests_optim!((isize, 8));
+                #[cfg(target_arch = "x86_64")]
+                portable_mask_tests_optim!((isize, 4));
             }
-        );
-        #[cfg(target_arch = "x86")]
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 8), (usize, 8) }
-        );
-        #[cfg(target_arch = "x86_64")]
-        portable_simd_tests_optim!(
-            cfg(target_feature = "avx512vl")
-            { (isize, 4), (usize, 4) }
-        );
+        }
     }
 
     #[cfg(all(feature = "nightly", target_feature = "avx512f"))]
     mod avx512 {
-        macro_rules! portable_avx512_tests {
-            (
-                $(
-                    ( $elem:ty, $lanes:expr )
-                ),*
-            ) => {
-                portable_simd_tests!(
-                    // No need for cfg here, the module has got use covered
-                    cfg(not(doc))
-                    { $( ( $elem, $lanes ) ),* }
-                );
-            }
-        }
-
-        macro_rules! portable_avx512_tests_optim {
-            (
-                $(
-                    ( $elem:ty, $lanes:expr )
-                ),*
-            ) => {
-                portable_simd_tests_optim!(
-                    // No need for cfg here, the module has got use covered
-                    cfg(not(doc))
-                    { $( ( $elem, $lanes ) ),* }
-                );
-            }
-        }
+        use super::*;
 
         #[test]
         fn avx512f() {
-            portable_avx512_tests!(
-                (i32, 32),
-                (u32, 32),
-                (i64, 16),
-                (u64, 16),
-                (f32, 32),
-                (f64, 16)
+            portable_simd_tests!(
+                (i32, 16),
+                (u32, 16),
+                (f32, 16),
+                (i64, 8),
+                (u64, 8),
+                (f64, 8)
             );
+            portable_mask_tests!((i32, 16), (i64, 8));
             #[cfg(target_arch = "x86")]
-            portable_avx512_tests!((isize, 16), (usize, 16));
+            {
+                portable_simd_tests!((isize, 16), (usize, 16));
+                portable_mask_tests!((isize, 16));
+            }
             #[cfg(target_arch = "x86_64")]
-            portable_avx512_tests!((isize, 8), (usize, 8));
+            {
+                portable_simd_tests!((isize, 8), (usize, 8));
+                portable_mask_tests!((isize, 8));
+            }
         }
 
         #[test]
         #[ignore]
         fn avx512f_optim() {
-            portable_avx512_tests_optim!(
+            portable_simd_tests_optim!(
                 (i32, 16),
                 (u32, 16),
+                (f32, 16),
                 (i64, 8),
                 (u64, 8),
-                (f32, 16),
                 (f64, 8)
             );
+            portable_mask_tests_optim!((i32, 16), (i64, 8));
             #[cfg(target_arch = "x86")]
-            portable_avx512_tests_optim!((isize, 16), (usize, 16));
+            {
+                portable_simd_tests_optim!((isize, 16), (usize, 16));
+                portable_mask_tests_optim!((isize, 16));
+            }
             #[cfg(target_arch = "x86_64")]
-            portable_avx512_tests_optim!((isize, 8), (usize, 8));
+            {
+                portable_simd_tests_optim!((isize, 8), (usize, 8));
+                portable_mask_tests_optim!((isize, 8));
+            }
         }
 
         #[cfg(target_feature = "avx512bw")]
         #[test]
         fn avx512bw() {
-            portable_avx512_tests!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
+            portable_simd_tests!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
+            portable_mask_tests!((i8, 64), (i16, 32));
         }
 
         #[cfg(target_feature = "avx512bw")]
         #[test]
         #[ignore]
         fn avx512bw_optim() {
-            portable_avx512_tests_optim!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
+            portable_simd_tests_optim!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
+            portable_mask_tests_optim!((i8, 64), (i16, 32));
         }
 
         // TODO: Add avx512bf16 tests once there are enough operations to allow
