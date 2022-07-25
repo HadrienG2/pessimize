@@ -659,5 +659,82 @@ mod tests {
         );
     }
 
-    // FIXME: Add tests for AVX-512 and BF16
+    #[cfg(all(feature = "nightly", target_feature = "avx512f"))]
+    mod avx512 {
+        macro_rules! portable_avx512_tests {
+            (
+                $(
+                    ( $elem:ty, $lanes:expr )
+                ),*
+            ) => {
+                portable_simd_tests!(
+                    // No need for cfg here, the module has got use covered
+                    cfg(not(doc))
+                    { $( ( $elem, $lanes ) ),* }
+                );
+            }
+        }
+
+        macro_rules! portable_avx512_tests_optim {
+            (
+                $(
+                    ( $elem:ty, $lanes:expr )
+                ),*
+            ) => {
+                portable_simd_tests_optim!(
+                    // No need for cfg here, the module has got use covered
+                    cfg(not(doc))
+                    { $( ( $elem, $lanes ) ),* }
+                );
+            }
+        }
+
+        #[test]
+        fn avx512f() {
+            portable_avx512_tests!(
+                (i32, 32),
+                (u32, 32),
+                (i64, 16),
+                (u64, 16),
+                (f32, 32),
+                (f64, 16)
+            );
+            #[cfg(target_arch = "x86")]
+            portable_avx512_tests!((isize, 16), (usize, 16));
+            #[cfg(target_arch = "x86_64")]
+            portable_avx512_tests!((isize, 8), (usize, 8));
+        }
+
+        #[test]
+        #[ignore]
+        fn avx512f_optim() {
+            portable_avx512_tests_optim!(
+                (i32, 16),
+                (u32, 16),
+                (i64, 8),
+                (u64, 8),
+                (f32, 16),
+                (f64, 8)
+            );
+            #[cfg(target_arch = "x86")]
+            portable_avx512_tests_optim!((isize, 16), (usize, 16));
+            #[cfg(target_arch = "x86_64")]
+            portable_avx512_tests_optim!((isize, 8), (usize, 8));
+        }
+
+        #[cfg(target_feature = "avx512bw")]
+        #[test]
+        fn avx512bw() {
+            portable_avx512_tests!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
+        }
+
+        #[cfg(target_feature = "avx512bw")]
+        #[test]
+        #[ignore]
+        fn avx512bw_optim() {
+            portable_avx512_tests_optim!((i8, 64), (u8, 64), (i16, 32), (u16, 32),);
+        }
+
+        // FIXME: Add bf16 tests
+    }
 }
