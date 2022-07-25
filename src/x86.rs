@@ -13,7 +13,7 @@ use target_arch::__m128;
 use target_arch::__m256i;
 #[cfg(all(
     feature = "nightly",
-    any(all(target_feature = "avx512vl", target_feature = "bf16"), doc)
+    any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc)
 ))]
 use target_arch::{__m128bh, __m256bh};
 #[cfg(any(target_feature = "sse2", doc))]
@@ -105,7 +105,7 @@ pessimize_values!(
 #[cfg(all(feature = "nightly", any(target_feature = "avx512f", doc)))]
 pub mod avx512 {
     use super::*;
-    #[cfg(any(target_feature = "bf16", doc))]
+    #[cfg(any(target_feature = "avx512bf16", doc))]
     use target_arch::__m512bh;
     use target_arch::{__m512, __m512d, __m512i};
 
@@ -117,19 +117,19 @@ pub mod avx512 {
         }
     );
     //
-    #[cfg(any(target_feature = "bf16", doc))]
+    #[cfg(any(target_feature = "avx512bf16", doc))]
     pessimize_values!(
-        doc(cfg(target_feature = "bf16"))
+        doc(cfg(target_feature = "avx512bf16"))
         {
             zmm_reg: (__m512bh)
         }
     );
     //
-    #[cfg(any(all(target_feature = "avx512vl", target_feature = "bf16"), doc))]
+    #[cfg(any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc))]
     pessimize_values!(
         doc(cfg(all(
             target_feature = "avx512vl",
-            target_feature = "bf16"
+            target_feature = "avx512bf16"
         )))
         { xmm_reg: (__m128bh), ymm_reg: (__m256bh) }
     );
@@ -732,9 +732,9 @@ mod tests {
         #[test]
         #[ignore]
         fn avx512bw_optim() {
-            portable_avx512_tests_optim!((i8, 64), (u8, 64), (i16, 32), (u16, 32),);
+            portable_avx512_tests_optim!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
         }
 
-        // FIXME: Add bf16 tests
+        // FIXME: Add avx512bf16 tests
     }
 }
