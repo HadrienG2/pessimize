@@ -243,6 +243,7 @@ pub fn assume_accessed<R: PessimizeRef>(r: &R) {
 
 // Implementation of Pessimize for bool based on that for u8
 impl Pessimize for bool {
+    #[allow(clippy::transmute_int_to_bool)]
     #[inline(always)]
     fn hide(self) -> Self {
         // This is safe because hide() returns the same u8, which is a valid bool
@@ -368,6 +369,7 @@ macro_rules! pessimize_references {
     ($($t:ty),*) => {
         $(
             impl<'a, T: Sized> Pessimize for $t {
+                #[allow(clippy::transmute_ptr_to_ref)]
                 #[inline(always)]
                 fn hide(self) -> Self {
                     unsafe {
@@ -426,7 +428,7 @@ pub(crate) mod tests {
     }
 
     fn test_all_pointers(mut x: impl Copy + Debug + PartialEq) {
-        let old_x = x.clone();
+        let old_x = x;
         unsafe {
             test_pointer(&x as *const _, old_x);
             test_pointer(&mut x as *mut _, old_x);
@@ -436,7 +438,7 @@ pub(crate) mod tests {
     }
 
     fn test_value(x: impl Copy + Debug + PartialEq + Pessimize) {
-        let old_x = x.clone();
+        let old_x = x;
         x.assume_read();
         assert_eq!(x, old_x);
         assert_eq!(x.hide(), old_x);
@@ -631,6 +633,7 @@ pub(crate) mod tests {
         let mut src = [0isize; BIG];
         let mut dst = [0isize; BIG];
         assert_unoptimized(|| {
+            #[allow(clippy::unnecessary_mut_passed)]
             (&mut src).assume_accessed();
             dst = src;
             (&dst).assume_read();
@@ -697,14 +700,14 @@ pub(crate) mod tests {
     impl<'a, T> UnsafeDeref for &'a T {
         type Target = T;
         unsafe fn unsafe_deref(&self) -> &Self::Target {
-            &**self
+            self
         }
     }
     //
     impl<'a, T> UnsafeDeref for &'a mut T {
         type Target = T;
         unsafe fn unsafe_deref(&self) -> &Self::Target {
-            &**self
+            self
         }
     }
     //

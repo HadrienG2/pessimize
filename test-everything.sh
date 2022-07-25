@@ -6,12 +6,11 @@ set -euo pipefail
 
 # Arguments: target rustflags extra_features +nightly
 function cross_build_base() {
-    command="cargo $4 build --tests --target=$1 --features=safe_arch$3"
-    printf "\nRUSTFLAGS=\"$2\" $command\n"
-    RUSTFLAGS=\"$2\" $($command)
-    command="cargo $4 doc --target=$1 --features=safe_arch$3"
-    printf "\nRUSTFLAGS=\"$2\" $command\n"
-    RUSTFLAGS=\"$2\" $($command)
+    for subcommand in 'clippy --tests' 'build --tests' doc; do
+        command="cargo $4 ${subcommand} --target=$1 --features=safe_arch$3"
+        printf "\nRUSTFLAGS=\"$2\" $command\n"
+        RUSTFLAGS=\"$2\" $($command)
+    done
 }
 
 # Arguments: target rustflags
