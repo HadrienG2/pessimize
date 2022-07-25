@@ -7,19 +7,23 @@ set -euo pipefail
 # Arguments: target rustflags extra_features +nightly
 function cross_build_base() {
     for subcommand in 'clippy' 'clippy --tests' 'build' 'build --tests' doc; do
-        command="cargo $4 ${subcommand} --target=$1 --features=safe_arch$3"
+        command="cargo $4 ${subcommand} --target=$1 $3"
         printf "\nRUSTFLAGS=\"$2\" $command\n"
         RUSTFLAGS=\"$2\" $($command)
     done
 }
 
 # Arguments: target rustflags
+# FIXME: Merge into one and try nightly everywhere once appropriate toolchains
+#        and targets are installed
 function cross_build() {
     cross_build_base "$1" "$2" "" ''
+    cross_build_base "$1" "$2" "--features=safe_arch" ''
 }
 #
 function cross_nightly_build() {
-    cross_build_base "$1" "$2" ",nightly" '+nightly'
+    cross_build_base "$1" "$2" "--features=nightly" '+nightly'
+    cross_build_base "$1" "$2" "--features=nightly,safe_arch" '+nightly'
 }
 
 for rustflags in '' '-C target-feature=-neon' '-C target-feature=+neon'; do
@@ -62,10 +66,14 @@ done
 
 ### NATIVE PLATFORM ###
 
-for config in '' '--release -- --include-ignored'; do
-    for rustflags in '' \
-                     '-C target-feature=+avx' \
-                     '-C target-feature=+avx -C target-feature=+avx2'; do
-        RUSTFLAGS="${rustflags}" cargo test ${config}
+for rustflags in '' \
+                 '-C target-feature=+avx' \
+                 '-C target-feature=+avx -C target-feature=+avx2'; do
+    RUSTFLAGS="${rustflags}" cargo build
+    RUSTFLAGS="${rustflags}" cargo build --features=safe_arch
+    for config in '' '--release -- --include-ignored'; do
+            RUSTFLAGS="${rustflags}" cargo test ${config}
+            RUSTFLAGS="${rustflags}" cargo test ${config}
+            RUSTFLAGS="${rustflags}" cargo +nightly test --features=nightly ${config}
     done
 done
