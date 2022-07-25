@@ -159,33 +159,31 @@ pub mod avx512 {
         { xmm_reg: (__m128bh), ymm_reg: (__m256bh) }
     );
 
-    /// Like Pessimize, but assumes the input data is resident in an AVX-512
-    /// mask register (kreg), which will reduce overhead if this is true.
-    pub trait PessimizeMask {
-        /// See `Pessimize::hide` and `PessimizeMask` documentation
-        fn hide_mask(self) -> Self;
-
-        /// See `Pessimize::assume_read` and `PessimizeMask` documentation
-        fn assume_read_mask(&self);
-    }
-
+    /// AVX-512 mask register pessimization
+    ///
+    /// By wrapping a primitive integer into this tuple struct, you access an
+    /// alternate Pessimize implementation that asserts this integer should be
+    /// kept resident in AVX-512 mask registers, not general purpose registers.
+    /// This will avoid register moves  if that's how it is actually used.
+    pub struct Mask<T>(pub T);
+    //
     macro_rules! pessimize_mask {
         ($m:meta { $($t:ty),* }) => {
             $(
                 #[$m]
-                impl PessimizeMask for $t {
+                impl Pessimize for Mask<$t> {
                     #[inline(always)]
-                    fn hide_mask(mut self) -> Self {
+                    fn hide(mut self) -> Self {
                         unsafe {
-                            asm!("/* {0} */", inout(kreg) self, options(preserves_flags, nostack, nomem));
+                            asm!("/* {0} */", inout(kreg) self.0, options(preserves_flags, nostack, nomem));
                         }
                         self
                     }
 
                     #[inline(always)]
-                    fn assume_read_mask(&self) {
+                    fn assume_read(&self) {
                         unsafe {
-                            asm!("/* {0} */", in(kreg) *self, options(preserves_flags, nostack, nomem))
+                            asm!("/* {0} */", in(kreg) self.0, options(preserves_flags, nostack, nomem))
                         }
                     }
                 }
@@ -193,10 +191,13 @@ pub mod avx512 {
         };
     }
     //
-    pessimize_mask!(allow(missing_docs) { i8, u8, i16, u16 });
+    pessimize_mask!(doc(cfg(target_feature = "avx512f")) { i8, u8, i16, u16 });
     //
     #[cfg(any(target_feature = "avx512bw", doc))]
-    pessimize_mask!(doc(cfg(target_feature = "avx512bw")) { i32, u32, i64, u64 });
+    pessimize_mask!(
+        doc(cfg(all(target_feature = "avx512f", target_feature = "avx512bw")))
+        { i32, u32, i64, u64 }
+    );
 }
 
 // Support safe_arch types if enabled
@@ -275,7 +276,7 @@ mod portable_simd {
     #[allow(unused)]
     use super::*;
     #[allow(unused)]
-    use core::simd::Simd;
+    use core::simd::{Mask, Simd, ToBitMask};
 
     #[allow(unused)]
     macro_rules! pessimize_portable_simd {
@@ -411,7 +412,110 @@ mod portable_simd {
         { __m512i: (Simd<i8, 64>, Simd<u8, 64>, Simd<i16, 32>, Simd<u16, 32>) }
     );
 
-    // TODO: Add masks for AVX-512 via ToBitMask and PessimizeMask
+    #[cfg(any(target_feature = "avx512f", doc))]
+    macro_rules! pessimize_portable_mask {
+        ($m:meta { $($t:ty),* }) => {
+            $(
+                #[$m]
+                impl Pessimize for $t {
+                    #[inline(always)]
+                    fn hide(self) -> Self {
+                        Self::from_bitmask(
+                            super::avx512::Mask(self.to_bitmask()).hide().0
+                        )
+                    }
+
+                    #[inline(always)]
+                    fn assume_read(&self) {
+                        self.to_bitmask().assume_read()
+                    }
+                }
+            )*
+        };
+    }
+    //
+    #[cfg(any(target_feature = "avx512f", doc))]
+    pessimize_portable_mask!(
+        doc(cfg(all(feature = "nightly", target_feature = "avx512f"))) {
+            Mask<f32, 16>, Mask<i32, 16>, Mask<u32, 16>,
+            Mask<f64, 8>, Mask<i64, 8>, Mask<u64, 8>
+        }
+    );
+    //
+    #[cfg(all(target_arch = "x86", any(target_feature = "avx512f", doc)))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_arch = "x86",
+            target_feature = "avx512f"
+        )))
+        {
+            Mask<usize, 16>, Mask<isize, 16>
+        }
+    );
+    //
+    #[cfg(all(target_arch = "x86_64", any(target_feature = "avx512f", doc)))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_arch = "x86_64",
+            target_feature = "avx512f"
+        )))
+        {
+            Mask<usize, 8>, Mask<isize, 8>
+        }
+    );
+    //
+    #[cfg(all(target_feature = "avx512f", any(target_feature = "avx512bw", doc)))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_feature = "avx512f",
+            target_feature = "avx512bw"
+        )))
+        {
+            Mask<i8, 64>, Mask<u8, 64>,
+            Mask<i16, 32>, Mask<u16, 32>
+        }
+    );
+    //
+    #[cfg(any(all(target_feature = "avx512f", target_feature = "avx512vl"), doc))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_feature = "avx512f",
+            target_feature = "avx512vl"
+        )))
+        {
+            Mask<f32, 4>, Mask<i32, 4>, Mask<u32, 4>,
+            Mask<f32, 8>, Mask<i32, 8>, Mask<u32, 8>,
+            Mask<f64, 2>, Mask<i64, 2>, Mask<u64, 2>,
+            Mask<f64, 4>, Mask<i64, 4>, Mask<u64, 4>
+        }
+    );
+    //
+    #[cfg(any(
+        all(
+            target_feature = "avx512f",
+            target_feature = "avx512bw",
+            target_feature = "avx512vl"
+        ),
+        doc
+    ))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_feature = "avx512f",
+            target_feature = "avx512bw",
+            target_feature = "avx512vl"
+        )))
+        {
+            Mask<i8, 16>, Mask<u8, 16>,
+            Mask<i8, 32>, Mask<u8, 32>,
+            Mask<i16, 8>, Mask<u16, 8>,
+            Mask<i16, 16>, Mask<u16, 16>
+        }
+    );
 }
 
 #[cfg(test)]
