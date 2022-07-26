@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ### CROSS-COMPILED PLATFORMS ###
+# TODO: Introduce three tiers:
+#       1. clippy + build crate (can be done even on a -none target)
+#       2. clippy + build crate & tests (can be done on a cross -linux target))
+#       3. clippy + build crate + run tests (native target)
 # TODO: Try to run tests via qemu
 
 # Runs a cargo command with certain RUSTFLAGS, echoing it beforehand

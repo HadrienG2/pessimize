@@ -306,11 +306,8 @@ macro_rules! pessimize_portable_simd {
             unsafe impl Pessimize for $simd_type {
                 #[inline(always)]
                 fn hide(self) -> Self {
-                    // FIXME: This probably works, but it would be nicer if
-                    //        portable_simd provided a conversion from
-                    //        architectural SIMD types.
                     unsafe {
-                        core::mem::transmute($crate::hide($inner::from(self)))
+                        $crate::hide($inner::from(self)).into()
                     }
                 }
 
