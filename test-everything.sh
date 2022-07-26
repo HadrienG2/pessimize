@@ -69,6 +69,7 @@ done
 for rustflags in '-C target-feature=+avx512f' \
                  '-C target-feature=+avx512f -C target-feature=+avx512bw' \
                  '-C target-feature=+avx512f -C target-feature=+avx512vl' \
+                 '-C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl' \
                  '-C target-feature=+avx512f -C target-feature=+avx512bf16' \
                  '-C target-feature=+avx512f -C target-feature=+avx512bf16 -C target-feature=+avx512vl'; do
     cross_nightly_build x86_64-unknown-linux-gnu "$rustflags"

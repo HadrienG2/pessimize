@@ -434,7 +434,7 @@ mod portable_simd {
             target_feature = "avx512vl"
         )))
         {
-            Mask<i8, 16>, Mask<i8, 32>,
+            Mask<i8, 16>,
             Mask<i16, 8>, Mask<i16, 16>,
             Mask<i32, 4>, Mask<i32, 8>,
             Mask<i64, 2>, Mask<i64, 4>
@@ -457,6 +457,16 @@ mod portable_simd {
             target_feature = "avx512vl"
         )))
         { Mask<isize, 2>, Mask<isize, 4> }
+    );
+
+    #[cfg(any(all(target_feature = "avx512bw", target_feature = "avx512vl"), doc))]
+    pessimize_portable_mask!(
+        doc(cfg(all(
+            feature = "nightly",
+            target_feature = "avx512bw"
+            target_feature = "avx512vl"
+        )))
+        { Mask<i8, 32> }
     );
 }
 
@@ -658,11 +668,13 @@ mod tests {
             portable_simd_tests!((isize, 4), (usize, 4));
             #[cfg(target_feature = "avx512vl")]
             {
-                portable_mask_tests!((i8, 32), (i16, 16));
+                portable_mask_tests!((i16, 16));
                 #[cfg(target_arch = "x86")]
                 portable_mask_tests!((isize, 8));
                 #[cfg(target_arch = "x86_64")]
                 portable_mask_tests!((isize, 4));
+                #[cfg(target_feature = "avx512bw")]
+                portable_mask_tests!((i8, 32));
             }
         }
     }
@@ -691,11 +703,13 @@ mod tests {
             portable_simd_tests_optim!((isize, 4), (usize, 4));
             #[cfg(target_feature = "avx512vl")]
             {
-                portable_mask_tests_optim!((i8, 32), (i16, 16));
+                portable_mask_tests_optim!((i16, 16));
                 #[cfg(target_arch = "x86")]
                 portable_mask_tests_optim!((isize, 8));
                 #[cfg(target_arch = "x86_64")]
                 portable_mask_tests_optim!((isize, 4));
+                #[cfg(target_feature = "avx512bw")]
+                portable_mask_tests_optim!((i8, 32));
             }
         }
     }

@@ -306,9 +306,7 @@ macro_rules! pessimize_portable_simd {
             unsafe impl Pessimize for $simd_type {
                 #[inline(always)]
                 fn hide(self) -> Self {
-                    unsafe {
-                        $crate::hide($inner::from(self)).into()
-                    }
+                    $crate::hide($inner::from(self)).into()
                 }
 
                 #[inline(always)]
