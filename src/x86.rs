@@ -149,7 +149,7 @@ pub mod avx512 {
         ) => {
             $(
                 #[$doc_cfg]
-                impl Pessimize for Mask<$mask_impl> {
+                unsafe impl Pessimize for Mask<$mask_impl> {
                     #[inline(always)]
                     fn hide(mut self) -> Self {
                         unsafe {
@@ -182,7 +182,7 @@ pub mod avx512 {
 #[cfg(any(feature = "safe_arch", test))]
 mod safe_arch {
     #[allow(unused)]
-    use crate::Pessimize;
+    use crate::{consume, hide, Pessimize};
     #[cfg(any(target_feature = "sse", doc))]
     use safe_arch::m128;
     #[cfg(any(target_feature = "avx2", doc))]
@@ -200,15 +200,15 @@ mod safe_arch {
         ) => {
             $(
                 #[$doc_cfg]
-                impl Pessimize for $safe_arch_type {
+                unsafe impl Pessimize for $safe_arch_type {
                     #[inline(always)]
                     fn hide(self) -> Self {
-                        Self(self.0.hide())
+                        Self(hide(self.0))
                     }
 
                     #[inline(always)]
                     fn assume_read(&self) {
-                        self.0.assume_read()
+                        consume(self.0)
                     }
                 }
             )*
@@ -255,7 +255,7 @@ mod safe_arch {
 #[cfg(feature = "nightly")]
 mod portable_simd {
     #[allow(unused)]
-    use crate::{pessimize_portable_simd, x86::*, Pessimize};
+    use crate::{consume, hide, pessimize_portable_simd, x86::*, Pessimize};
     #[allow(unused)]
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
@@ -377,17 +377,17 @@ mod portable_simd {
         ) => {
             $(
                 #[$doc_cfg]
-                impl Pessimize for $mask_type {
+                unsafe impl Pessimize for $mask_type {
                     #[inline(always)]
                     fn hide(self) -> Self {
                         Self::from_bitmask(
-                            avx512::Mask(self.to_bitmask()).hide().0
+                            hide(avx512::Mask(self.to_bitmask())).0
                         )
                     }
 
                     #[inline(always)]
                     fn assume_read(&self) {
-                        self.to_bitmask().assume_read()
+                        consume(avx512::Mask(self.to_bitmask()))
                     }
                 }
             )*

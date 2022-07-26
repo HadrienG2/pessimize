@@ -68,7 +68,10 @@ mod tests {
     #[allow(unused)]
     use super::*;
     #[allow(unused)]
-    use crate::tests::{test_simd, test_unoptimized_value};
+    use crate::{
+        consume, hide,
+        tests::{test_simd, test_unoptimized_value},
+    };
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
     mod neon {
@@ -131,13 +134,13 @@ mod tests {
                     }
                 }
 
-                impl Pessimize for $name {
+                unsafe impl Pessimize for $name {
                     fn hide(self) -> Self {
-                        Self(self.0.hide())
+                        Self(hide(self.0))
                     }
 
                     fn assume_read(&self) {
-                        self.0.assume_read()
+                        consume(self.0)
                     }
                 }
             };

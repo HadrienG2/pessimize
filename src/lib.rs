@@ -46,7 +46,11 @@
 //!   reduce harmful side-effects.
 
 #![cfg_attr(not(test), no_std)]
-#![cfg_attr(feature = "nightly", feature(doc_cfg, stdsimd, portable_simd))]
+#![allow(incomplete_features)]
+#![cfg_attr(
+    feature = "nightly",
+    feature(doc_cfg, specialization, stdsimd, portable_simd, ptr_metadata)
+)]
 #![deny(missing_docs)]
 
 // Each architecture-specific module is tasked to implement Pessimize for
@@ -65,7 +69,12 @@ use core::arch::asm;
 ///
 /// Implemented for all the types described in the crate documentation
 ///
-pub trait Pessimize {
+/// # Safety
+///
+/// Unsafe code may rely on hide() behaving as an identity function (returning
+/// the input value unaltered).
+///
+pub unsafe trait Pessimize {
     /// Re-emit the input value as its output (identity function), but force the
     /// compiler to assume that it is a completely different value.
     ///
@@ -123,7 +132,7 @@ pub trait PessimizeRef {
     /// ```
     /// # use pessimize::PessimizeRef;
     /// let x = 42;
-    /// let r = &x;
+    /// let mut r = &x;
     /// r.assume_accessed();
     /// // Compiler may still infer that x and *r are both 42 here
     /// ```
@@ -146,7 +155,16 @@ pub trait PessimizeRef {
     /// these pointers cannot be used to modify or read their targets where that
     /// would be undefined behavior.
     ///
-    fn assume_accessed(&self);
+    fn assume_accessed(&mut self);
+
+    /// Variant of `assume_accessed` that uses a shared reference
+    ///
+    /// You should only use this variant on internally mutable types (Cell,
+    /// RefCell, Mutex, AtomicXyz...), otherwise you can fall victim of the
+    /// "shared reference mutation is UB" edge case mentioned in the
+    /// documentation of `assume_accessed`.
+    ///
+    fn assume_accessed_imut(&self);
 }
 
 /// Re-emit the input value as its output (identity function), but force the
@@ -172,7 +190,7 @@ pub trait PessimizeRef {
 ///
 #[inline(always)]
 pub fn hide<T: Pessimize>(x: T) -> T {
-    x.hide()
+    Pessimize::hide(x)
 }
 
 /// Force the compiler to assume that a value, and data transitively
@@ -199,7 +217,14 @@ pub fn hide<T: Pessimize>(x: T) -> T {
 ///
 #[inline(always)]
 pub fn assume_read<T: Pessimize>(x: &T) {
-    x.assume_read()
+    Pessimize::assume_read(x)
+}
+
+/// Variant of `assume_read` which is more ergonomic in the common case where
+/// a `Pessimize` value is Copy or will not be needed anymore.
+#[inline(always)]
+pub fn consume<T: Pessimize>(x: T) {
+    assume_read(&x);
 }
 
 /// Force the compiler to assume that any data transitively reachable via a
@@ -215,8 +240,8 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 /// ```
 /// # use pessimize::assume_accessed;
 /// let x = 42;
-/// let r = &x;
-/// assume_accessed(&r);
+/// let mut r = &x;
+/// assume_accessed(&mut r);
 /// // Compiler may still infer that x and *r are both 42 here
 /// ```
 ///
@@ -238,22 +263,34 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 /// used to modify or read their targets where that would be undefined behavior.
 ///
 #[inline(always)]
-pub fn assume_accessed<R: PessimizeRef>(r: &R) {
-    r.assume_accessed()
+pub fn assume_accessed<R: PessimizeRef>(r: &mut R) {
+    PessimizeRef::assume_accessed(r)
+}
+
+/// Variant of `assume_accessed` that takes a shared reference
+///
+/// You should only use this variant on internally mutable types (Cell,
+/// RefCell, Mutex, AtomicXyz...), otherwise you will instantly fall victim
+/// of the "shared reference mutation is UB" edge case mentioned in the
+/// documentation of `assume_accessed`.
+///
+#[inline(always)]
+pub fn assume_accessed_imut<R: PessimizeRef>(r: &R) {
+    PessimizeRef::assume_accessed_imut(r)
 }
 
 // Implementation of Pessimize for bool based on that for u8
-impl Pessimize for bool {
+unsafe impl Pessimize for bool {
     #[allow(clippy::transmute_int_to_bool)]
     #[inline(always)]
     fn hide(self) -> Self {
         // This is safe because hide() returns the same u8, which is a valid bool
-        unsafe { core::mem::transmute((self as u8).hide()) }
+        unsafe { core::mem::transmute(hide(self as u8)) }
     }
 
     #[inline(always)]
     fn assume_read(&self) {
-        (*self as u8).assume_read()
+        consume(*self as u8)
     }
 }
 
@@ -272,7 +309,7 @@ macro_rules! pessimize_values {
         $($(
             #[allow(asm_sub_register)]
             #[$doc_cfg]
-            impl Pessimize for $value_type {
+            unsafe impl Pessimize for $value_type {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
                     unsafe {
@@ -308,20 +345,20 @@ macro_rules! pessimize_portable_simd {
     ) => {
         $($(
             #[$doc_cfg]
-            impl Pessimize for $simd_type {
+            unsafe impl Pessimize for $simd_type {
                 #[inline(always)]
                 fn hide(self) -> Self {
                     // FIXME: This probably works, but it would be nicer if
                     //        portable_simd provided a conversion from
                     //        architectural SIMD types.
                     unsafe {
-                        core::mem::transmute($inner::from(self).hide())
+                        core::mem::transmute($crate::hide($inner::from(self)))
                     }
                 }
 
                 #[inline(always)]
                 fn assume_read(&self) {
-                    $inner::from(*self).assume_read()
+                    $crate::consume($inner::from(*self))
                 }
             }
         )*)*
@@ -329,47 +366,130 @@ macro_rules! pessimize_portable_simd {
 }
 
 // Implementation of Pessimize and PessimizeRef for pointers
-macro_rules! pessimize_pointers {
-    ($($t:ty),*) => {
+#[allow(asm_sub_register)]
+#[inline(always)]
+fn hide_thin_ptr<T: Sized>(mut x: *const T) -> *const T {
+    unsafe {
+        asm!("/* {0} */", inout(reg) x, options(preserves_flags, nostack, nomem));
+    }
+    x
+}
+//
+#[allow(asm_sub_register)]
+#[inline(always)]
+fn assume_read_thin_ptr<T: Sized>(x: *const T) {
+    unsafe { asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack, readonly)) }
+}
+//
+//
+#[allow(asm_sub_register)]
+#[inline(always)]
+fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
+    unsafe { asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack)) }
+}
+
+//
+#[cfg(not(feature = "nightly"))]
+macro_rules! pessimize_thin_pointers {
+    ($pointee:ident: ($($ptr:ty),*)) => {
         $(
-            #[allow(asm_sub_register)]
-            impl<T: Sized> Pessimize for $t {
+            unsafe impl<$pointee: Sized> Pessimize for $ptr {
                 #[inline(always)]
-                fn hide(mut self) -> Self {
-                    unsafe {
-                        asm!("/* {0} */", inout(reg) self, options(preserves_flags, nostack, nomem));
-                    }
-                    self
+                fn hide(self) -> Self {
+                    hide_thin_ptr(self as *const $pointee) as Self
                 }
 
                 #[inline(always)]
                 fn assume_read(&self) {
-                    unsafe {
-                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack, readonly))
-                    }
+                    assume_read_thin_ptr(*self as *const $pointee)
                 }
             }
 
-            #[allow(asm_sub_register)]
-            impl<T: Sized> PessimizeRef for $t {
+            impl<$pointee: Sized> PessimizeRef for $ptr {
                 #[inline(always)]
-                fn assume_accessed(&self) {
-                    unsafe {
-                        asm!("/* {0} */", in(reg) *self, options(preserves_flags, nostack))
-                    }
+                fn assume_accessed(&mut self) {
+                    assume_accessed_thin_ptr(*self as *mut $pointee)
+                }
+
+                #[inline(always)]
+                fn assume_accessed_imut(&self) {
+                    assume_accessed_thin_ptr(*self as *mut $pointee)
                 }
             }
         )*
     };
 }
+#[cfg(not(feature = "nightly"))]
+pessimize_thin_pointers!(T: (*const T, *mut T));
 //
-pessimize_pointers!(*const T, *mut T);
+#[cfg(feature = "nightly")]
+mod pessimize_all_pointers {
+    use super::*;
+    use core::ptr::{self, Pointee};
+
+    unsafe impl<T: Pointee + ?Sized> Pessimize for *const T {
+        #[inline(always)]
+        fn hide(self) -> Self {
+            let (thin, metadata) = self.to_raw_parts();
+            ptr::from_raw_parts(hide_thin_ptr(thin), unsafe { *hide_thin_ptr(&metadata) })
+        }
+
+        #[inline(always)]
+        fn assume_read(&self) {
+            let (thin, metadata) = self.to_raw_parts();
+            assume_read_thin_ptr(thin);
+            assume_read_thin_ptr(&metadata as *const _);
+        }
+    }
+
+    impl<T: core::ptr::Pointee + ?Sized> PessimizeRef for *const T {
+        #[inline(always)]
+        fn assume_accessed(&mut self) {
+            let (thin, mut metadata) = self.to_raw_parts();
+            assume_accessed_thin_ptr(thin as *mut ());
+            assume_accessed_thin_ptr(&mut metadata as *mut _);
+        }
+
+        #[inline(always)]
+        fn assume_accessed_imut(&self) {
+            let (thin, mut metadata) = self.to_raw_parts();
+            assume_accessed_thin_ptr(thin as *mut ());
+            assume_accessed_thin_ptr(&mut metadata as *mut _);
+        }
+    }
+
+    unsafe impl<T: Pointee + ?Sized> Pessimize for *mut T {
+        #[inline(always)]
+        fn hide(self) -> Self {
+            hide(self as *const T) as *mut T
+        }
+
+        #[inline(always)]
+        fn assume_read(&self) {
+            consume((*self) as *const T)
+        }
+    }
+
+    impl<T: core::ptr::Pointee + ?Sized> PessimizeRef for *mut T {
+        #[inline(always)]
+        fn assume_accessed(&mut self) {
+            assume_accessed(&mut (*self as *const T))
+        }
+
+        #[inline(always)]
+        fn assume_accessed_imut(&self) {
+            assume_accessed_imut(&(*self as *const T))
+        }
+    }
+}
 
 // Implementation of Pessimize and PessimizeRef for references
 macro_rules! pessimize_references {
     ($($t:ty),*) => {
         $(
-            impl<'a, T: Sized> Pessimize for $t {
+            unsafe impl<'a, T: ?Sized> Pessimize for $t
+                where *const T: Pessimize
+            {
                 #[allow(clippy::transmute_ptr_to_ref)]
                 #[inline(always)]
                 fn hide(self) -> Self {
@@ -380,20 +500,27 @@ macro_rules! pessimize_references {
                         // according to the current Unsafe Code Guidelines
                         // consensus, which is that **using** the two
                         // coexisting references is what causes UB.
-                        core::mem::transmute((self as *const T).hide())
+                        core::mem::transmute(hide(self as *const T))
                     }
                 }
 
                 #[inline(always)]
                 fn assume_read(&self) {
-                    (*self as *const T).assume_read()
+                    assume_read::<*const T>(&((*self) as *const T))
                 }
             }
 
-            impl<'a, T: Sized> PessimizeRef for $t {
+            impl<'a, T: ?Sized> PessimizeRef for $t
+                where *const T: PessimizeRef
+            {
                 #[inline(always)]
-                fn assume_accessed(&self) {
-                    (*self as *const T).assume_accessed()
+                fn assume_accessed(&mut self) {
+                    assume_accessed::<*const T>(&mut ((*self) as *const T))
+                }
+
+                #[inline(always)]
+                fn assume_accessed_imut(&self) {
+                    assume_accessed_imut::<*const T>(&((*self) as *const T))
                 }
             }
         )*
@@ -401,6 +528,91 @@ macro_rules! pessimize_references {
 }
 //
 pessimize_references!(&'a T, &'a mut T);
+
+// Implementation of Pessimize for function pointers
+macro_rules! pessimize_fn {
+    ($res:ident $( , $args:ident )* ) => {
+        unsafe impl< $res $( , $args )* > Pessimize for fn( $($args),* ) -> $res {
+            #[inline(always)]
+            fn hide(self) -> Self {
+                unsafe { core::mem::transmute(
+                    hide(self as *const ())
+                ) }
+            }
+
+            #[inline(always)]
+            fn assume_read(&self) {
+                consume((*self) as *const ())
+            }
+        }
+    }
+}
+pessimize_fn!(R);
+pessimize_fn!(R, A1);
+pessimize_fn!(R, A1, A2);
+pessimize_fn!(R, A1, A2, A3);
+pessimize_fn!(R, A1, A2, A3, A4);
+pessimize_fn!(R, A1, A2, A3, A4, A5);
+pessimize_fn!(R, A1, A2, A3, A4, A5, A6);
+pessimize_fn!(R, A1, A2, A3, A4, A5, A6, A7);
+pessimize_fn!(R, A1, A2, A3, A4, A5, A6, A7, A8);
+
+/// Default implementation of Pessimize when no better one is available
+#[cfg(feature = "nightly")]
+#[doc(cfg(feature = "nightly"))]
+unsafe impl<T> Pessimize for T {
+    #[inline(always)]
+    default fn hide(mut self) -> Self {
+        assume_accessed(&mut ((&mut self) as *mut T));
+        self
+    }
+
+    #[inline(always)]
+    default fn assume_read(&self) {
+        assume_read(&(self as *const T))
+    }
+}
+
+// Implementation of Pessimize for small tuples of Pessimize values
+//
+// Larger tuples would spill to memory anyway, so the default implementation
+// that spills to memory is adequate.
+//
+macro_rules! pessimize_tuple {
+    ($($args:ident),*) => {
+        #[allow(non_snake_case)]
+        unsafe impl<$($args: Pessimize),*> Pessimize for ($($args,)*) {
+            #[allow(clippy::unused_unit)]
+            #[inline(always)]
+            fn hide(self) -> Self {
+                let ($($args,)*) = self;
+                ( $(hide($args),)* )
+            }
+
+            #[inline(always)]
+            fn assume_read(&self) {
+                let ($(ref $args,)*) = self;
+                $( assume_read(&$args) );*
+            }
+        }
+    };
+}
+pessimize_tuple!();
+pessimize_tuple!(A1);
+pessimize_tuple!(A1, A2);
+pessimize_tuple!(A1, A2, A3);
+pessimize_tuple!(A1, A2, A3, A4);
+pessimize_tuple!(A1, A2, A3, A4, A5);
+pessimize_tuple!(A1, A2, A3, A4, A5, A6);
+pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7);
+pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
+
+// Although the logic used above for tuples could, in principle, be used to
+// implement Pessimize for small arrays, we do not do so because it would
+// force individual scalars to be moved to registers, which pessimizes SIMD
+
+// TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
+//       warning that it will do more harm than good on a larger struct
 
 // TODO: Set up CI in the spirit of test-everything.sh
 
@@ -418,14 +630,16 @@ pub(crate) mod tests {
     // ===    (should be run on both debug and release builds)     ===
 
     unsafe fn test_pointer<Value: Clone + Debug + PartialEq>(
-        p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = Value>,
+        mut p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = Value>,
         expected_target: Value,
     ) {
-        p.assume_read();
+        assume_read(&p);
         assert_eq!(*p.unsafe_deref(), expected_target);
-        p.assume_accessed();
+        assume_accessed(&mut p);
         assert_eq!(*p.unsafe_deref(), expected_target);
-        assert_eq!(*(p.hide().unsafe_deref()), expected_target);
+        assume_accessed_imut(&p);
+        assert_eq!(*p.unsafe_deref(), expected_target);
+        assert_eq!(*(hide(p).unsafe_deref()), expected_target);
     }
 
     fn test_all_pointers(mut x: impl Copy + Debug + PartialEq) {
@@ -440,9 +654,9 @@ pub(crate) mod tests {
 
     fn test_value(x: impl Copy + Debug + PartialEq + Pessimize) {
         let old_x = x;
-        x.assume_read();
+        assume_read(&x);
         assert_eq!(x, old_x);
-        assert_eq!(x.hide(), old_x);
+        assert_eq!(hide(x), old_x);
         test_all_pointers(x);
     }
 
@@ -510,21 +724,21 @@ pub(crate) mod tests {
     fn test_unoptimized_eq<T: Copy + Default + PartialEq + Pessimize>() {
         let x = T::default();
         let y = T::default();
-        assert_unoptimized(|| (hide(x) == hide(y)).assume_read());
+        assert_unoptimized(|| consume(hide(x) == hide(y)));
     }
     //
     fn test_unoptimized_load_via_hide<T: Copy + Default + Pessimize>() {
         let x = T::default();
         let r = &x;
-        assert_unoptimized(|| (*hide(r)).assume_read());
+        assert_unoptimized(|| consume(*hide(r)));
     }
     //
     fn test_unoptimized_load_via_assume_accessed<T: Copy + Default + Pessimize>() {
         let mut x = T::default();
-        let r = &mut x;
+        let mut r = &mut x;
         assert_unoptimized(|| {
-            r.assume_accessed();
-            (*r).assume_read()
+            assume_accessed(&mut r);
+            consume(*r);
         });
     }
     //
@@ -627,7 +841,7 @@ pub(crate) mod tests {
         let mut dst = [0isize; BIG];
         assert_unoptimized(|| {
             dst = *hide(&src);
-            (&dst).assume_read();
+            consume(&dst);
         });
 
         // Copy optimization inhibition using assume_accessed
@@ -635,9 +849,9 @@ pub(crate) mod tests {
         let mut dst = [0isize; BIG];
         assert_unoptimized(|| {
             #[allow(clippy::unnecessary_mut_passed)]
-            (&mut src).assume_accessed();
+            assume_accessed(&mut (&mut src));
             dst = src;
-            (&dst).assume_read();
+            consume(&dst);
         });
     }
 
@@ -658,36 +872,34 @@ pub(crate) mod tests {
         MAX
     }
 
-    fn test_function_pointer(fptr: &impl Fn() -> isize, expected_result: isize) {
-        (fptr).assume_read();
-        assert_eq!(fptr(), expected_result);
-        (fptr).assume_accessed();
+    fn test_function_pointer(fptr: fn() -> isize, expected_result: isize) {
+        assume_read(&fptr);
         assert_eq!(fptr(), expected_result);
         assert_eq!(super::hide(fptr)(), expected_result);
     }
 
-    fn test_function_pointer_optim(fptr: &impl Fn() -> isize) {
+    fn test_function_pointer_optim(fptr: fn() -> isize) {
         assert_unoptimized(|| {
             let new_fptr = hide(fptr);
-            new_fptr().assume_read()
+            consume(new_fptr())
         })
     }
 
     // Should be run on both debug and release builds
     #[test]
     fn function_pointer() {
-        test_function_pointer(&min, MIN);
-        test_function_pointer(&zero, ZERO);
-        test_function_pointer(&max, MAX);
+        test_function_pointer(min, MIN);
+        test_function_pointer(zero, ZERO);
+        test_function_pointer(max, MAX);
     }
 
     // Should only be run on release builds
     #[test]
     #[ignore]
     fn function_pointer_optim() {
-        test_function_pointer_optim(&min);
-        test_function_pointer_optim(&zero);
-        test_function_pointer_optim(&max);
+        test_function_pointer_optim(min);
+        test_function_pointer_optim(zero);
+        test_function_pointer_optim(max);
     }
 
     // === Uninteresting helpers ===
