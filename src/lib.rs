@@ -429,9 +429,7 @@ mod pessimize_all_pointers {
         fn assume_accessed_imut(&self) {
             let (thin, metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
-            // At this point in time, the metadata of a pointer cannot be a
-            // pointer to a mutable object (only (), usize or DynMetadata that
-            // points to a table of read-only type metadata), so this is fine.
+            // See above
             consume(metadata);
         }
     }
