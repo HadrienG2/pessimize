@@ -11,18 +11,20 @@
 //!   128-bit integers)
 //! - Primitive floats (f32 and f64)
 //! - Thin pointers and references (`&T`-like other than `&[T]` or `&dyn T`,
-//!   including function pointers)
+//!   including function pointers), and fat pointers too on nightly
 //! - SIMD vector types (with optional support for `safe_arch` and `core::simd`
 //!   via feature flags)
+//! - Small tuples of these types.
 //!
 //! Some legacy and embedded architectures will not support 64-bit primitive
 //! types. The rule of thumb is, if your target CPU can fit primitive type T in
-//! a single architectural register, then that type should implement Pessimize.
+//! architectural registers, then that type should implement Pessimize.
 //!
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
 //! reference to an optimization barrier, at the cost of causing the value to
-//! be spilled to memory.
+//! be spilled to memory. If the `default_impl` feature is enabled, the crate
+//! will provide a default `Pessimize` impl that does this for you.
 //!
 //! For pointer-like entities, optimization barriers other than `hide` will
 //! have the side-effect of causing the compiler to assume that global and
