@@ -79,42 +79,10 @@ use core::arch::asm;
 /// the input value unaltered).
 ///
 pub unsafe trait Pessimize {
-    /// Re-emit the input value as its output (identity function), but force the
-    /// compiler to assume that it is a completely different value.
-    ///
-    /// If you want to re-do the exact same computation in a loop, you can pass
-    /// its inputs through this barrier to prevent the compiler from optimizing
-    /// out the redundant computations.
-    ///
-    /// If you need a `hide` alternative for a variable `x` that does not
-    /// implement `Pessimize`, you can use `*((&x).hide())`, at the cost
-    /// of forcing all data reachable via `x` which is currently cached in
-    /// registers to be spilled to memory and reloaded when needed later on.
-    ///
+    /// See `pessimize::hide()` for documentation
     fn hide(self) -> Self;
 
-    /// Force the compiler to assume that a value, and data transitively
-    /// reachable via that value (for pointers/refs), is being used if Rust
-    /// rules allow for it.
-    ///
-    /// You can apply this barrier to unused computation results in order to
-    /// prevent the compiler from optimizing out the associated computations.
-    ///
-    /// If you need an `assume_read` alternative for a variable `x` that does
-    /// not implement `Pessimize`, you can use `(&x).assume_read()`, at the
-    /// cost of forcing any data from `x` which is currently cached in registers
-    /// to be spilled into memory.
-    ///
-    /// The `assume_read` implementation of `*const T` and `*mut T` may not work
-    /// as expected if an `&mut T` reference to the same data exists somewhere,
-    /// because dereferencing the pointer in that situation would be undefined
-    /// behavior, which by definition does not exist in the eye of the compiler.
-    ///
-    /// For pointer types, this operation may sometimes be pessimized into a
-    /// full `assume_accessed()` optimization barrier, as a result of rustc not
-    /// leveraging the underlying `readonly` optimization hint. It is hoped that
-    /// future versions of rustc will take stronger notice of that hint.
-    ///
+    /// See `pessimize::assume_read()` for documentation
     fn assume_read(&self);
 }
 
@@ -128,51 +96,10 @@ pub unsafe trait Pessimize {
 /// root, rather than via method syntax.
 ///
 pub trait PessimizeRef {
-    /// Force the compiler to assume that any data transitively reachable via a
-    /// pointer/reference has been read, and modified if Rust rules allow for it.
-    ///
-    /// This will cause all target data which is currently cached in registers
-    /// to be spilled to memory and reloaded when needed later on.
-    ///
-    /// The compiler is allowed to assume that data which is only reachable via
-    /// an &-reference and does not have interior mutability semantics cannot be
-    /// modified, so you should not expect this pattern to work:
-    ///
-    /// ```
-    /// # use pessimize::PessimizeRef;
-    /// let x = 42;
-    /// let mut r = &x;
-    /// r.assume_accessed();
-    /// // Compiler may still infer that x and *r are both 42 here
-    /// ```
-    ///
-    /// Instead, if you have a shared reference to something and need the
-    /// compiler to assume that it is a shared reference to something completely
-    /// different, use `hide` to obscure the shared reference's target.
-    ///
-    /// ```
-    /// # use pessimize::Pessimize;
-    /// let x = 42;
-    /// let mut r = &x;
-    /// r = r.hide();
-    /// // Compiler still knows that x is 42 but cannot infer that *r is 42 here
-    /// ```
-    ///
-    /// Similar considerations apply to the use of `assume_accessed` on a
-    /// `*const T` or `*mut T` in the presence of an `&T` or `&mut T` to the
-    /// same target, where the compiler may or may not manage to infer that
-    /// these pointers cannot be used to modify or read their targets where that
-    /// would be undefined behavior.
-    ///
+    /// See `pessimize::assume_accessed()` for documentation
     fn assume_accessed(&mut self);
 
-    /// Variant of `assume_accessed` that uses a shared reference
-    ///
-    /// You should only use this variant on internally mutable types (Cell,
-    /// RefCell, Mutex, AtomicXyz...), otherwise you can fall victim of the
-    /// "shared reference mutation is UB" edge case mentioned in the
-    /// documentation of `assume_accessed`.
-    ///
+    /// See `pessimize::assume_accessed_imut()` for documentation
     fn assume_accessed_imut(&self);
 }
 
@@ -884,7 +811,7 @@ pub(crate) mod tests {
     fn test_function_pointer(fptr: fn() -> isize, expected_result: isize) {
         assume_read(&fptr);
         assert_eq!(fptr(), expected_result);
-        assert_eq!(super::hide(fptr)(), expected_result);
+        assert_eq!(hide(fptr)(), expected_result);
     }
 
     fn test_function_pointer_optim(fptr: fn() -> isize) {
