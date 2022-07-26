@@ -67,7 +67,11 @@ use core::arch::asm;
 
 /// Optimization barriers for supported values
 ///
-/// Implemented for all the types described in the crate documentation
+/// This trait is implemented for both value and reference types, which can
+/// lead to unexpected method syntax semantics (you expected to call the
+/// `Pessimize` impl of `T`, and you actually called that of `&T`). As a result,
+/// it is strongly recommended to use the optimization barriers via the free
+/// functions provided at the crate root, rather than via method syntax.
 ///
 /// # Safety
 ///
@@ -116,7 +120,12 @@ pub unsafe trait Pessimize {
 
 /// Optimization barriers for thin pointers and references
 ///
-/// Implemented only for `&T`, `&mut T`, `*const T` and `*mut T` where `T: Sized`.
+/// Calling this trait on a reference does not have the same semantics as
+/// calling it on a reference of reference, which can lead to unexpected method
+/// syntax semantics (you expected to call the `Pessimize` impl of `&T`, and you
+/// actually called that of `&&T`). As a result, it is strongly recommended to
+/// use the optimization barriers via the free functions provided at the crate
+/// root, rather than via method syntax.
 ///
 pub trait PessimizeRef {
     /// Force the compiler to assume that any data transitively reachable via a
