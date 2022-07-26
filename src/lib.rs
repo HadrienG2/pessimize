@@ -240,7 +240,7 @@ unsafe impl Pessimize for bool {
     #[allow(clippy::transmute_int_to_bool)]
     #[inline(always)]
     fn hide(self) -> Self {
-        // This is safe because hide() returns the same u8, which is a valid bool
+        // Safe because hide() is guaranteed to be the identity function
         unsafe { core::mem::transmute(hide(self as u8)) }
     }
 
@@ -384,11 +384,13 @@ mod pessimize_all_pointers {
     unsafe impl<T: ?Sized> Pessimize for DynMetadata<T> {
         #[inline(always)]
         fn hide(self) -> Self {
+            // Safe because hide() is guarenteed to be the identity function
             unsafe { core::mem::transmute(hide(core::mem::transmute::<_, usize>(self))) }
         }
 
         #[inline(always)]
         fn assume_read(&self) {
+            // Safe because DynMetadata is a pointer, which is convertible to usize
             unsafe { consume(core::mem::transmute::<_, usize>(self)) }
         }
     }
@@ -482,6 +484,8 @@ macro_rules! pessimize_references {
                         // according to the current Unsafe Code Guidelines
                         // consensus, which is that **using** the two
                         // coexisting references is what causes UB.
+                        // This won't happen here since we drop the original
+                        // &mut w/o using it before returning the new one.
                         core::mem::transmute(hide(self as *const T))
                     }
                 }
@@ -517,6 +521,7 @@ macro_rules! pessimize_fn {
         unsafe impl< $res $( , $args )* > Pessimize for fn( $($args),* ) -> $res {
             #[inline(always)]
             fn hide(self) -> Self {
+                // Safe because hide is guaranteed to be the identity function
                 unsafe { core::mem::transmute(
                     hide(self as *const ())
                 ) }
