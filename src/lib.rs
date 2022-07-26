@@ -10,8 +10,8 @@
 //! - Primitive integers (iN and uN, including isize and usize but excluding
 //!   128-bit integers)
 //! - Primitive floats (f32 and f64)
-//! - Thin pointers and references (`&T`-like other than `&[T]` or `&dyn T`,
-//!   including function pointers), and fat pointers too on nightly
+//! - Thin pointers and references (`&T`-like other than `&[T]` `&str` and
+//!   `&dyn T`, including function pointers), and fat pointers too on nightly
 //! - SIMD vector types (with optional support for `safe_arch` and `core::simd`
 //!   via feature flags)
 //! - Small tuples of these types.
