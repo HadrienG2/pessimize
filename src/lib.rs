@@ -586,7 +586,8 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 
 // TODO: Set up CI in the spirit of test-everything.sh
 
-// FIXME: Test new nightly types: fat pointers and tuples of Pessimize values
+// FIXME: Test new nightly types: str, [T] and dyn Trait pointers and tuples of
+//        Pessimize values
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
