@@ -81,7 +81,7 @@ for rustflags in '' \
         done
     done
     for config in '' '--release -- --include-ignored'; do
-        for op in 'test' '+nightly test --features=nightly'; do
+        for op in 'test' '+nightly test --features=nightly' '+nightly test --features=default_impl'; do
             cargo_echo "$rustflags" "$op $config"
         done
     done
