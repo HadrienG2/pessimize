@@ -57,6 +57,7 @@ mod arm;
 mod riscv;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub mod x86;
+// TODO: On nightly, support more arches via asm_experimental_arch
 
 use core::arch::asm;
 
