@@ -637,8 +637,12 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // may only implement Pessimize for them when all the metadata is exposed and
 // there is a way to build a collection back from all the raw parts
 //
-// TODO: On nightly, enable the allocator_api and apply optimization barriers to
-//       the allocator.
+// TODO: Once allocator_api is stable, support collections with custom
+//       allocators by applying optimization barriers to the allocator as well.
+//       Right now, doing so would require either duplicating the tricky
+//       collection code (one version with allocators and one version without)
+//       or dropping collection support on stable, neither of which sound
+//       satisfactory given that custom allocators are expected to be niche.
 //
 #[cfg(any(feature = "alloc", test))]
 mod alloc_feature {
@@ -787,7 +791,8 @@ pub(crate) mod tests {
         // Mechanism to check that neither a pointer nor its target have changed
         // Checking for pointer integrity first is important as corruption to a
         // pointer or its metadata could make UnsafeDeref or PartialEq UB.
-        // TODO: Use safe_transmute to detect padding byte UB from future DSTs
+        // FIXME: Use some flavor of safetransmute to defend against future DSTs
+        //        introducing padding byte UB in pointer metadata.
         let size_of_ptr = std::mem::size_of::<Ptr>();
         let mut buf = vec![0u8; size_of_ptr];
         let get_bits = |rp: &Ptr, buf: &mut [u8]| {
