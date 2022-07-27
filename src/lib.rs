@@ -237,22 +237,11 @@ unsafe impl<T> Pessimize for T {
     }
 }
 
-// Implementation of Pessimize for bool based on that for u8
-unsafe impl Pessimize for bool {
-    #[allow(clippy::transmute_int_to_bool)]
-    #[inline(always)]
-    fn hide(self) -> Self {
-        // Safe because hide() is guaranteed to be the identity function
-        unsafe { core::mem::transmute(hide(self as u8)) }
-    }
-
-    #[inline(always)]
-    fn assume_read(&self) {
-        consume(*self as u8)
-    }
-}
-
 /// Implementation of Pessimize for values without pointer semantics
+///
+/// To be used by arch-specific modules to implement Pessimize for primitive and
+/// arch-specific SIMD types.
+///
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_values {
@@ -285,6 +274,21 @@ macro_rules! pessimize_values {
             }
         )*)*
     };
+}
+
+// Implementation of Pessimize for bool based on that for u8
+unsafe impl Pessimize for bool {
+    #[allow(clippy::transmute_int_to_bool)]
+    #[inline(always)]
+    fn hide(self) -> Self {
+        // Safe because hide() is guaranteed to be the identity function
+        unsafe { core::mem::transmute(hide(self as u8)) }
+    }
+
+    #[inline(always)]
+    fn assume_read(&self) {
+        consume(*self as u8)
+    }
 }
 
 /// Implementation of Pessimize for Simd types from portable_simd
