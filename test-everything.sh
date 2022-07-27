@@ -28,13 +28,15 @@ function cross_build_base() {
 # FIXME: Merge those to try nightly everywhere once appropriate toolchains
 #        and targets are installed
 function cross_build() {
-    cross_build_base "$1" "$2" "" ''
-    cross_build_base "$1" "$2" "--features=safe_arch" ''
+    cross_build_base "$1" "$2" '--no-default-features' ''
+    cross_build_base "$1" "$2" '' ''
+    cross_build_base "$1" "$2" '--features=safe_arch' ''
 }
 #
 function cross_nightly_build() {
-    cross_build_base "$1" "$2" "--features=nightly" '+nightly'
-    cross_build_base "$1" "$2" "--features=nightly,safe_arch" '+nightly'
+    cross_build_base "$1" "$2" '--no-default-features --features=nightly' '+nightly'
+    cross_build_base "$1" "$2" '--features=nightly' '+nightly'
+    cross_build_base "$1" "$2" '--features=nightly,safe_arch' '+nightly'
 }
 
 for rustflags in '' '-C target-feature=-neon' '-C target-feature=+neon'; do
@@ -82,12 +84,15 @@ for rustflags in '' \
                  '-C target-feature=+avx' \
                  '-C target-feature=+avx -C target-feature=+avx2'; do
     for subcommand in clippy build; do
-        for features in '' '--features=safe_arch'; do
+        for features in '--no-default-features' '' '--features=safe_arch'; do
             cargo_echo "$rustflags" "$subcommand $features"
         done
     done
     for config in '' '--release -- --include-ignored'; do
-        for op in 'test' '+nightly test --features=nightly' '+nightly test --features=default_impl'; do
+        for op in '--no-default-features test' 'test' \
+                  '+nightly test --no-default-features --features=nightly' \
+                  '+nightly test --features=nightly' \
+                  '+nightly test --features=default_impl'; do
             cargo_echo "$rustflags" "$op $config"
         done
     done

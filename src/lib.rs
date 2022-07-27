@@ -56,6 +56,9 @@
 )]
 #![deny(missing_docs)]
 
+#[cfg(any(feature = "alloc", test))]
+extern crate alloc;
+
 // Each architecture-specific module is tasked to implement Pessimize for
 // primitive integers, floats and SIMD vector types.
 #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
@@ -428,8 +431,8 @@ mod all_pointers {
         fn assume_accessed(&mut self) {
             let (thin, metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
-            // Safe because hide is identity and assume_accessed doesn't modify
-            unsafe { *self = ptr::from_raw_parts(thin, hide(metadata)) }
+            // Correct because hide is identity and assume_accessed doesn't modify
+            *self = ptr::from_raw_parts(thin, hide(metadata))
         }
 
         #[inline(always)]
@@ -630,87 +633,94 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // implement Pessimize for small arrays, we do not do so because it would
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
 
-// Box<T> is effectively a fancy NonNull<T>
-unsafe impl<T: ?Sized> Pessimize for Box<T>
-where
-    *mut T: Pessimize,
-{
-    #[inline(always)]
-    fn hide(self) -> Self {
-        // Safe because hide is the identity function
-        unsafe { Box::from_raw(hide(Box::into_raw(self))) }
+#[cfg(any(feature = "alloc", test))]
+mod alloc_feature {
+    use super::*;
+    use alloc::{boxed::Box, vec::Vec};
+
+    // Box<T> is effectively a fancy NonNull<T>
+    unsafe impl<T: ?Sized> Pessimize for Box<T>
+    where
+        *mut T: Pessimize,
+    {
+        #[inline(always)]
+        fn hide(self) -> Self {
+            // Safe because hide is the identity function
+            unsafe { Box::from_raw(hide(Box::into_raw(self))) }
+        }
+
+        #[inline(always)]
+        fn assume_read(&self) {
+            let inner: &T = &**self;
+            consume(inner as *const T as *mut T)
+        }
+    }
+    //
+    unsafe impl<T: ?Sized> PessimizeRef for Box<T>
+    where
+        *mut T: PessimizeRef,
+    {
+        #[inline(always)]
+        fn assume_accessed(&mut self) {
+            let inner: &mut T = &mut **self;
+            let mut inner_ptr = inner as *mut T;
+            assume_accessed(&mut inner_ptr);
+            // Safe because assume_accessed doesn't modify its target
+            unsafe { (self as *mut Self).write(Box::from_raw(inner_ptr)) }
+        }
+
+        #[inline(always)]
+        fn assume_accessed_imut(&self) {
+            let inner: &T = &**self;
+            assume_accessed_imut(&(inner as *const T as *mut T))
+        }
     }
 
-    #[inline(always)]
-    fn assume_read(&self) {
-        let inner: &T = &**self;
-        consume(inner as *const T as *mut T)
+    // Vec<T> is basically a NonNull<T>, a length and a capacity
+    unsafe impl<T> Pessimize for Vec<T> {
+        #[inline(always)]
+        fn hide(mut self) -> Self {
+            let ptr = hide(self.as_mut_ptr());
+            let length = hide(self.len());
+            let capacity = hide(self.capacity());
+            core::mem::forget(self);
+            // Safe because hide is the identity function
+            unsafe { Vec::from_raw_parts(ptr, length, capacity) }
+        }
+
+        #[inline(always)]
+        fn assume_read(&self) {
+            consume(self.as_ptr());
+            consume(self.len());
+            consume(self.capacity());
+        }
     }
+    //
+    unsafe impl<T> PessimizeRef for Vec<T> {
+        #[inline(always)]
+        fn assume_accessed(&mut self) {
+            let ptr = self.as_mut_ptr();
+            assume_accessed_thin_ptr(ptr);
+            let length = hide(self.len());
+            let capacity = hide(self.capacity());
+            // Safe because hide is the identity function and assume_accessed
+            // doesn't modify its target
+            unsafe { (self as *mut Self).write(Vec::from_raw_parts(ptr, length, capacity)) }
+        }
+
+        #[inline(always)]
+        fn assume_accessed_imut(&self) {
+            assume_accessed_thin_ptr(self.as_ptr() as *mut T);
+            consume(self.len());
+            consume(self.capacity());
+        }
+    }
+
+    // TODO: Implement Pessimize and PessimizeRef for String
 }
-//
-unsafe impl<T: ?Sized> PessimizeRef for Box<T>
-where
-    *mut T: PessimizeRef,
-{
-    #[inline(always)]
-    fn assume_accessed(&mut self) {
-        let inner: &mut T = &mut **self;
-        let mut inner_ptr = inner as *mut T;
-        assume_accessed(&mut inner_ptr);
-        // Safe because assume_accessed doesn't modify its target
-        unsafe { (self as *mut Self).write(Box::from_raw(inner_ptr)) }
-    }
 
-    #[inline(always)]
-    fn assume_accessed_imut(&self) {
-        let inner: &T = &**self;
-        assume_accessed_imut(&(inner as *const T as *mut T))
-    }
-}
-
-// Vec<T> is basically a NonNull<T>, a length and a capacity
-unsafe impl<T> Pessimize for Vec<T> {
-    #[inline(always)]
-    fn hide(mut self) -> Self {
-        let ptr = hide(self.as_mut_ptr());
-        let length = hide(self.len());
-        let capacity = hide(self.capacity());
-        core::mem::forget(self);
-        // Safe because hide is the identity function
-        unsafe { Vec::from_raw_parts(ptr, length, capacity) }
-    }
-
-    #[inline(always)]
-    fn assume_read(&self) {
-        consume(self.as_ptr());
-        consume(self.len());
-        consume(self.capacity());
-    }
-}
-//
-unsafe impl<T> PessimizeRef for Vec<T> {
-    #[inline(always)]
-    fn assume_accessed(&mut self) {
-        let ptr = self.as_mut_ptr();
-        assume_accessed_thin_ptr(ptr);
-        let length = hide(self.len());
-        let capacity = hide(self.capacity());
-        // Safe because hide is the identity function and assume_accessed
-        // doesn't modify its target
-        unsafe { (self as *mut Self).write(Vec::from_raw_parts(ptr, length, capacity)) }
-    }
-
-    #[inline(always)]
-    fn assume_accessed_imut(&self) {
-        assume_accessed_thin_ptr(self.as_ptr() as *mut T);
-        consume(self.len());
-        consume(self.capacity());
-    }
-}
-
-// TODO: Implement Pessimize and PessimizeRef for String and
-//       internally mutable types with no hidden state (UnsafeCell, Cell,
-//       AtomicXyz), then add tests
+// TODO: Implement Pessimize and PessimizeRef for internally mutable types with
+//       no hidden state (UnsafeCell, Cell, AtomicXyz).
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
@@ -718,8 +728,9 @@ unsafe impl<T> PessimizeRef for Vec<T> {
 // TODO: Set up CI in the spirit of test-everything.sh
 
 // FIXME: Test new types: str (nightly), trait objects (nightly) and tuples of
-//        Pessimize values, Box<T> where *const T: Pessimize, Vec<T>, String
-//        and internally mutable types
+//        Pessimize values, Box<T> where *const T: Pessimize (alloc),
+//        Vec<T> (alloc), String (alloc) and internally mutable types with no
+//        internal state
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -733,18 +744,41 @@ pub(crate) mod tests {
     // === Tests asserting that the barriers don't modify anything ===
     // ===    (should be run on both debug and release builds)     ===
 
-    unsafe fn test_pointer<Value: Debug + PartialEq + ?Sized>(
-        mut p: impl PessimizeRef + UnsafeDeref<Target = Value>,
+    unsafe fn test_pointer<
+        Value: Debug + PartialEq + ?Sized,
+        Ptr: PessimizeRef + UnsafeDeref<Target = Value>,
+    >(
+        mut p: Ptr,
         expected_target: &Value,
     ) {
+        // Mechanism to check that neither a pointer nor its target have changed
+        // Checking for pointer integrity first is important as corruption to a
+        // pointer or its metadata could make UnsafeDeref or PartialEq UB.
+        // TODO: Use safe_transmute to detect padding byte UB from future DSTs
+        let size_of_ptr = std::mem::size_of::<Ptr>();
+        let mut buf = vec![0u8; size_of_ptr];
+        let get_bits = |rp: &Ptr, buf: &mut [u8]| {
+            let bp = rp as *const Ptr as *const u8;
+            let buf_target: *mut u8 = buf.as_mut_ptr();
+            buf_target.copy_from_nonoverlapping(bp, size_of_ptr);
+        };
+        get_bits(&p, &mut buf);
+        let expected_bits = buf.clone();
+        let mut check_ptr = |rp: &Ptr| {
+            get_bits(rp, &mut buf);
+            assert_eq!(buf, expected_bits);
+            assert_eq!((*rp).unsafe_deref(), expected_target);
+        };
+
+        // Check that all optimization barriers leave pointer & target unchanged
         assume_read(&p);
-        assert_eq!(p.unsafe_deref(), expected_target);
+        check_ptr(&p);
         assume_accessed(&mut p);
-        assert_eq!(p.unsafe_deref(), expected_target);
+        check_ptr(&p);
         assume_accessed_imut(&p);
-        assert_eq!(p.unsafe_deref(), expected_target);
+        check_ptr(&p);
         p = hide(p);
-        assert_eq!(p.unsafe_deref(), expected_target);
+        check_ptr(&p);
         consume(p)
     }
 
