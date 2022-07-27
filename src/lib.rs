@@ -579,14 +579,15 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // implement Pessimize for small arrays, we do not do so because it would
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
 
-// TODO: Implement Pessimize and PessimizeRef for Box<T> and Vec<T> where *const T: Pessimize
+// TODO: Implement Pessimize and PessimizeRef for Box<T> and Vec<T> where
+//       *const T: Pessimize, then add tests
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
 
 // TODO: Set up CI in the spirit of test-everything.sh
 
-// FIXME: Test new nightly types: str, [T] and dyn Trait pointers and tuples of
+// FIXME: Test new nightly types: str, trait objects and tuples of
 //        Pessimize values
 #[cfg(test)]
 pub(crate) mod tests {
