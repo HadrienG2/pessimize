@@ -371,8 +371,6 @@ mod thin_pointers {
             assume_accessed_thin_ptr(*self as *mut T)
         }
     }
-
-    // TODO: Maybe support *const [T] and *const str on stable too?
 }
 //
 #[cfg(feature = "nightly")]
