@@ -70,7 +70,7 @@ mod tests {
     #[allow(unused)]
     use crate::{
         consume, hide,
-        tests::{test_simd, test_unoptimized_value},
+        tests::{test_simd, test_unoptimized_value_type},
     };
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
@@ -92,12 +92,12 @@ mod tests {
         #[test]
         #[ignore]
         fn neon_optim() {
-            test_unoptimized_value::<F64x1>();
-            test_unoptimized_value::<F64x2>();
+            test_unoptimized_value_type::<F64x1>();
+            test_unoptimized_value_type::<F64x2>();
             #[cfg(target_feature = "nightly")]
             {
-                test_unoptimized_value::<Simd<f64, 1>>();
-                test_unoptimized_value::<Simd<f64, 2>>();
+                test_unoptimized_value_type::<Simd<f64, 1>>();
+                test_unoptimized_value_type::<Simd<f64, 2>>();
             }
         }
 

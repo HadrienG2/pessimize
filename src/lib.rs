@@ -579,6 +579,8 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // implement Pessimize for small arrays, we do not do so because it would
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
 
+// TODO: Implement Pessimize and PessimizeRef for Box<T> and Vec<T> where *const T: Pessimize
+
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
 
@@ -599,38 +601,46 @@ pub(crate) mod tests {
     // === Tests asserting that the barriers don't modify anything ===
     // ===    (should be run on both debug and release builds)     ===
 
-    unsafe fn test_thin_pointer<Value: Clone + Debug + PartialEq>(
+    unsafe fn test_pointer<Value: Debug + PartialEq + ?Sized>(
         mut p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = Value>,
-        expected_target: Value,
+        expected_target: &Value,
     ) {
         assume_read(&p);
-        assert_eq!(*p.unsafe_deref(), expected_target);
+        assert_eq!(p.unsafe_deref(), expected_target);
         assume_accessed(&mut p);
-        assert_eq!(*p.unsafe_deref(), expected_target);
+        assert_eq!(p.unsafe_deref(), expected_target);
         assume_accessed_imut(&p);
-        assert_eq!(*p.unsafe_deref(), expected_target);
-        assert_eq!(*(hide(p).unsafe_deref()), expected_target);
+        assert_eq!(p.unsafe_deref(), expected_target);
+        assert_eq!(hide(p).unsafe_deref(), expected_target);
     }
 
-    fn test_all_thin_pointers(mut x: impl Copy + Debug + PartialEq) {
-        let old_x = x;
+    fn test_all_pointers<T: Debug + PartialEq + ?Sized>(mut x: Box<T>)
+    where
+        Box<T>: Clone,
+        *const T: Pessimize + PessimizeRef,
+        *mut T: Pessimize + PessimizeRef,
+        for<'a> &'a T: Pessimize + PessimizeRef,
+        for<'a> &'a mut T: Pessimize + PessimizeRef,
+    {
+        let old_x = x.clone();
         unsafe {
-            test_thin_pointer(&x as *const _, old_x);
-            test_thin_pointer(&mut x as *mut _, old_x);
-            test_thin_pointer(&x, old_x);
-            test_thin_pointer(&mut x, old_x);
+            test_pointer((&*x) as *const T, &old_x);
+            test_pointer((&mut *x) as *mut T, &old_x);
+            test_pointer(&*x, &old_x);
+            test_pointer(&mut *x, &old_x);
         }
     }
 
-    fn test_value(x: impl Copy + Debug + PartialEq + Pessimize) {
-        let old_x = x;
+    fn test_value(x: impl Clone + Debug + PartialEq + Pessimize) {
+        let old_x = x.clone();
         assume_read(&x);
         assert_eq!(x, old_x);
-        assert_eq!(hide(x), old_x);
-        test_all_thin_pointers(x);
+        assert_eq!(hide(x.clone()), old_x);
+        test_all_pointers(Box::new(x.clone()));
+        consume(x);
     }
 
-    fn test_value_type<T: Copy + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
+    fn test_value_type<T: Clone + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
         test_value(min);
         test_value(T::default());
         test_value(max);
@@ -691,31 +701,31 @@ pub(crate) mod tests {
 
     // --- Tests for values with native Pessimize support ---
 
-    fn test_unoptimized_eq<T: Copy + Default + PartialEq + Pessimize>() {
-        let x = T::default();
-        let y = T::default();
-        assert_unoptimized(|| consume(hide(x) == hide(y)));
+    fn test_unoptimized_eq<T: Clone + PartialEq + Pessimize>(x: T) {
+        assert_unoptimized(|| consume(hide(x.clone()) == hide(x.clone())));
     }
     //
-    fn test_unoptimized_load_via_hide<T: Copy + Default + Pessimize>() {
-        let x = T::default();
+    fn test_unoptimized_load_via_hide<T: Clone + Pessimize>(x: T) {
         let r = &x;
-        assert_unoptimized(|| consume(*hide(r)));
+        assert_unoptimized(|| consume::<T>(hide(r).clone()));
     }
     //
-    fn test_unoptimized_load_via_assume_accessed<T: Copy + Default + Pessimize>() {
-        let mut x = T::default();
+    fn test_unoptimized_load_via_assume_accessed<T: Clone + Pessimize>(mut x: T) {
         let mut r = &mut x;
         assert_unoptimized(|| {
             assume_accessed(&mut r);
-            consume(*r);
+            consume::<T>(r.clone());
         });
     }
     //
-    pub fn test_unoptimized_value<T: Copy + Default + PartialEq + Pessimize>() {
-        test_unoptimized_eq::<T>();
-        test_unoptimized_load_via_hide::<T>();
-        test_unoptimized_load_via_assume_accessed::<T>();
+    fn test_unoptimized_value<T: Clone + PartialEq + Pessimize>(x: T) {
+        test_unoptimized_eq::<T>(x.clone());
+        test_unoptimized_load_via_hide::<T>(x.clone());
+        test_unoptimized_load_via_assume_accessed::<T>(x.clone());
+    }
+    //
+    pub fn test_unoptimized_value_type<T: Clone + Default + PartialEq + Pessimize>() {
+        test_unoptimized_value(T::default());
     }
 
     // === Generate a test suite for all primitive types ===
@@ -735,7 +745,7 @@ pub(crate) mod tests {
                 #[test]
                 #[ignore]
                 fn $t_optim_test_name() {
-                    test_unoptimized_value::<$t>();
+                    test_unoptimized_value_type::<$t>();
                 }
             )*
         };
@@ -784,10 +794,32 @@ pub(crate) mod tests {
     #[test]
     #[ignore]
     fn bool_optim() {
-        test_unoptimized_value::<bool>();
+        test_unoptimized_value_type::<bool>();
     }
 
     // === Test suite for types that only implement Pessimize by reference ===
+
+    // --- Common building blocks ---
+
+    #[allow(unused_assignments)]
+    #[cfg(not(feature = "default_impl"))]
+    fn test_unoptimized_non_native<T: Clone>(mut src: T) {
+        // Copy optimization inhibition using hide
+        let src2 = src.clone();
+        let mut dst = src.clone();
+        assert_unoptimized(move || {
+            dst = hide(&src2).clone();
+            consume(&dst);
+        });
+
+        // Copy optimization inhibition using assume_accessed
+        dst = src.clone();
+        assert_unoptimized(move || {
+            assume_accessed(&mut (&mut src));
+            dst = src.clone();
+            consume(&dst);
+        });
+    }
 
     // --- Array too big to fit in a register ---
 
@@ -797,38 +829,27 @@ pub(crate) mod tests {
     // Should be run on both debug and release builds
     #[test]
     fn non_native() {
-        test_all_thin_pointers([isize::MIN; BIG]);
-        test_all_thin_pointers([0; 1024]);
-        test_all_thin_pointers([isize::MAX; BIG]);
         #[cfg(feature = "default_impl")]
         test_value_type::<[isize; BIG]>([isize::MIN; BIG], [isize::MAX; BIG]);
+        #[cfg(not(feature = "default_impl"))]
+        {
+            test_all_pointers(Box::new([isize::MIN; BIG]));
+            test_all_pointers(Box::new([0isize; BIG]));
+            test_all_pointers(Box::new([isize::MAX; BIG]));
+        }
     }
 
     // Should only be run on release builds
     #[test]
     #[ignore]
     fn non_native_optim() {
-        // Copy optimization inhibition using hide
-        let src = [0isize; BIG];
-        let mut dst = [0isize; BIG];
-        assert_unoptimized(|| {
-            dst = *hide(&src);
-            consume(&dst);
-        });
-
-        // Copy optimization inhibition using assume_accessed
-        let mut src = [0isize; BIG];
-        let mut dst = [0isize; BIG];
-        assert_unoptimized(|| {
-            #[allow(clippy::unnecessary_mut_passed)]
-            assume_accessed(&mut (&mut src));
-            dst = src;
-            consume(&dst);
-        });
-
         // Standard tests if the default impl is enabled
         #[cfg(feature = "default_impl")]
-        test_unoptimized_value::<[isize; BIG]>();
+        test_unoptimized_value_type::<[isize; BIG]>();
+
+        // Specific tests if needed
+        #[cfg(not(feature = "default_impl"))]
+        test_unoptimized_non_native([0isize; BIG]);
     }
 
     // --- Function pointers ---
@@ -877,6 +898,52 @@ pub(crate) mod tests {
         test_function_pointer_optim(zero);
         test_function_pointer_optim(max);
     }
+
+    // --- Fat pointer types ---
+
+    #[cfg(feature = "nightly")]
+    mod dst {
+        use super::*;
+
+        fn make_boxed_slice(value: isize) -> Box<[isize]> {
+            vec![value; BIG].into()
+        }
+
+        // Should be run on both debug and release builds
+        #[test]
+        fn boxed_slice() {
+            // TODO: Always use test_value_type once Box support is implemented
+            #[cfg(feature = "default_impl")]
+            test_value_type::<Box<[isize]>>(
+                make_boxed_slice(isize::MIN),
+                make_boxed_slice(isize::MAX),
+            );
+            #[cfg(not(feature = "default_impl"))]
+            {
+                test_all_pointers(make_boxed_slice(isize::MIN));
+                test_all_pointers(make_boxed_slice(0));
+                test_all_pointers(make_boxed_slice(isize::MAX));
+            }
+        }
+
+        // Should only be run on release builds
+        #[test]
+        #[ignore]
+        fn boxed_slice_optim() {
+            // Standard tests if the default impl is enabled
+            // TODO: Always use this path once Box support is implemented
+            #[cfg(feature = "default_impl")]
+            test_unoptimized_value(make_boxed_slice(0));
+
+            // Specific tests if needed
+            #[cfg(not(feature = "default_impl"))]
+            test_unoptimized_non_native(make_boxed_slice(0));
+        }
+
+        // TODO: Do the same with str and dyn Trait
+    }
+
+    // TODO: Test tuples, thin Box and Vec
 
     // === Uninteresting helpers ===
 

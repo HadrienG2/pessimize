@@ -476,7 +476,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     use crate::tests::test_portable_simd;
     use crate::{
-        tests::{test_simd, test_unoptimized_value},
+        tests::{test_simd, test_unoptimized_value_type},
         Pessimize,
     };
     #[cfg(feature = "nightly")]
@@ -511,14 +511,14 @@ mod tests {
     #[cfg(feature = "nightly")]
     macro_rules! portable_simd_tests_optim {
         ( $( ( $elem:ty, $lanes:expr ) ),* ) => {
-            $( test_unoptimized_value::<Simd<$elem, $lanes>>(); )*
+            $( test_unoptimized_value_type::<Simd<$elem, $lanes>>(); )*
         }
     }
 
     #[cfg(feature = "nightly")]
     macro_rules! portable_mask_tests_optim {
         ( $( ( $elem:ty, $lanes:expr ) ),* ) => {
-            $( test_unoptimized_value::<Mask<$elem, $lanes>>(); )*
+            $( test_unoptimized_value_type::<Mask<$elem, $lanes>>(); )*
         }
     }
 
@@ -540,7 +540,7 @@ mod tests {
     #[ignore]
     fn sse_optim() {
         use safe_arch::m128;
-        test_unoptimized_value::<m128>();
+        test_unoptimized_value_type::<m128>();
         #[cfg(feature = "nightly")]
         {
             portable_simd_tests_optim!((f32, 4));
@@ -587,8 +587,8 @@ mod tests {
     #[ignore]
     fn sse2_optim() {
         use safe_arch::{m128d, m128i};
-        test_unoptimized_value::<m128d>();
-        test_unoptimized_value::<m128i>();
+        test_unoptimized_value_type::<m128d>();
+        test_unoptimized_value_type::<m128i>();
         #[cfg(feature = "nightly")]
         {
             portable_simd_tests_optim!(
@@ -635,8 +635,8 @@ mod tests {
     #[ignore]
     fn avx_optim() {
         use safe_arch::{m256, m256d};
-        test_unoptimized_value::<m256>();
-        test_unoptimized_value::<m256d>();
+        test_unoptimized_value_type::<m256>();
+        test_unoptimized_value_type::<m256d>();
         #[cfg(feature = "nightly")]
         {
             portable_simd_tests_optim!((f32, 8), (f64, 4));
@@ -684,7 +684,7 @@ mod tests {
     #[ignore]
     fn avx2_optim() {
         use safe_arch::m256i;
-        test_unoptimized_value::<m256i>();
+        test_unoptimized_value_type::<m256i>();
         #[cfg(feature = "nightly")]
         {
             portable_simd_tests_optim!(
