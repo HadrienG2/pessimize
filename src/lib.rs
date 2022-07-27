@@ -66,7 +66,7 @@ mod riscv;
 pub mod x86;
 // TODO: On nightly, support more arches via asm_experimental_arch
 
-use core::arch::asm;
+use core::{arch::asm, ptr::NonNull};
 
 /// Optimization barriers for supported values
 ///
@@ -101,7 +101,7 @@ pub unsafe trait Pessimize {
 /// use the optimization barriers via the free functions provided at the crate
 /// root, rather than via method syntax.
 ///
-pub trait PessimizeRef {
+pub trait PessimizeRef: Pessimize {
     /// See `pessimize::assume_accessed()` for documentation
     fn assume_accessed(&mut self);
 
@@ -347,36 +347,32 @@ fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
 #[cfg(not(feature = "nightly"))]
 mod thin_pointers {
     use super::*;
-    macro_rules! pessimize_thin_pointers {
-        ($pointee:ident: ($($ptr:ty),*)) => {
-            $(
-                unsafe impl<$pointee: Sized> Pessimize for $ptr {
-                    #[inline(always)]
-                    fn hide(self) -> Self {
-                        hide_thin_ptr(self as *const $pointee) as Self
-                    }
 
-                    #[inline(always)]
-                    fn assume_read(&self) {
-                        assume_read_thin_ptr(*self as *const $pointee)
-                    }
-                }
+    unsafe impl<T: Sized> Pessimize for *const T {
+        #[inline(always)]
+        fn hide(self) -> Self {
+            hide_thin_ptr(self) as Self
+        }
 
-                impl<$pointee: Sized> PessimizeRef for $ptr {
-                    #[inline(always)]
-                    fn assume_accessed(&mut self) {
-                        assume_accessed_thin_ptr(*self as *mut $pointee)
-                    }
-
-                    #[inline(always)]
-                    fn assume_accessed_imut(&self) {
-                        assume_accessed_thin_ptr(*self as *mut $pointee)
-                    }
-                }
-            )*
-        };
+        #[inline(always)]
+        fn assume_read(&self) {
+            assume_read_thin_ptr(*self)
+        }
     }
-    pessimize_thin_pointers!(T: (*const T, *mut T));
+
+    impl<T: Sized> PessimizeRef for *const T {
+        #[inline(always)]
+        fn assume_accessed(&mut self) {
+            assume_accessed_thin_ptr(*self as *mut T)
+        }
+
+        #[inline(always)]
+        fn assume_accessed_imut(&self) {
+            assume_accessed_thin_ptr(*self as *mut T)
+        }
+    }
+
+    // TODO: Maybe support *const [T] and *const str on stable too?
 }
 //
 #[cfg(feature = "nightly")]
@@ -438,35 +434,66 @@ mod all_pointers {
             consume(metadata);
         }
     }
-
-    unsafe impl<T: Pointee + ?Sized> Pessimize for *mut T
-    where
-        T::Metadata: Pessimize,
-    {
-        #[inline(always)]
-        fn hide(self) -> Self {
-            hide(self as *const T) as *mut T
-        }
-
-        #[inline(always)]
-        fn assume_read(&self) {
-            consume((*self) as *const T)
-        }
+}
+//
+unsafe impl<T: ?Sized> Pessimize for *mut T
+where
+    *const T: Pessimize,
+{
+    #[inline(always)]
+    fn hide(self) -> Self {
+        hide(self as *const T) as *mut T
     }
 
-    impl<T: core::ptr::Pointee + ?Sized> PessimizeRef for *mut T
-    where
-        T::Metadata: Pessimize,
-    {
-        #[inline(always)]
-        fn assume_accessed(&mut self) {
-            assume_accessed(&mut (*self as *const T))
-        }
+    #[inline(always)]
+    fn assume_read(&self) {
+        consume((*self) as *const T)
+    }
+}
+//
+impl<T: ?Sized> PessimizeRef for *mut T
+where
+    *const T: PessimizeRef,
+{
+    #[inline(always)]
+    fn assume_accessed(&mut self) {
+        assume_accessed(&mut (*self as *const T))
+    }
 
-        #[inline(always)]
-        fn assume_accessed_imut(&self) {
-            assume_accessed_imut(&(*self as *const T))
-        }
+    #[inline(always)]
+    fn assume_accessed_imut(&self) {
+        assume_accessed_imut(&(*self as *const T))
+    }
+}
+//
+unsafe impl<T: ?Sized> Pessimize for NonNull<T>
+where
+    *mut T: Pessimize,
+{
+    #[inline(always)]
+    fn hide(self) -> Self {
+        // Safe because hide is guarenteed to be the identity function
+        unsafe { NonNull::new_unchecked(hide(self.as_ptr())) }
+    }
+
+    #[inline(always)]
+    fn assume_read(&self) {
+        consume(self.as_ptr())
+    }
+}
+//
+impl<T: ?Sized> PessimizeRef for NonNull<T>
+where
+    *mut T: PessimizeRef,
+{
+    #[inline(always)]
+    fn assume_accessed(&mut self) {
+        assume_accessed(&mut self.as_ptr())
+    }
+
+    #[inline(always)]
+    fn assume_accessed_imut(&self) {
+        assume_accessed_imut(&self.as_ptr())
     }
 }
 
@@ -586,7 +613,7 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
 
 // TODO: Implement Pessimize and PessimizeRef for Box<T> and Vec<T> where
-//       *const T: Pessimize, then add tests
+//       *const T: Pessimize, as well as String, then add tests
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
@@ -609,7 +636,7 @@ pub(crate) mod tests {
     // ===    (should be run on both debug and release builds)     ===
 
     unsafe fn test_pointer<Value: Debug + PartialEq + ?Sized>(
-        mut p: impl Pessimize + PessimizeRef + UnsafeDeref<Target = Value>,
+        mut p: impl PessimizeRef + UnsafeDeref<Target = Value>,
         expected_target: &Value,
     ) {
         assume_read(&p);
@@ -624,10 +651,7 @@ pub(crate) mod tests {
     fn test_all_pointers<T: Debug + PartialEq + ?Sized>(mut x: Box<T>)
     where
         Box<T>: Clone,
-        *const T: Pessimize + PessimizeRef,
-        *mut T: Pessimize + PessimizeRef,
-        for<'a> &'a T: Pessimize + PessimizeRef,
-        for<'a> &'a mut T: Pessimize + PessimizeRef,
+        *const T: PessimizeRef,
     {
         let old_x = x.clone();
         unsafe {
@@ -635,6 +659,7 @@ pub(crate) mod tests {
             test_pointer((&mut *x) as *mut T, &old_x);
             test_pointer(&*x, &old_x);
             test_pointer(&mut *x, &old_x);
+            test_pointer(NonNull::<T>::from(&mut *x), &old_x);
         }
     }
 
@@ -985,6 +1010,13 @@ pub(crate) mod tests {
         type Target = T;
         unsafe fn unsafe_deref(&self) -> &Self::Target {
             &**self
+        }
+    }
+    //
+    impl<T: ?Sized> UnsafeDeref for NonNull<T> {
+        type Target = T;
+        unsafe fn unsafe_deref(&self) -> &Self::Target {
+            self.as_ref()
         }
     }
 }
