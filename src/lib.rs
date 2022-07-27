@@ -287,7 +287,7 @@ unsafe impl Pessimize for bool {
 
     #[inline(always)]
     fn assume_read(&self) {
-        consume(*self as u8)
+        consume((*self) as u8)
     }
 }
 
@@ -351,7 +351,7 @@ mod thin_pointers {
     unsafe impl<T: Sized> Pessimize for *const T {
         #[inline(always)]
         fn hide(self) -> Self {
-            hide_thin_ptr(self) as Self
+            hide_thin_ptr(self)
         }
 
         #[inline(always)]
@@ -520,7 +520,8 @@ macro_rules! pessimize_references {
 
                 #[inline(always)]
                 fn assume_read(&self) {
-                    assume_read::<*const T>(&((*self) as *const T))
+                    let inner: &T = &**self;
+                    assume_read(&(inner as *const T))
                 }
             }
 
@@ -529,12 +530,14 @@ macro_rules! pessimize_references {
             {
                 #[inline(always)]
                 fn assume_accessed(&mut self) {
-                    assume_accessed::<*const T>(&mut ((*self) as *const T))
+                    let inner: &mut T = &mut **self;
+                    assume_accessed(&mut (inner as *mut T))
                 }
 
                 #[inline(always)]
                 fn assume_accessed_imut(&self) {
-                    assume_accessed_imut::<*const T>(&((*self) as *const T))
+                    let inner: &T = &**self;
+                    assume_accessed_imut(&(inner as *const T))
                 }
             }
         )*
@@ -610,16 +613,53 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // implement Pessimize for small arrays, we do not do so because it would
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
 
-// TODO: Implement Pessimize and PessimizeRef for Box<T> and Vec<T> where
-//       *const T: Pessimize, as well as String, then add tests
+// Box is effectively a fancy NonNull<T>, so if we have one, we have the other
+unsafe impl<T> Pessimize for Box<T>
+where
+    *mut T: Pessimize,
+{
+    #[inline(always)]
+    fn hide(self) -> Self {
+        // Safe because hide is the identity function
+        unsafe { Box::from_raw(hide(Box::into_raw(self))) }
+    }
+
+    #[inline(always)]
+    fn assume_read(&self) {
+        let inner: &T = &**self;
+        assume_read(&(inner as *const T))
+    }
+}
+//
+impl<T> PessimizeRef for Box<T>
+where
+    *mut T: PessimizeRef,
+{
+    #[inline(always)]
+    fn assume_accessed(&mut self) {
+        let inner: &mut T = &mut **self;
+        assume_accessed(&mut (inner as *mut T))
+    }
+
+    #[inline(always)]
+    fn assume_accessed_imut(&self) {
+        let inner: &T = &**self;
+        assume_accessed_imut(&(inner as *const T))
+    }
+}
+
+// TODO: Implement Pessimize and PessimizeRef for Vec<T>, as well as String and
+//       internally mutable types with no hidden state (UnsafeCell, Cell,
+//       AtomicXyz), then add tests
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
 
 // TODO: Set up CI in the spirit of test-everything.sh
 
-// FIXME: Test new nightly types: str, trait objects and tuples of
-//        Pessimize values
+// FIXME: Test new types: str (nightly), trait objects (nightly) and tuples of
+//        Pessimize values, Box<T> where *const T: Pessimize, Vec<T>, String
+//        and internally mutable types
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
