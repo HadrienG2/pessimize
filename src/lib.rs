@@ -633,10 +633,18 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // implement Pessimize for small arrays, we do not do so because it would
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
 
+// Although all Rust collections are basically pointers with extra metadata, we
+// may only implement Pessimize for them when all the metadata is exposed and
+// there is a way to build a collection back from all the raw parts
+//
+// TODO: On nightly, enable the allocator_api and apply optimization barriers to
+//       the allocator.
+//
 #[cfg(any(feature = "alloc", test))]
 mod alloc_feature {
     use super::*;
-    use alloc::{boxed::Box, vec::Vec};
+    use alloc::{boxed::Box, string::String, vec::Vec};
+    use core::mem::ManuallyDrop;
 
     // Box<T> is effectively a fancy NonNull<T>
     unsafe impl<T: ?Sized> Pessimize for Box<T>
@@ -676,16 +684,14 @@ mod alloc_feature {
         }
     }
 
-    // Vec<T> is basically a NonNull<T>, a length and a capacity
+    // Vec<T> is basically a thin NonNull<T>, a length and a capacity
     unsafe impl<T> Pessimize for Vec<T> {
         #[inline(always)]
-        fn hide(mut self) -> Self {
-            let ptr = hide(self.as_mut_ptr());
-            let length = hide(self.len());
-            let capacity = hide(self.capacity());
-            core::mem::forget(self);
-            // Safe because hide is the identity function
-            unsafe { Vec::from_raw_parts(ptr, length, capacity) }
+        fn hide(self) -> Self {
+            let mut v = ManuallyDrop::new(self);
+            // Safe because self destructor has been inhibited and hide is
+            // guaranteed to be the identity function
+            unsafe { Vec::from_raw_parts(hide(v.as_mut_ptr()), hide(v.len()), hide(v.capacity())) }
         }
 
         #[inline(always)]
@@ -703,8 +709,8 @@ mod alloc_feature {
             assume_accessed_thin_ptr(ptr);
             let length = hide(self.len());
             let capacity = hide(self.capacity());
-            // Safe because hide is the identity function and assume_accessed
-            // doesn't modify its target
+            // Safe because self's destructor is inhibited through use of write,
+            // hide is identity and assume_accessed doesn't modify its target
             unsafe { (self as *mut Self).write(Vec::from_raw_parts(ptr, length, capacity)) }
         }
 
@@ -716,7 +722,34 @@ mod alloc_feature {
         }
     }
 
-    // TODO: Implement Pessimize and PessimizeRef for String
+    // String is basically a Vec<u8> with an UTF-8 validity invariant
+    unsafe impl Pessimize for String {
+        #[inline(always)]
+        fn hide(self) -> Self {
+            // Safe because hide is the identity function
+            unsafe { String::from_utf8_unchecked(hide(self.into_bytes())) }
+        }
+
+        #[inline(always)]
+        fn assume_read(&self) {
+            consume(self.as_bytes() as *const [u8] as *const u8);
+            consume(self.len());
+            consume(self.capacity());
+        }
+    }
+    //
+    unsafe impl PessimizeRef for String {
+        #[inline(always)]
+        fn assume_accessed(&mut self) {
+            // Safe because assume_accessed does not modify anything
+            assume_accessed(unsafe { self.as_mut_vec() })
+        }
+
+        #[inline(always)]
+        fn assume_accessed_imut(&self) {
+            assume_read(self)
+        }
+    }
 }
 
 // TODO: Implement Pessimize and PessimizeRef for internally mutable types with
