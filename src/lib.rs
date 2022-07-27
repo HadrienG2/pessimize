@@ -341,40 +341,42 @@ fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
 }
 //
 #[cfg(not(feature = "nightly"))]
-macro_rules! pessimize_thin_pointers {
-    ($pointee:ident: ($($ptr:ty),*)) => {
-        $(
-            unsafe impl<$pointee: Sized> Pessimize for $ptr {
-                #[inline(always)]
-                fn hide(self) -> Self {
-                    hide_thin_ptr(self as *const $pointee) as Self
+mod thin_pointers {
+    use super::*;
+    macro_rules! pessimize_thin_pointers {
+        ($pointee:ident: ($($ptr:ty),*)) => {
+            $(
+                unsafe impl<$pointee: Sized> Pessimize for $ptr {
+                    #[inline(always)]
+                    fn hide(self) -> Self {
+                        hide_thin_ptr(self as *const $pointee) as Self
+                    }
+
+                    #[inline(always)]
+                    fn assume_read(&self) {
+                        assume_read_thin_ptr(*self as *const $pointee)
+                    }
                 }
 
-                #[inline(always)]
-                fn assume_read(&self) {
-                    assume_read_thin_ptr(*self as *const $pointee)
-                }
-            }
+                impl<$pointee: Sized> PessimizeRef for $ptr {
+                    #[inline(always)]
+                    fn assume_accessed(&mut self) {
+                        assume_accessed_thin_ptr(*self as *mut $pointee)
+                    }
 
-            impl<$pointee: Sized> PessimizeRef for $ptr {
-                #[inline(always)]
-                fn assume_accessed(&mut self) {
-                    assume_accessed_thin_ptr(*self as *mut $pointee)
+                    #[inline(always)]
+                    fn assume_accessed_imut(&self) {
+                        assume_accessed_thin_ptr(*self as *mut $pointee)
+                    }
                 }
-
-                #[inline(always)]
-                fn assume_accessed_imut(&self) {
-                    assume_accessed_thin_ptr(*self as *mut $pointee)
-                }
-            }
-        )*
-    };
+            )*
+        };
+    }
+    pessimize_thin_pointers!(T: (*const T, *mut T));
 }
-#[cfg(not(feature = "nightly"))]
-pessimize_thin_pointers!(T: (*const T, *mut T));
 //
 #[cfg(feature = "nightly")]
-mod pessimize_all_pointers {
+mod all_pointers {
     use super::*;
     use core::ptr::{self, DynMetadata, Pointee};
 
