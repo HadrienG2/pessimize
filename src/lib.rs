@@ -79,7 +79,8 @@ use core::{arch::asm, ptr::NonNull};
 /// # Safety
 ///
 /// Unsafe code may rely on hide() behaving as an identity function (returning
-/// the input value unaltered).
+/// the input value unaltered) and assume_read not altering anything even if
+/// the type is internally mutable.
 ///
 pub unsafe trait Pessimize {
     /// See `pessimize::hide()` for documentation
@@ -101,7 +102,12 @@ pub unsafe trait Pessimize {
 /// use the optimization barriers via the free functions provided at the crate
 /// root, rather than via method syntax.
 ///
-pub trait PessimizeRef: Pessimize {
+/// # Safety
+///
+/// Unsafe code may rely on assume_accessed and assume_accessed_imut not
+/// altering anything even if the type is internally mutable.
+///
+pub unsafe trait PessimizeRef: Pessimize {
     /// See `pessimize::assume_accessed()` for documentation
     fn assume_accessed(&mut self);
 
@@ -216,6 +222,10 @@ pub fn assume_accessed<R: PessimizeRef>(r: &mut R) {
 /// of the "shared reference mutation is UB" edge case mentioned in the
 /// documentation of `assume_accessed`.
 ///
+/// For example, calling assume_accessed_imut on a slice pointer will not assume
+/// that the slice length has changed, since slice length does not have
+/// internal mutability semantics.
+///
 #[inline(always)]
 pub fn assume_accessed_imut<R: PessimizeRef>(r: &R) {
     PessimizeRef::assume_accessed_imut(r)
@@ -227,13 +237,13 @@ pub fn assume_accessed_imut<R: PessimizeRef>(r: &R) {
 unsafe impl<T> Pessimize for T {
     #[inline(always)]
     default fn hide(mut self) -> Self {
-        assume_accessed(&mut ((&mut self) as *mut T));
+        assume_accessed(&mut &mut self);
         self
     }
 
     #[inline(always)]
     default fn assume_read(&self) {
-        assume_read(&(self as *const T))
+        consume(self)
     }
 }
 
@@ -360,7 +370,7 @@ mod thin_pointers {
         }
     }
 
-    impl<T: Sized> PessimizeRef for *const T {
+    unsafe impl<T: Sized> PessimizeRef for *const T {
         #[inline(always)]
         fn assume_accessed(&mut self) {
             assume_accessed_thin_ptr(*self as *mut T)
@@ -410,7 +420,7 @@ mod all_pointers {
         }
     }
 
-    impl<T: core::ptr::Pointee + ?Sized> PessimizeRef for *const T
+    unsafe impl<T: core::ptr::Pointee + ?Sized> PessimizeRef for *const T
     where
         T::Metadata: Pessimize,
     {
@@ -418,17 +428,14 @@ mod all_pointers {
         fn assume_accessed(&mut self) {
             let (thin, metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
-            // At this point in time, the metadata of a pointer cannot be a
-            // pointer to a mutable object (only (), usize or DynMetadata that
-            // points to a table of read-only type metadata), so this is fine.
-            consume(metadata);
+            // Safe because hide is identity and assume_accessed doesn't modify
+            unsafe { *self = ptr::from_raw_parts(thin, hide(metadata)) }
         }
 
         #[inline(always)]
         fn assume_accessed_imut(&self) {
             let (thin, metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
-            // See above
             consume(metadata);
         }
     }
@@ -449,13 +456,15 @@ where
     }
 }
 //
-impl<T: ?Sized> PessimizeRef for *mut T
+unsafe impl<T: ?Sized> PessimizeRef for *mut T
 where
     *const T: PessimizeRef,
 {
     #[inline(always)]
     fn assume_accessed(&mut self) {
-        assume_accessed(&mut (*self as *const T))
+        // Safe because *mut T is effectively the same type as *const T and
+        // Rust does not have C-style strict aliasing rules.
+        unsafe { assume_accessed::<*const T>(core::mem::transmute(self)) }
     }
 
     #[inline(always)]
@@ -480,13 +489,16 @@ where
     }
 }
 //
-impl<T: ?Sized> PessimizeRef for NonNull<T>
+unsafe impl<T: ?Sized> PessimizeRef for NonNull<T>
 where
     *mut T: PessimizeRef,
 {
     #[inline(always)]
     fn assume_accessed(&mut self) {
-        assume_accessed(&mut self.as_ptr())
+        let mut ptr: *mut T = self.as_ptr();
+        assume_accessed(&mut ptr);
+        // Safe because assume_accessed doesn't change anything
+        *self = unsafe { NonNull::new_unchecked(ptr) };
     }
 
     #[inline(always)]
@@ -497,9 +509,13 @@ where
 
 // Implementation of Pessimize and PessimizeRef for references
 macro_rules! pessimize_references {
-    ($($t:ty),*) => {
+    (
         $(
-            unsafe impl<'a, T: ?Sized> Pessimize for $t
+            ($ref_t:ty, $from_nonnull:ident)
+        ),*
+    ) => {
+        $(
+            unsafe impl<'a, T: ?Sized> Pessimize for $ref_t
                 where *const T: Pessimize
             {
                 #[allow(clippy::transmute_ptr_to_ref)]
@@ -521,16 +537,19 @@ macro_rules! pessimize_references {
                 #[inline(always)]
                 fn assume_read(&self) {
                     let inner: &T = &**self;
-                    assume_read(&(inner as *const T))
+                    consume(inner as *const T)
                 }
             }
 
-            impl<'a, T: ?Sized> PessimizeRef for $t
+            unsafe impl<'a, T: ?Sized> PessimizeRef for $ref_t
                 where *const T: PessimizeRef
             {
                 #[inline(always)]
                 fn assume_accessed(&mut self) {
-                    assume_accessed(&mut ((*self) as *const T))
+                    let mut ptr: NonNull<T> = (*self).into();
+                    assume_accessed(&mut ptr);
+                    // Safe because assume_accessed doesn't change anything
+                    *self = unsafe { NonNull::$from_nonnull(&mut ptr) };
                 }
 
                 #[inline(always)]
@@ -542,7 +561,7 @@ macro_rules! pessimize_references {
     };
 }
 //
-pessimize_references!(&'a T, &'a mut T);
+pessimize_references!((&'a T, as_ref), (&'a mut T, as_mut));
 
 // Implementation of Pessimize for function pointers
 macro_rules! pessimize_fn {
@@ -592,7 +611,7 @@ macro_rules! pessimize_tuple {
             #[inline(always)]
             fn assume_read(&self) {
                 let ($(ref $args,)*) = self;
-                $( assume_read(&$args) );*
+                $( assume_read($args) );*
             }
         }
     };
@@ -611,8 +630,8 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // implement Pessimize for small arrays, we do not do so because it would
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
 
-// Box is effectively a fancy NonNull<T>, so if we have one, we have the other
-unsafe impl<T> Pessimize for Box<T>
+// Box<T> is effectively a fancy NonNull<T>
+unsafe impl<T: ?Sized> Pessimize for Box<T>
 where
     *mut T: Pessimize,
 {
@@ -625,28 +644,71 @@ where
     #[inline(always)]
     fn assume_read(&self) {
         let inner: &T = &**self;
-        assume_read(&(inner as *const T))
+        consume(inner as *const T as *mut T)
     }
 }
 //
-impl<T> PessimizeRef for Box<T>
+unsafe impl<T: ?Sized> PessimizeRef for Box<T>
 where
     *mut T: PessimizeRef,
 {
     #[inline(always)]
     fn assume_accessed(&mut self) {
         let inner: &mut T = &mut **self;
-        assume_accessed(&mut (inner as *mut T))
+        let mut inner_ptr = inner as *mut T;
+        assume_accessed(&mut inner_ptr);
+        // Safe because assume_accessed doesn't modify its target
+        unsafe { (self as *mut Self).write(Box::from_raw(inner_ptr)) }
     }
 
     #[inline(always)]
     fn assume_accessed_imut(&self) {
         let inner: &T = &**self;
-        assume_accessed_imut(&(inner as *const T))
+        assume_accessed_imut(&(inner as *const T as *mut T))
     }
 }
 
-// TODO: Implement Pessimize and PessimizeRef for Vec<T>, as well as String and
+// Vec<T> is basically a NonNull<T>, a length and a capacity
+unsafe impl<T> Pessimize for Vec<T> {
+    #[inline(always)]
+    fn hide(mut self) -> Self {
+        let ptr = hide(self.as_mut_ptr());
+        let length = hide(self.len());
+        let capacity = hide(self.capacity());
+        core::mem::forget(self);
+        // Safe because hide is the identity function
+        unsafe { Vec::from_raw_parts(ptr, length, capacity) }
+    }
+
+    #[inline(always)]
+    fn assume_read(&self) {
+        consume(self.as_ptr());
+        consume(self.len());
+        consume(self.capacity());
+    }
+}
+//
+unsafe impl<T> PessimizeRef for Vec<T> {
+    #[inline(always)]
+    fn assume_accessed(&mut self) {
+        let ptr = self.as_mut_ptr();
+        assume_accessed_thin_ptr(ptr);
+        let length = hide(self.len());
+        let capacity = hide(self.capacity());
+        // Safe because hide is the identity function and assume_accessed
+        // doesn't modify its target
+        unsafe { (self as *mut Self).write(Vec::from_raw_parts(ptr, length, capacity)) }
+    }
+
+    #[inline(always)]
+    fn assume_accessed_imut(&self) {
+        assume_accessed_thin_ptr(self.as_ptr() as *mut T);
+        consume(self.len());
+        consume(self.capacity());
+    }
+}
+
+// TODO: Implement Pessimize and PessimizeRef for String and
 //       internally mutable types with no hidden state (UnsafeCell, Cell,
 //       AtomicXyz), then add tests
 
@@ -681,7 +743,9 @@ pub(crate) mod tests {
         assert_eq!(p.unsafe_deref(), expected_target);
         assume_accessed_imut(&p);
         assert_eq!(p.unsafe_deref(), expected_target);
-        assert_eq!(hide(p).unsafe_deref(), expected_target);
+        p = hide(p);
+        assert_eq!(p.unsafe_deref(), expected_target);
+        consume(p)
     }
 
     fn test_all_pointers<T: Debug + PartialEq + ?Sized>(mut x: Box<T>)
@@ -941,6 +1005,7 @@ pub(crate) mod tests {
         assume_read(&fptr);
         assert_eq!(fptr(), expected_result);
         assert_eq!(hide(fptr)(), expected_result);
+        consume(fptr);
     }
 
     fn test_function_pointer_optim(fptr: fn() -> isize) {
