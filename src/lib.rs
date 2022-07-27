@@ -721,7 +721,7 @@ pub(crate) mod tests {
     fn test_unoptimized_value<T: Clone + PartialEq + Pessimize>(x: T) {
         test_unoptimized_eq::<T>(x.clone());
         test_unoptimized_load_via_hide::<T>(x.clone());
-        test_unoptimized_load_via_assume_accessed::<T>(x.clone());
+        test_unoptimized_load_via_assume_accessed::<T>(x);
     }
     //
     pub fn test_unoptimized_value_type<T: Clone + Default + PartialEq + Pessimize>() {
