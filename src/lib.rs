@@ -530,14 +530,12 @@ macro_rules! pessimize_references {
             {
                 #[inline(always)]
                 fn assume_accessed(&mut self) {
-                    let inner: &mut T = &mut **self;
-                    assume_accessed(&mut (inner as *mut T))
+                    assume_accessed(&mut ((*self) as *const T))
                 }
 
                 #[inline(always)]
                 fn assume_accessed_imut(&self) {
-                    let inner: &T = &**self;
-                    assume_accessed_imut(&(inner as *const T))
+                    assume_accessed_imut(&((*self) as *const T))
                 }
             }
         )*
