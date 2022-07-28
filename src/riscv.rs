@@ -1,7 +1,6 @@
 //! Implementations of Pessimize for RISC-V
 
 use super::{pessimize_values, Pessimize};
-use core::arch::asm;
 
 pessimize_values!(
     allow(missing_docs)

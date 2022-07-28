@@ -3,7 +3,6 @@
 use super::{pessimize_values, Pessimize};
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
 use core::arch::aarch64::{float64x1_t, float64x2_t};
-use core::arch::asm;
 
 pessimize_values!(allow(missing_docs) { reg: (i8, u8, i16, u16, i32, u32, isize, usize) });
 

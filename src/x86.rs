@@ -1,7 +1,6 @@
 //! Implementations of Pessimize for x86 and x86_64
 
 use super::{pessimize_values, Pessimize};
-use core::arch::asm;
 #[allow(unused)]
 #[cfg(target_arch = "x86")]
 use core::arch::x86 as target_arch;
@@ -105,6 +104,7 @@ pessimize_values!(
 #[cfg(all(feature = "nightly", any(target_feature = "avx512f", doc)))]
 pub mod avx512 {
     use super::*;
+    use core::arch::asm;
     #[cfg(any(target_feature = "avx512bf16", doc))]
     use target_arch::__m512bh;
     use target_arch::{__m512, __m512d, __m512i};
@@ -153,7 +153,7 @@ pub mod avx512 {
                     #[inline(always)]
                     fn hide(mut self) -> Self {
                         unsafe {
-                            asm!("/* {0} */", inout(kreg) self.0, options(preserves_flags, nostack, nomem));
+                            asm!("/* {0} */", inout(kreg) self.0, options(preserves_flags, nostack, nomem, pure));
                         }
                         self
                     }

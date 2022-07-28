@@ -69,7 +69,7 @@ mod riscv;
 pub mod x86;
 // TODO: On nightly, support more arches via asm_experimental_arch
 
-use core::{arch::asm, ptr::NonNull};
+use core::ptr::NonNull;
 
 /// Optimization barriers for supported values
 ///
@@ -273,7 +273,7 @@ macro_rules! pessimize_values {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
                     unsafe {
-                        asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem));
+                        core::arch::asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem, pure));
                     }
                     self
                 }
@@ -281,7 +281,7 @@ macro_rules! pessimize_values {
                 #[inline(always)]
                 fn assume_read(&self) {
                     unsafe {
-                        asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
+                        core::arch::asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
                     }
                 }
             }
@@ -340,7 +340,7 @@ macro_rules! pessimize_portable_simd {
 #[inline(always)]
 fn hide_thin_ptr<T: Sized>(mut x: *const T) -> *const T {
     unsafe {
-        asm!("/* {0} */", inout(reg) x, options(preserves_flags, nostack, nomem));
+        core::arch::asm!("/* {0} */", inout(reg) x, options(preserves_flags, nostack, nomem, pure));
     }
     x
 }
@@ -348,13 +348,13 @@ fn hide_thin_ptr<T: Sized>(mut x: *const T) -> *const T {
 #[allow(asm_sub_register)]
 #[inline(always)]
 fn assume_read_thin_ptr<T: Sized>(x: *const T) {
-    unsafe { asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack, readonly)) }
+    unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack, readonly)) }
 }
 //
 #[allow(asm_sub_register)]
 #[inline(always)]
 fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
-    unsafe { asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack)) }
+    unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack)) }
 }
 //
 #[cfg(not(feature = "nightly"))]
@@ -782,10 +782,7 @@ pub(crate) mod tests {
     // === Tests asserting that the barriers don't modify anything ===
     // ===    (should be run on both debug and release builds)     ===
 
-    unsafe fn test_pointer<
-        Value: Debug + PartialEq + ?Sized,
-        Ptr: PessimizeRef + PtrLike<Target = Value>,
-    >(
+    unsafe fn test_pointer<Value: Debug + PartialEq + ?Sized, Ptr: PtrLike<Target = Value>>(
         mut p: Ptr,
         expected_target: &Value,
     ) {
@@ -884,28 +881,86 @@ pub(crate) mod tests {
         for _ in 0..MIN_ITERATIONS {
             input = op(input);
         }
-        assert!(start.elapsed() >= MIN_DURATION);
+        let elapsed = start.elapsed();
+        assert!(elapsed >= MIN_DURATION);
+        eprintln!(
+            "Loop was not optimized out ({} ns/iteration)",
+            elapsed.as_nanos() as f64 / MIN_ITERATIONS as f64
+        );
         input
     }
 
     // --- Tests for pointers with PessimizeRef support
 
-    fn test_unoptimized_ptr<Ptr: PessimizeRef>(mut p: Ptr) {
-        // TODO: On nightly, split into pointer + metadata & test equality of
-        //       both separately
+    fn test_unoptimized_ptr<Value: ?Sized, Ptr: PtrLike<Target = Value>>(mut p: Ptr)
+    where
+        *const Value: PessimizeRef,
+    {
+        // On nightly, we must account for fat pointers
+        #[cfg(feature = "nightly")]
+        {
+            // Test that hide() acts as an optimization barrier
+            p = {
+                use core::ptr;
+                let (thin_ptr, metadata) = p.to_const_ptr().to_raw_parts();
 
-        // This loop should not be optimized because the new pointer that is
-        // emitted on each round seems different and the final one seems used
-        p = assert_unoptimized(p, hide);
-        assume_read(&p);
+                // If the full pointer is hidden, the thin part of the pointer
+                // should be hidden as well.
+                let thin_ptr = assert_unoptimized(thin_ptr, |thin_ptr| {
+                    let const_ptr = ptr::from_raw_parts(thin_ptr, metadata);
+                    // Safe because the pointer comes from to_const_ptr in
+                    // parent scope, the original pointer was moved away, and
+                    // the final pointer will be dropped at the end of the call
+                    let fat_ptr = hide(unsafe { Ptr::from_const_ptr(const_ptr) });
+                    let (thin_ptr, _metadata) = fat_ptr.to_const_ptr().to_raw_parts();
+                    thin_ptr
+                });
+                consume(thin_ptr);
 
-        // This loop should not be optimized out because the value behind the
-        // pointer looks different on each iteration and it is being "read"
-        assert_unoptimized((), |()| {
-            assume_accessed(&mut p);
+                // If the full pointer is hidden, the thin part of the pointer
+                // (if any) should be hidden as well
+                if core::mem::size_of_val(&metadata) > 0 {
+                    let metadata = assert_unoptimized(metadata, |metadata| {
+                        let const_ptr = ptr::from_raw_parts(thin_ptr, metadata);
+                        // Safe because the pointer comes from to_const_ptr in
+                        // parent scope, the original pointer was moved away, and
+                        // the final pointer will be dropped at the end of the call
+                        let fat_ptr = hide(unsafe { Ptr::from_const_ptr(const_ptr) });
+                        let (_thin_ptr, metadata) = fat_ptr.to_const_ptr().to_raw_parts();
+                        metadata
+                    });
+                    consume(&&metadata);
+                }
+
+                // Safe because the pointer comes from to_const_ptr in same
+                // scope and the original pointer was moved away
+                unsafe { Ptr::from_const_ptr(ptr::from_raw_parts(thin_ptr, metadata)) }
+            };
+
+            // Test that pointer-oriented optimization barriers work as well
+            assert_unoptimized((), |()| {
+                assume_accessed(&mut p);
+                assume_read(&p);
+            });
+            consume(p);
+        }
+
+        // Without nightly, we only have thin pointers to care about
+        #[cfg(not(feature = "nightly"))]
+        {
+            // This loop should not be optimized because the new pointer that is
+            // emitted on each round seems different and the final one seems used
+            p = assert_unoptimized(p, hide);
             assume_read(&p);
-        });
-        consume(p)
+
+            // This loop should not be optimized out because the value behind the
+            // pointer looks different on each iteration and it is being "read"
+            assert_unoptimized((), |()| {
+                assume_accessed(&mut p);
+                assume_read(&p);
+            });
+            consume(p)
+        }
     }
     //
     fn test_unoptimized_ptrs<T: ?Sized, OwnedT: Clone + Borrow<T> + BorrowMut<T>>(mut x: OwnedT)
@@ -1113,11 +1168,32 @@ pub(crate) mod tests {
     // === Uninteresting helpers ===
 
     // Abstraction layer to handle references and pointers homogeneously
-    trait PtrLike {
+    trait PtrLike: PessimizeRef + Sized {
         type Target: ?Sized;
 
         // Abstraction of self as *const T
         fn as_const_ptr(&self) -> *const Self::Target;
+
+        // Like as_const_ptr, but translating back is not UB
+        fn to_const_ptr(self) -> *const Self::Target {
+            self.as_const_ptr()
+        }
+
+        // Get back from *const Self::Target to Self after to_const_ptr
+        //
+        // # Safety
+        //
+        // Transmuting back from *const T to &mut T is UB if the original
+        // reference still exists (more precisely using the ref is UB).
+        //
+        // Transmuting *const T to a reference with a different lifetime than
+        // the original one can also lead to UB.
+        //
+        // Basically, only use this on a pointer from Self::to_const_ptr,
+        // obtained in the same scope or a parent scope, and stop using the
+        // *const T as soon as the original pointer is back..
+        //
+        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self;
 
         // Abstraction of &**self
         unsafe fn unsafe_deref(&self) -> &Self::Target {
@@ -1142,43 +1218,78 @@ pub(crate) mod tests {
         }
     }
     //
-    impl<'a, T: ?Sized> PtrLike for &'a T {
+    impl<'a, T: ?Sized> PtrLike for &'a T
+    where
+        *const T: PessimizeRef,
+    {
         type Target = T;
 
         fn as_const_ptr(&self) -> *const Self::Target {
             *self as *const T
         }
+
+        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
+            &*ptr
+        }
     }
     //
-    impl<'a, T: ?Sized> PtrLike for &'a mut T {
+    impl<'a, T: ?Sized> PtrLike for &'a mut T
+    where
+        *const T: PessimizeRef,
+    {
         type Target = T;
 
         fn as_const_ptr(&self) -> *const Self::Target {
             *self as *const T
         }
+
+        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
+            &mut *(ptr as *mut T)
+        }
     }
     //
-    impl<T: ?Sized> PtrLike for *const T {
+    impl<T: ?Sized> PtrLike for *const T
+    where
+        *const T: PessimizeRef,
+    {
         type Target = T;
 
         fn as_const_ptr(&self) -> *const Self::Target {
             *self as *const T
         }
+
+        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
+            ptr
+        }
     }
     //
-    impl<T: ?Sized> PtrLike for *mut T {
+    impl<T: ?Sized> PtrLike for *mut T
+    where
+        *const T: PessimizeRef,
+    {
         type Target = T;
 
         fn as_const_ptr(&self) -> *const Self::Target {
             *self as *const T
         }
+
+        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
+            ptr as *mut T
+        }
     }
     //
-    impl<T: ?Sized> PtrLike for NonNull<T> {
+    impl<T: ?Sized> PtrLike for NonNull<T>
+    where
+        *const T: PessimizeRef,
+    {
         type Target = T;
 
         fn as_const_ptr(&self) -> *const Self::Target {
             self.as_ptr()
+        }
+
+        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
+            Self::new_unchecked(ptr as *mut Self::Target)
         }
     }
 }
