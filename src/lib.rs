@@ -547,6 +547,7 @@ macro_rules! pessimize_references {
             unsafe impl<'a, T: ?Sized> PessimizeRef for $ref_t
                 where *const T: PessimizeRef
             {
+                #[allow(clippy::unnecessary_mut_passed)]
                 #[inline(always)]
                 fn assume_accessed(&mut self) {
                     let mut ptr: NonNull<T> = (*self).into();
@@ -663,7 +664,7 @@ mod alloc_feature {
 
         #[inline(always)]
         fn assume_read(&self) {
-            let inner: &T = &**self;
+            let inner: &T = self.as_ref();
             consume(inner as *const T as *mut T)
         }
     }
@@ -674,7 +675,7 @@ mod alloc_feature {
     {
         #[inline(always)]
         fn assume_accessed(&mut self) {
-            let inner: &mut T = &mut **self;
+            let inner: &mut T = self.as_mut();
             let mut inner_ptr = inner as *mut T;
             assume_accessed(&mut inner_ptr);
             // Safe because assume_accessed doesn't modify its target
@@ -683,7 +684,7 @@ mod alloc_feature {
 
         #[inline(always)]
         fn assume_accessed_imut(&self) {
-            let inner: &T = &**self;
+            let inner: &T = self.as_ref();
             assume_accessed_imut(&(inner as *const T as *mut T))
         }
     }
@@ -909,7 +910,8 @@ pub(crate) mod tests {
     // Measure time to run an empty loop (counter increment and nothing else),
     // check that it is within expectations.
     fn checked_empty_loop_duration() -> Duration {
-        let elapsed = time_loop(|iter| consume(iter));
+        // FIXME: Use consume(&iter) on arches without 64-bit integer consume
+        let elapsed = time_loop(consume);
         assert!(elapsed >= MIN_DURATION);
         elapsed
     }

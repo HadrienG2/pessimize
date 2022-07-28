@@ -89,7 +89,7 @@ for rustflags in '' \
         done
     done
     for config in '' '--release -- --include-ignored'; do
-        for op in '--no-default-features test' 'test' \
+        for op in 'test --no-default-features' 'test' \
                   '+nightly test --no-default-features --features=nightly' \
                   '+nightly test --features=nightly' \
                   '+nightly test --features=default_impl'; do
