@@ -910,8 +910,14 @@ pub(crate) mod tests {
     // Measure time to run an empty loop (counter increment and nothing else),
     // check that it is within expectations.
     fn checked_empty_loop_duration() -> Duration {
-        // FIXME: Use consume(&iter) on arches without 64-bit integer consume
+        // Any architecture with 64-bit pointers can store 64-bit integers in
+        // registers and thus has native u64: Pessimize. On other arches, we
+        // consume a reference to the loop counter, which is always valid but
+        // causes it to be spilled to memory.
+        #[cfg(target_pointer_width = "64")]
         let elapsed = time_loop(consume);
+        #[cfg(not(target_pointer_width = "64"))]
+        let elapsed = time_loop(|iter| consume(&iter));
         assert!(elapsed >= MIN_DURATION);
         elapsed
     }
