@@ -782,6 +782,9 @@ pub(crate) mod tests {
     // === Tests asserting that the barriers don't modify anything ===
     // ===    (should be run on both debug and release builds)     ===
 
+    // This may cause UB if the PessimizeRef implementation is wrong (hide is
+    // not an identity function, assume_xyz modifies the target), but we try
+    // extra hard to detect this situation.
     unsafe fn test_pointer<Value: Debug + PartialEq + ?Sized, Ptr: PtrLike<Target = Value>>(
         mut p: Ptr,
         expected_target: &Value,
@@ -862,125 +865,228 @@ pub(crate) mod tests {
 
     // --- Basic harness ---
 
-    /// Maximum realistic operation processing frequency
-    /// This can be Nx higher than the clock rate on an N-way superscalar CPU
-    const MAX_PROCESSING_FREQ: u64 = 100_000_000_000;
+    /// Maximum degree of instruction-level parallelism for any instruction
+    const MAX_SUPERSCALAR_WAYS: u64 = 4;
+
+    /// Maximum realistic number of empty loop iterations per second
+    ///
+    /// At the time of writing, CPU boost clocks commonly go above 5 GHz and
+    /// 8-9 GHz has been observed in overclocking records 10 years ago, it seems
+    /// unlikely that these records will be beaten anytime soon so 10 GHz is a
+    /// good clock frequency upper bound.
+    ///
+    /// While most processors can only process 1 conditional jump per second, it
+    /// is possible to go all the way up to the maximal ILP integer increment
+    /// rate through loop unrolling.
+    ///
+    const MAX_LOOP_FREQ: u64 = MAX_SUPERSCALAR_WAYS * 10_000_000_000;
 
     /// Maximum expected clock granularity
     /// The system clock is expected to always be able to measure this duration
     const MIN_DURATION: Duration = Duration::from_millis(2);
 
-    /// Minimum number of loop iterations for which a duration greater than or
-    /// equal to MIN_DURATION should be measured
-    const MIN_ITERATIONS: u64 =
-        2 * MAX_PROCESSING_FREQ * MIN_DURATION.as_nanos() as u64 / 1_000_000_000;
+    /// Minimum number of loop iterations for which a loop duration greater than
+    /// or equal to MIN_DURATION should be measured
+    const MIN_ITERATIONS: u64 = 2 * MAX_LOOP_FREQ * MIN_DURATION.as_nanos() as u64 / 1_000_000_000;
 
-    fn assert_unoptimized<T>(init: T, mut op: impl FnMut(T) -> T) -> T {
+    // Measure the time it takes to run something in a loop
+    fn time_loop(mut op: impl FnMut(u64)) -> Duration {
         let start = Instant::now();
-        let mut input = init;
-        for _ in 0..MIN_ITERATIONS {
-            input = op(input);
+        for iter in 0..MIN_ITERATIONS {
+            op(iter);
         }
-        let elapsed = start.elapsed();
+        start.elapsed()
+    }
+
+    // Measure time to run an empty loop (counter increment and nothing else),
+    // check that it is within expectations.
+    fn checked_empty_loop_duration() -> Duration {
+        let elapsed = time_loop(|iter| consume(iter));
         assert!(elapsed >= MIN_DURATION);
+        elapsed
+    }
+
+    // Make sure that an operation was not optimized out
+    //
+    // An input value is initially provided. This input is passed down to the
+    // operation, and whatever the operation emits will be the next input. The
+    // output of the last operation is emitted as the output of the test. This
+    // allows running tests with values that cannot or should not be cloned.
+    //
+    fn assert_unoptimized<T>(input: T, mut op: impl FnMut(T) -> T) -> T {
+        // Run the operation in a loop
+        let mut opt = Some(input);
+        let elapsed = time_loop(|_iter| {
+            let mut input = opt.take().unwrap();
+            // For each loop iteration, we perform more of the requested
+            // operation than can be performed in a single CPU cycle. Therefore,
+            // if the operation is not optimized out, each loop iteration should
+            // take at least one more CPU cycle.
+            for _ in 0..=MAX_SUPERSCALAR_WAYS {
+                input = op(input);
+            }
+            opt = Some(input);
+        });
+
+        // Immediately check empty loop iteration speed to evaluate clock rate,
+        // which can vary depending on the operation we're doing.
+        // Since a loop iteration takes at most 1 CPU clock cycle on modern
+        // CPUs, with >1 extra cycle, the loop should be at least 2x slower.
+        let elapsed_empty = checked_empty_loop_duration();
+        let ratio = elapsed.as_secs_f64() / elapsed_empty.as_secs_f64();
+        assert!(ratio > 1.9);
+
+        // Next, deduce the actual rate at which operations are being executed
+        // and compare that to the rate at which empty loop iterations execute.
         eprintln!(
-            "Loop was not optimized out ({} ns/iteration)",
-            elapsed.as_nanos() as f64 / MIN_ITERATIONS as f64
+            "Operation pessimized (running at {:.1}x empty iteration speed of {:.1} GHz)",
+            (MAX_SUPERSCALAR_WAYS + 1) as f64 / ratio,
+            MIN_ITERATIONS as f64 / elapsed_empty.as_nanos() as f64
         );
-        input
+
+        // Finally, return the last output for the next benchmark test
+        opt.take().unwrap()
     }
 
     // --- Tests for pointers with PessimizeRef support
 
-    fn test_unoptimized_ptr<Value: ?Sized, Ptr: PtrLike<Target = Value>>(mut p: Ptr)
-    where
+    // Check that one component of the output of hide() looks different
+    //
+    // The initial value of the component is provided, along with a way to
+    // extract the component for a complete pointer and a way to get back the
+    // complete pointer from a component value.
+    //
+    // # Safety
+    //
+    // - If Ptr is &mut, there should be no live &mut to the target
+    // - extract and rebuild should honor their contract, in the sense that
+    //   extract(rebuild(c)) == c && rebuild(extract(p)) == p.
+    // - The output of rebuild (which is the original pointer) should be safe to
+    //   cast to Ptr via PtrLike::from_const_ptr.
+    //
+    #[cfg(feature = "nightly")]
+    unsafe fn test_unoptimized_ptr_component<
+        Value: ?Sized,
+        Ptr: PtrLike<Target = Value>,
+        PtrComponent: Copy + PartialEq,
+    >(
+        component: PtrComponent,
+        mut extract: impl FnMut(*const Value) -> PtrComponent,
+        mut rebuild: impl FnMut(PtrComponent) -> *const Value,
+    ) where
         *const Value: PessimizeRef,
     {
+        // Check that hide() pretends to return a modified version of the
+        // selected pointer component
+        assert_unoptimized(component, |component| {
+            let old_component = component;
+            let const_ptr = rebuild(component);
+            let fat_ptr = hide(Ptr::from_const_ptr(const_ptr));
+            let component = extract(fat_ptr.to_const_ptr());
+            consume(component == old_component);
+            component
+        });
+    }
+    //
+    fn test_unoptimized_ptr<Value: PartialEq + ?Sized, Ptr: PtrLike<Target = Value>>(
+        mut p: Ptr,
+        expected_target: &Value,
+    ) where
+        *const Value: PessimizeRef,
+    {
+        // assume_accessed() makes the pointee look modified
+        let old_p = p.as_const_ptr();
+        assert_unoptimized((), |()| {
+            assume_accessed(&mut p);
+            // This is safe because assume_accessed doesn't modify anything
+            consume(unsafe { p.deep_eq(old_p, expected_target) });
+        });
+
+        // On stable, we only have thin pointers to care about
+        #[cfg(not(feature = "nightly"))]
+        {
+            // hide() seems to return a different pointer
+            assert_unoptimized(p, |mut p| {
+                p = hide(p);
+                consume(p.as_const_ptr() == old_p);
+                p
+            });
+        }
+
         // On nightly, we must account for fat pointers
         #[cfg(feature = "nightly")]
         {
-            // Test that hide() acts as an optimization barrier
-            p = {
-                use core::ptr;
-                let (thin_ptr, metadata) = p.to_const_ptr().to_raw_parts();
+            use core::ptr;
 
-                // If the full pointer is hidden, the thin part of the pointer
-                // should be hidden as well.
-                let thin_ptr = assert_unoptimized(thin_ptr, |thin_ptr| {
-                    let const_ptr = ptr::from_raw_parts(thin_ptr, metadata);
-                    // Safe because the pointer comes from to_const_ptr in
-                    // parent scope, the original pointer was moved away, and
-                    // the final pointer will be dropped at the end of the call
-                    let fat_ptr = hide(unsafe { Ptr::from_const_ptr(const_ptr) });
-                    let (thin_ptr, _metadata) = fat_ptr.to_const_ptr().to_raw_parts();
-                    thin_ptr
+            // assert_unoptimized() seems to modify the pointer's metadata
+            let extract_metdata = |p: &Ptr| p.as_const_ptr().to_raw_parts().1;
+            let metadata = extract_metdata(&p);
+            let nontrivial_metadata = core::mem::size_of_val(&metadata) > 0;
+            if nontrivial_metadata {
+                assert_unoptimized((), |()| {
+                    assume_accessed(&mut p);
+                    consume(extract_metdata(&p) == metadata);
                 });
-                consume(thin_ptr);
+            }
 
-                // If the full pointer is hidden, the thin part of the pointer
-                // (if any) should be hidden as well
-                if core::mem::size_of_val(&metadata) > 0 {
-                    let metadata = assert_unoptimized(metadata, |metadata| {
-                        let const_ptr = ptr::from_raw_parts(thin_ptr, metadata);
-                        // Safe because the pointer comes from to_const_ptr in
-                        // parent scope, the original pointer was moved away, and
-                        // the final pointer will be dropped at the end of the call
-                        let fat_ptr = hide(unsafe { Ptr::from_const_ptr(const_ptr) });
-                        let (_thin_ptr, metadata) = fat_ptr.to_const_ptr().to_raw_parts();
-                        metadata
-                    });
-                    consume(&&metadata);
+            // In the output of hide(), both the thin pointer and metadata look
+            // unrelated to that of the original pointer.
+            //
+            // This is safe because..
+            // - If p is an &mut, it is moved away by to_const_ptr.
+            // - The provided extract and rebuild impls are correct
+            // - The pointer emitted by rebuild is basically p.as_const_ptr().
+            //
+            let thin_ptr = p.to_const_ptr().to_raw_parts().0;
+            unsafe {
+                test_unoptimized_ptr_component::<Value, Ptr, *const ()>(
+                    thin_ptr,
+                    |const_ptr| {
+                        let (thin_ptr, _metadata) = const_ptr.to_raw_parts();
+                        thin_ptr
+                    },
+                    |thin_ptr| ptr::from_raw_parts(thin_ptr, metadata),
+                );
+                if nontrivial_metadata {
+                    test_unoptimized_ptr_component::<Value, Ptr, _>(
+                        metadata,
+                        |const_ptr| {
+                            let (_thin_ptr, metadata) = const_ptr.to_raw_parts();
+                            metadata
+                        },
+                        |metadata| ptr::from_raw_parts(thin_ptr, metadata),
+                    );
                 }
-
-                // Safe because the pointer comes from to_const_ptr in same
-                // scope and the original pointer was moved away
-                unsafe { Ptr::from_const_ptr(ptr::from_raw_parts(thin_ptr, metadata)) }
-            };
-
-            // Test that pointer-oriented optimization barriers work as well
-            assert_unoptimized((), |()| {
-                assume_accessed(&mut p);
-                assume_read(&p);
-            });
-            consume(p);
-        }
-
-        // Without nightly, we only have thin pointers to care about
-        #[cfg(not(feature = "nightly"))]
-        {
-            // This loop should not be optimized because the new pointer that is
-            // emitted on each round seems different and the final one seems used
-            p = assert_unoptimized(p, hide);
-            assume_read(&p);
-
-            // This loop should not be optimized out because the value behind the
-            // pointer looks different on each iteration and it is being "read"
-            assert_unoptimized((), |()| {
-                assume_accessed(&mut p);
-                assume_read(&p);
-            });
-            consume(p)
+            }
         }
     }
     //
-    fn test_unoptimized_ptrs<T: ?Sized, OwnedT: Clone + Borrow<T> + BorrowMut<T>>(mut x: OwnedT)
-    where
+    fn test_unoptimized_ptrs<T: PartialEq + ?Sized, OwnedT: Clone + Borrow<T> + BorrowMut<T>>(
+        mut x: OwnedT,
+    ) where
         *const T: PessimizeRef,
     {
-        test_unoptimized_ptr(x.borrow() as *const T);
-        test_unoptimized_ptr(x.borrow_mut() as *mut T);
-        test_unoptimized_ptr(x.borrow());
-        test_unoptimized_ptr(x.borrow_mut());
-        test_unoptimized_ptr(NonNull::<T>::from(x.borrow_mut()));
+        let old_x = x.clone();
+        let old_x = old_x.borrow();
+        test_unoptimized_ptr(x.borrow() as *const T, old_x);
+        test_unoptimized_ptr(x.borrow_mut() as *mut T, old_x);
+        test_unoptimized_ptr(x.borrow(), old_x);
+        test_unoptimized_ptr(x.borrow_mut(), old_x);
+        test_unoptimized_ptr(NonNull::<T>::from(x.borrow_mut()), old_x);
     }
 
     // --- Tests for values with native Pessimize support ---
 
-    fn test_unoptimized_value<T: PartialEq + Pessimize>(x: T) {
-        consume(assert_unoptimized(x, hide))
+    fn test_unoptimized_value<T: Clone + PartialEq + Pessimize>(x: T) {
+        let old_x = x.clone();
+        assert_unoptimized(x, |mut x| {
+            x = hide(x);
+            consume(x == old_x);
+            x
+        });
     }
     //
-    pub fn test_unoptimized_value_type<T: Default + PartialEq + Pessimize>() {
+    pub fn test_unoptimized_value_type<T: Clone + Default + PartialEq + Pessimize>() {
         test_unoptimized_value(T::default());
     }
 
@@ -1058,7 +1164,8 @@ pub(crate) mod tests {
     // --- Array too big to fit in a register ---
 
     // What is considered too big (in units of isize)
-    const BIG: usize = 32;
+    // 2 is enough as we don't currently pessimize arrays
+    const BIG: usize = 1;
 
     // Should be run on both debug and release builds
     #[test]
@@ -1106,7 +1213,12 @@ pub(crate) mod tests {
     }
 
     fn test_function_pointer_optim(fptr: fn() -> isize) {
-        let fptr = assert_unoptimized(fptr, hide);
+        let expected_result = fptr();
+        assert_unoptimized(fptr, |mut fptr| {
+            fptr = hide(fptr);
+            consume(fptr() == expected_result);
+            fptr
+        });
         consume(fptr())
     }
 
