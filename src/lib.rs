@@ -774,6 +774,7 @@ pub(crate) mod tests {
     #[cfg(feature = "nightly")]
     use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
     use std::{
+        borrow::{Borrow, BorrowMut},
         fmt::Debug,
         time::{Duration, Instant},
     };
@@ -783,64 +784,46 @@ pub(crate) mod tests {
 
     unsafe fn test_pointer<
         Value: Debug + PartialEq + ?Sized,
-        Ptr: PessimizeRef + UnsafeDeref<Target = Value>,
+        Ptr: PessimizeRef + PtrLike<Target = Value>,
     >(
         mut p: Ptr,
         expected_target: &Value,
     ) {
-        // Mechanism to check that neither a pointer nor its target have changed
-        // Checking for pointer integrity first is important as corruption to a
-        // pointer or its metadata could make UnsafeDeref or PartialEq UB.
-        // FIXME: Use some flavor of safetransmute to defend against future DSTs
-        //        introducing padding byte UB in pointer metadata.
-        let size_of_ptr = std::mem::size_of::<Ptr>();
-        let mut buf = vec![0u8; size_of_ptr];
-        let get_bits = |rp: &Ptr, buf: &mut [u8]| {
-            let bp = rp as *const Ptr as *const u8;
-            let buf_target: *mut u8 = buf.as_mut_ptr();
-            buf_target.copy_from_nonoverlapping(bp, size_of_ptr);
-        };
-        get_bits(&p, &mut buf);
-        let expected_bits = buf.clone();
-        let mut check_ptr = |rp: &Ptr| {
-            get_bits(rp, &mut buf);
-            assert_eq!(buf, expected_bits);
-            assert_eq!((*rp).unsafe_deref(), expected_target);
-        };
-
-        // Check that all optimization barriers leave pointer & target unchanged
-        assume_read(&p);
-        check_ptr(&p);
-        assume_accessed(&mut p);
-        check_ptr(&p);
-        assume_accessed_imut(&p);
-        check_ptr(&p);
+        let old_p = p.as_const_ptr();
+        assert!(p.deep_eq(old_p, expected_target));
         p = hide(p);
-        check_ptr(&p);
+        assert!(p.deep_eq(old_p, expected_target));
+        assume_read(&p);
+        assert!(p.deep_eq(old_p, expected_target));
+        assume_accessed(&mut p);
+        assert!(p.deep_eq(old_p, expected_target));
+        assume_accessed_imut(&p);
+        assert!(p.deep_eq(old_p, expected_target));
         consume(p)
     }
 
-    fn test_all_pointers<T: Debug + PartialEq + ?Sized>(mut x: Box<T>)
-    where
-        Box<T>: Clone,
+    fn test_all_pointers<T: Debug + PartialEq + ?Sized, OwnedT: Clone + Borrow<T> + BorrowMut<T>>(
+        mut x: OwnedT,
+    ) where
         *const T: PessimizeRef,
     {
         let old_x = x.clone();
+        let old_x = old_x.borrow();
         unsafe {
-            test_pointer((&*x) as *const T, &old_x);
-            test_pointer((&mut *x) as *mut T, &old_x);
-            test_pointer(&*x, &old_x);
-            test_pointer(&mut *x, &old_x);
-            test_pointer(NonNull::<T>::from(&mut *x), &old_x);
+            test_pointer(x.borrow() as *const T, old_x);
+            test_pointer(x.borrow_mut() as *mut T, old_x);
+            test_pointer(x.borrow(), old_x);
+            test_pointer(x.borrow_mut(), old_x);
+            test_pointer(NonNull::<T>::from(x.borrow_mut()), old_x);
         }
     }
 
-    fn test_value(x: impl Clone + Debug + PartialEq + Pessimize) {
+    fn test_value<T: Clone + Debug + PartialEq + Pessimize>(x: T) {
         let old_x = x.clone();
         assume_read(&x);
         assert_eq!(x, old_x);
         assert_eq!(hide(x.clone()), old_x);
-        test_all_pointers(Box::new(x.clone()));
+        test_all_pointers::<T, _>(x.clone());
         consume(x);
     }
 
@@ -895,40 +878,54 @@ pub(crate) mod tests {
     const MIN_ITERATIONS: u64 =
         2 * MAX_PROCESSING_FREQ * MIN_DURATION.as_nanos() as u64 / 1_000_000_000;
 
-    fn assert_unoptimized(mut op: impl FnMut()) {
+    fn assert_unoptimized<T>(init: T, mut op: impl FnMut(T) -> T) -> T {
         let start = Instant::now();
+        let mut input = init;
         for _ in 0..MIN_ITERATIONS {
-            op();
+            input = op(input);
         }
         assert!(start.elapsed() >= MIN_DURATION);
+        input
+    }
+
+    // --- Tests for pointers with PessimizeRef support
+
+    fn test_unoptimized_ptr<Ptr: PessimizeRef>(mut p: Ptr) {
+        // TODO: On nightly, split into pointer + metadata & test equality of
+        //       both separately
+
+        // This loop should not be optimized because the new pointer that is
+        // emitted on each round seems different and the final one seems used
+        p = assert_unoptimized(p, hide);
+        assume_read(&p);
+
+        // This loop should not be optimized out because the value behind the
+        // pointer looks different on each iteration and it is being "read"
+        assert_unoptimized((), |()| {
+            assume_accessed(&mut p);
+            assume_read(&p);
+        });
+        consume(p)
+    }
+    //
+    fn test_unoptimized_ptrs<T: ?Sized, OwnedT: Clone + Borrow<T> + BorrowMut<T>>(mut x: OwnedT)
+    where
+        *const T: PessimizeRef,
+    {
+        test_unoptimized_ptr(x.borrow() as *const T);
+        test_unoptimized_ptr(x.borrow_mut() as *mut T);
+        test_unoptimized_ptr(x.borrow());
+        test_unoptimized_ptr(x.borrow_mut());
+        test_unoptimized_ptr(NonNull::<T>::from(x.borrow_mut()));
     }
 
     // --- Tests for values with native Pessimize support ---
 
-    fn test_unoptimized_eq<T: Clone + PartialEq + Pessimize>(x: T) {
-        assert_unoptimized(|| consume(hide(x.clone()) == hide(x.clone())));
+    fn test_unoptimized_value<T: PartialEq + Pessimize>(x: T) {
+        consume(assert_unoptimized(x, hide))
     }
     //
-    fn test_unoptimized_load_via_hide<T: Clone + Pessimize>(x: T) {
-        let r = &x;
-        assert_unoptimized(|| consume::<T>(hide(r).clone()));
-    }
-    //
-    fn test_unoptimized_load_via_assume_accessed<T: Clone + Pessimize>(mut x: T) {
-        let mut r = &mut x;
-        assert_unoptimized(|| {
-            assume_accessed(&mut r);
-            consume::<T>(r.clone());
-        });
-    }
-    //
-    fn test_unoptimized_value<T: Clone + PartialEq + Pessimize>(x: T) {
-        test_unoptimized_eq::<T>(x.clone());
-        test_unoptimized_load_via_hide::<T>(x.clone());
-        test_unoptimized_load_via_assume_accessed::<T>(x);
-    }
-    //
-    pub fn test_unoptimized_value_type<T: Clone + Default + PartialEq + Pessimize>() {
+    pub fn test_unoptimized_value_type<T: Default + PartialEq + Pessimize>() {
         test_unoptimized_value(T::default());
     }
 
@@ -1003,28 +1000,6 @@ pub(crate) mod tests {
 
     // === Test suite for types that only implement Pessimize by reference ===
 
-    // --- Common building blocks ---
-
-    #[allow(unused_assignments)]
-    #[cfg(not(feature = "default_impl"))]
-    fn test_unoptimized_non_native<T: Clone>(mut src: T) {
-        // Copy optimization inhibition using hide
-        let src2 = src.clone();
-        let mut dst = src.clone();
-        assert_unoptimized(move || {
-            dst = hide(&src2).clone();
-            consume(&dst);
-        });
-
-        // Copy optimization inhibition using assume_accessed
-        dst = src.clone();
-        assert_unoptimized(move || {
-            assume_accessed(&mut (&mut src));
-            dst = src.clone();
-            consume(&dst);
-        });
-    }
-
     // --- Array too big to fit in a register ---
 
     // What is considered too big (in units of isize)
@@ -1036,10 +1011,8 @@ pub(crate) mod tests {
         #[cfg(feature = "default_impl")]
         test_value_type::<[isize; BIG]>([isize::MIN; BIG], [isize::MAX; BIG]);
         #[cfg(not(feature = "default_impl"))]
-        {
-            test_all_pointers(Box::new([isize::MIN; BIG]));
-            test_all_pointers(Box::new([0isize; BIG]));
-            test_all_pointers(Box::new([isize::MAX; BIG]));
+        for inner in [isize::MIN, 0, isize::MAX] {
+            test_all_pointers::<[isize; BIG], _>([inner; BIG]);
         }
     }
 
@@ -1047,13 +1020,10 @@ pub(crate) mod tests {
     #[test]
     #[ignore]
     fn non_native_optim() {
-        // Standard tests if the default impl is enabled
         #[cfg(feature = "default_impl")]
         test_unoptimized_value_type::<[isize; BIG]>();
-
-        // Specific tests if needed
         #[cfg(not(feature = "default_impl"))]
-        test_unoptimized_non_native([0isize; BIG]);
+        test_unoptimized_ptrs::<[isize; BIG], _>([0isize; BIG]);
     }
 
     // --- Function pointers ---
@@ -1081,10 +1051,8 @@ pub(crate) mod tests {
     }
 
     fn test_function_pointer_optim(fptr: fn() -> isize) {
-        assert_unoptimized(|| {
-            let new_fptr = hide(fptr);
-            consume(new_fptr())
-        })
+        let fptr = assert_unoptimized(fptr, hide);
+        consume(fptr())
     }
 
     // Should be run on both debug and release builds
@@ -1117,17 +1085,15 @@ pub(crate) mod tests {
         // Should be run on both debug and release builds
         #[test]
         fn boxed_slice() {
-            // TODO: Always use test_value_type once Box support is implemented
-            #[cfg(feature = "default_impl")]
+            // Test boxed slices as owned values
             test_value_type::<Box<[isize]>>(
                 make_boxed_slice(isize::MIN),
                 make_boxed_slice(isize::MAX),
             );
-            #[cfg(not(feature = "default_impl"))]
-            {
-                test_all_pointers(make_boxed_slice(isize::MIN));
-                test_all_pointers(make_boxed_slice(0));
-                test_all_pointers(make_boxed_slice(isize::MAX));
+
+            // Test slice pointers, using boxed slices as owned storage
+            for inner in [isize::MIN, 0, isize::MAX] {
+                test_all_pointers::<[isize], _>(make_boxed_slice(inner))
             }
         }
 
@@ -1135,14 +1101,8 @@ pub(crate) mod tests {
         #[test]
         #[ignore]
         fn boxed_slice_optim() {
-            // Standard tests if the default impl is enabled
-            // TODO: Always use this path once Box support is implemented
-            #[cfg(feature = "default_impl")]
             test_unoptimized_value(make_boxed_slice(0));
-
-            // Specific tests if needed
-            #[cfg(not(feature = "default_impl"))]
-            test_unoptimized_non_native(make_boxed_slice(0));
+            test_unoptimized_ptrs::<[isize], _>(make_boxed_slice(0));
         }
 
         // TODO: Do the same with str and dyn Trait
@@ -1153,43 +1113,72 @@ pub(crate) mod tests {
     // === Uninteresting helpers ===
 
     // Abstraction layer to handle references and pointers homogeneously
-    trait UnsafeDeref {
+    trait PtrLike {
         type Target: ?Sized;
-        unsafe fn unsafe_deref(&self) -> &Self::Target;
-    }
-    //
-    impl<'a, T: ?Sized> UnsafeDeref for &'a T {
-        type Target = T;
+
+        // Abstraction of self as *const T
+        fn as_const_ptr(&self) -> *const Self::Target;
+
+        // Abstraction of &**self
         unsafe fn unsafe_deref(&self) -> &Self::Target {
-            self
+            &*self.as_const_ptr()
+        }
+
+        // Abstraction of (self as *const T) == (other as *const T)
+        fn ptr_eq(&self, other: *const Self::Target) -> bool {
+            self.as_const_ptr() == other
+        }
+
+        // Check ptr_eq, then target value against expectation
+        //
+        // Used in scenarios where there is a risk of pointer corruption, in
+        // which cas it is not safe to dereference the pointer.
+        //
+        unsafe fn deep_eq(&self, other: *const Self::Target, expected_target: &Self::Target) -> bool
+        where
+            Self::Target: PartialEq,
+        {
+            self.ptr_eq(other) && self.unsafe_deref() == expected_target
         }
     }
     //
-    impl<'a, T: ?Sized> UnsafeDeref for &'a mut T {
+    impl<'a, T: ?Sized> PtrLike for &'a T {
         type Target = T;
-        unsafe fn unsafe_deref(&self) -> &Self::Target {
-            self
+
+        fn as_const_ptr(&self) -> *const Self::Target {
+            *self as *const T
         }
     }
     //
-    impl<T: ?Sized> UnsafeDeref for *const T {
+    impl<'a, T: ?Sized> PtrLike for &'a mut T {
         type Target = T;
-        unsafe fn unsafe_deref(&self) -> &Self::Target {
-            &**self
+
+        fn as_const_ptr(&self) -> *const Self::Target {
+            *self as *const T
         }
     }
     //
-    impl<T: ?Sized> UnsafeDeref for *mut T {
+    impl<T: ?Sized> PtrLike for *const T {
         type Target = T;
-        unsafe fn unsafe_deref(&self) -> &Self::Target {
-            &**self
+
+        fn as_const_ptr(&self) -> *const Self::Target {
+            *self as *const T
         }
     }
     //
-    impl<T: ?Sized> UnsafeDeref for NonNull<T> {
+    impl<T: ?Sized> PtrLike for *mut T {
         type Target = T;
-        unsafe fn unsafe_deref(&self) -> &Self::Target {
-            self.as_ref()
+
+        fn as_const_ptr(&self) -> *const Self::Target {
+            *self as *const T
+        }
+    }
+    //
+    impl<T: ?Sized> PtrLike for NonNull<T> {
+        type Target = T;
+
+        fn as_const_ptr(&self) -> *const Self::Target {
+            self.as_ptr()
         }
     }
 }
