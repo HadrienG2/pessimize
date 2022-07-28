@@ -758,6 +758,14 @@ mod alloc_feature {
 
 // TODO: Implement Pessimize for internally mutable types with
 //       no hidden state (UnsafeCell, Cell, AtomicXyz).
+// NOTE: hide() is easy: just call into_inner(), call the contained value's
+//       Pessimize::hide() impl, and get back to the original type via new().
+//       But assume_read() is tricky: in the current state of Rust's mutability
+//       rules, it is dangerous to create an &T to the inside of an internally
+//       mutable type without knowing about the existence of concurrent refs to
+//       said data. Consider going via the consume(&self) route in the
+//       beginning, with a TODO suggesting acquisition of a shared reference to
+//       the insides once more clearly allowed by UCG
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
