@@ -756,7 +756,7 @@ mod alloc_feature {
     }
 }
 
-// TODO: Implement Pessimize and PessimizeRef for internally mutable types with
+// TODO: Implement Pessimize for internally mutable types with
 //       no hidden state (UnsafeCell, Cell, AtomicXyz).
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
@@ -767,7 +767,7 @@ mod alloc_feature {
 // FIXME: Test new types: str (nightly), trait objects (nightly) and tuples of
 //        Pessimize values, Box<T> where *const T: Pessimize (alloc),
 //        Vec<T> (alloc), String (alloc) and internally mutable types with no
-//        internal state
+//        internal state (remember to check assume_accessed_imut for those)
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
