@@ -6,19 +6,10 @@
 //! selected redundant or unnecessary computations in situations where such
 //! optimization is undesirable, like microbenchmarking.
 //!
-//! For a fully implemented architecture, the barriers will be implemented for
-//! - Primitive integers (iN and uN, including isize and usize but excluding
-//!   128-bit integers)
-//! - Primitive floats (f32 and f64)
-//! - Thin pointers and references (`&T`-like other than `&[T]` `&str` and
-//!   `&dyn T`, including function pointers), and fat pointers too on nightly
-//! - SIMD vector types (with optional support for `safe_arch` and `core::simd`
-//!   via feature flags)
-//! - Small tuples of these types.
-//!
-//! Some legacy and embedded architectures will not support 64-bit primitive
-//! types. The rule of thumb is, if your target CPU can fit primitive type T in
-//! architectural registers, then that type should implement Pessimize.
+//! The barriers will be implemented for any standard type that...
+//! - Can be shoved into a CPU register, or a small set thereof
+//! - Can be losslessly converted back and forth to a set of values that
+//!   implement the barrier.
 //!
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
@@ -312,45 +303,6 @@ macro_rules! pessimize_portable_simd {
     };
 }
 
-// Implementation of Pessimize for small tuples of Pessimize values
-//
-// Larger tuples would spill to memory anyway, so the default implementation
-// that spills to memory provided by the default_impl feature would be adequate.
-//
-macro_rules! pessimize_tuple {
-    ($($args:ident),*) => {
-        #[allow(non_snake_case)]
-        unsafe impl<$($args: Pessimize),*> Pessimize for ($($args,)*) {
-            #[allow(clippy::unused_unit)]
-            #[inline(always)]
-            fn hide(self) -> Self {
-                let ($($args,)*) = self;
-                ( $(hide($args),)* )
-            }
-
-            #[inline(always)]
-            fn assume_read(&self) {
-                let ($(ref $args,)*) = self;
-                $( assume_read($args) );*
-            }
-        }
-    };
-}
-pessimize_tuple!();
-pessimize_tuple!(A1);
-pessimize_tuple!(A1, A2);
-pessimize_tuple!(A1, A2, A3);
-pessimize_tuple!(A1, A2, A3, A4);
-pessimize_tuple!(A1, A2, A3, A4, A5);
-pessimize_tuple!(A1, A2, A3, A4, A5, A6);
-pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7);
-pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
-
-// Although the logic used above for tuples could, in principle, be used to
-// implement Pessimize for small arrays, we do not do so because it would
-// force individual scalars to be moved to GP registers, which pessimizes SIMD
-// FIXME: [T; 1] would be fine tho
-
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
 // there is a way to build a collection back from all the raw parts
@@ -495,8 +447,8 @@ mod alloc_feature {
 
 // TODO: Set up CI in the spirit of test-everything.sh
 
-// FIXME: Test new types: str (nightly), trait objects (nightly) and tuples of
-//        Pessimize values, Box<T> where *const T: Pessimize (alloc),
+// FIXME: Test new types: str (nightly), trait objects (nightly),
+//        Box<T> where *const T: Pessimize (alloc),
 //        Vec<T> (alloc), String (alloc) and internally mutable types with no
 //        internal state (remember to check assume_accessed_imut for those)
 #[cfg(test)]
@@ -671,10 +623,10 @@ pub(crate) mod tests {
 
     // === Tests for types implemented here ===
 
-    // --- Array (doesn't implement Pessimize by reference) ---
+    // --- "Big" array with no native Pessimize implementation ---
 
     // What is considered too big (in units of isize)
-    // 2 is enough as we don't currently pessimize arrays
+    // 2 is enough as we don't currently pessimize larger arrays
     const BIG: usize = 2;
 
     // Should be run on both debug and release builds
@@ -734,5 +686,5 @@ pub(crate) mod tests {
         // TODO: Do the same with str and dyn Trait
     }
 
-    // TODO: Test tuples, thin Box and Vec
+    // TODO: Test thin Box and Vec
 }
