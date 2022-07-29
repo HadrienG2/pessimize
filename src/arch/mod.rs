@@ -11,7 +11,7 @@ mod riscv_family;
 pub mod x86_family;
 // TODO: On nightly, support more arches via asm_experimental_arch
 
-// For arch with specific definitions, export under std-like name
+// For arches with specific definitions, export under std-like name
 #[cfg(target_arch = "x86")]
 pub use x86_family as x86;
 #[cfg(target_arch = "x86_64")]

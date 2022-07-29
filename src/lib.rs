@@ -349,6 +349,7 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 // Although the logic used above for tuples could, in principle, be used to
 // implement Pessimize for small arrays, we do not do so because it would
 // force individual scalars to be moved to GP registers, which pessimizes SIMD
+// FIXME: [T; 1] would be fine tho
 
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
@@ -371,7 +372,7 @@ mod alloc_feature {
     // correct, this impl is correct.
     unsafe impl<T: ?Sized> Pessimize for Box<T>
     where
-        *mut T: Pessimize,
+        *const T: Pessimize,
     {
         #[inline(always)]
         fn hide(self) -> Self {
@@ -382,18 +383,18 @@ mod alloc_feature {
         #[inline(always)]
         fn assume_read(&self) {
             let inner: &T = self.as_ref();
-            consume(inner as *const T as *mut T)
+            consume(<*const T>::from(inner))
         }
     }
     //
     unsafe impl<T: ?Sized> PessimizeRef for Box<T>
     where
-        *mut T: PessimizeRef,
+        *const T: PessimizeRef,
     {
         #[inline(always)]
         fn assume_accessed(&mut self) {
             let inner: &mut T = self.as_mut();
-            let mut inner_ptr = inner as *mut T;
+            let mut inner_ptr = <*mut T>::from(inner);
             assume_accessed(&mut inner_ptr);
             // Safe because assume_accessed doesn't modify its target
             unsafe { (self as *mut Self).write(Box::from_raw(inner_ptr)) }
@@ -402,7 +403,7 @@ mod alloc_feature {
         #[inline(always)]
         fn assume_accessed_imut(&self) {
             let inner: &T = self.as_ref();
-            assume_accessed_imut(&(inner as *const T as *mut T))
+            assume_accessed_imut(&(<*const T>::from(inner)))
         }
     }
 
@@ -668,59 +669,7 @@ pub(crate) mod tests {
         test_unoptimized_value(T::default());
     }
 
-    // === Generate a test suite for all primitive types ===
-
-    // --- Numeric types ---
-
-    macro_rules! primitive_tests {
-        ( $( ( $t:ident, $t_optim_test_name:ident ) ),* ) => {
-            $(
-                // Basic test that can run in debug and release mode
-                #[test]
-                fn $t() {
-                    test_value_type::<$t>($t::MIN, $t::MAX);
-                }
-
-                // Advanced test that only makes sense in release mode
-                #[test]
-                #[ignore]
-                fn $t_optim_test_name() {
-                    test_unoptimized_value_type::<$t>();
-                }
-            )*
-        };
-    }
-    //
-    primitive_tests!(
-        (i8, i8_optim),
-        (u8, u8_optim),
-        (i16, i16_optim),
-        (u16, u16_optim),
-        (i32, i32_optim),
-        (u32, u32_optim),
-        (isize, isize_optim),
-        (usize, usize_optim),
-        (f32, f32_optim)
-    );
-    //
-    #[cfg(any(
-        target_arch = "aarch64",
-        all(target_arch = "arm", target_feature = "vfp2"),
-        target_arch = "riscv64",
-        all(target_arch = "x86", target_feature = "sse2"),
-        target_arch = "x86_64",
-    ))]
-    primitive_tests!((i64, i64_optim), (u64, u64_optim));
-    //
-    #[cfg(any(
-        target_arch = "aarch64",
-        all(target_arch = "arm", target_feature = "vfp2"),
-        all(target_arch = "riscv32", target_feature = "d"),
-        target_arch = "riscv64",
-        all(target_arch = "x86", target_feature = "sse2"),
-        target_arch = "x86_64",
-    ))]
-    primitive_tests!((f64, f64_optim));
+    // === Tests for types implemented here ===
 
     // --- Array (doesn't implement Pessimize by reference) ---
 

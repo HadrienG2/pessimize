@@ -252,11 +252,11 @@ mod safe_arch {
 }
 
 // Support portable_simd if enabled
+#[allow(unused)]
 #[cfg(feature = "nightly")]
 mod portable_simd {
-    #[allow(unused)]
-    use crate::{consume, hide, pessimize_portable_simd, x86::*, Pessimize};
-    #[allow(unused)]
+    use super::*;
+    use crate::{consume, hide, pessimize_portable_simd, Pessimize};
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
     use target_arch::{__m512, __m512d, __m512i};
