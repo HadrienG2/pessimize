@@ -60,8 +60,8 @@
 extern crate alloc;
 
 pub mod arch;
-
-use core::ptr::NonNull;
+mod primitive;
+mod ptr;
 
 /// Optimization barriers for supported values
 ///
@@ -281,21 +281,6 @@ macro_rules! pessimize_values {
     };
 }
 
-// Implementation of Pessimize for bool based on that for u8
-unsafe impl Pessimize for bool {
-    #[allow(clippy::transmute_int_to_bool)]
-    #[inline(always)]
-    fn hide(self) -> Self {
-        // Safe because hide() is guaranteed to be the identity function
-        unsafe { core::mem::transmute(hide(self as u8)) }
-    }
-
-    #[inline(always)]
-    fn assume_read(&self) {
-        consume((*self) as u8)
-    }
-}
-
 /// Implementation of Pessimize for Simd types from portable_simd
 #[allow(unused)]
 #[cfg(feature = "nightly")]
@@ -326,267 +311,6 @@ macro_rules! pessimize_portable_simd {
         )*)*
     };
 }
-
-// Implementation of Pessimize and PessimizeRef for pointers
-#[allow(asm_sub_register)]
-#[inline(always)]
-fn hide_thin_ptr<T: Sized>(mut x: *const T) -> *const T {
-    unsafe {
-        core::arch::asm!("/* {0} */", inout(reg) x, options(preserves_flags, nostack, nomem, pure));
-    }
-    x
-}
-//
-#[allow(asm_sub_register)]
-#[inline(always)]
-fn assume_read_thin_ptr<T: Sized>(x: *const T) {
-    unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack, readonly)) }
-}
-//
-#[allow(asm_sub_register)]
-#[inline(always)]
-fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
-    unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack)) }
-}
-//
-#[cfg(not(feature = "nightly"))]
-mod thin_pointers {
-    use super::*;
-
-    unsafe impl<T: Sized> Pessimize for *const T {
-        #[inline(always)]
-        fn hide(self) -> Self {
-            hide_thin_ptr(self)
-        }
-
-        #[inline(always)]
-        fn assume_read(&self) {
-            assume_read_thin_ptr(*self)
-        }
-    }
-
-    unsafe impl<T: Sized> PessimizeRef for *const T {
-        #[inline(always)]
-        fn assume_accessed(&mut self) {
-            assume_accessed_thin_ptr(*self as *mut T)
-        }
-
-        #[inline(always)]
-        fn assume_accessed_imut(&self) {
-            assume_accessed_thin_ptr(*self as *mut T)
-        }
-    }
-}
-//
-#[cfg(feature = "nightly")]
-mod all_pointers {
-    use super::*;
-    use core::ptr::{self, DynMetadata, Pointee};
-
-    unsafe impl<T: ?Sized> Pessimize for DynMetadata<T> {
-        #[inline(always)]
-        fn hide(self) -> Self {
-            // Safe because hide() is guarenteed to be the identity function
-            unsafe { core::mem::transmute(hide(core::mem::transmute::<_, usize>(self))) }
-        }
-
-        #[inline(always)]
-        fn assume_read(&self) {
-            // Safe because DynMetadata is a pointer, which is convertible to usize
-            unsafe { consume(core::mem::transmute::<_, usize>(self)) }
-        }
-    }
-
-    unsafe impl<T: Pointee + ?Sized> Pessimize for *const T
-    where
-        T::Metadata: Pessimize,
-    {
-        #[inline(always)]
-        fn hide(self) -> Self {
-            let (thin, metadata) = self.to_raw_parts();
-            ptr::from_raw_parts(hide_thin_ptr(thin), hide(metadata))
-        }
-
-        #[inline(always)]
-        fn assume_read(&self) {
-            let (thin, metadata) = self.to_raw_parts();
-            assume_read_thin_ptr(thin);
-            consume(metadata);
-        }
-    }
-
-    unsafe impl<T: core::ptr::Pointee + ?Sized> PessimizeRef for *const T
-    where
-        T::Metadata: Pessimize,
-    {
-        #[inline(always)]
-        fn assume_accessed(&mut self) {
-            let (thin, metadata) = self.to_raw_parts();
-            assume_accessed_thin_ptr(thin as *mut ());
-            // Correct because hide is identity and assume_accessed doesn't modify
-            *self = ptr::from_raw_parts(thin, hide(metadata))
-        }
-
-        #[inline(always)]
-        fn assume_accessed_imut(&self) {
-            let (thin, metadata) = self.to_raw_parts();
-            assume_accessed_thin_ptr(thin as *mut ());
-            consume(metadata);
-        }
-    }
-}
-//
-unsafe impl<T: ?Sized> Pessimize for *mut T
-where
-    *const T: Pessimize,
-{
-    #[inline(always)]
-    fn hide(self) -> Self {
-        hide(self as *const T) as *mut T
-    }
-
-    #[inline(always)]
-    fn assume_read(&self) {
-        consume((*self) as *const T)
-    }
-}
-//
-unsafe impl<T: ?Sized> PessimizeRef for *mut T
-where
-    *const T: PessimizeRef,
-{
-    #[inline(always)]
-    fn assume_accessed(&mut self) {
-        // Safe because *mut T is effectively the same type as *const T and
-        // Rust does not have C-style strict aliasing rules.
-        unsafe { assume_accessed::<*const T>(core::mem::transmute(self)) }
-    }
-
-    #[inline(always)]
-    fn assume_accessed_imut(&self) {
-        assume_accessed_imut(&(*self as *const T))
-    }
-}
-//
-unsafe impl<T: ?Sized> Pessimize for NonNull<T>
-where
-    *mut T: Pessimize,
-{
-    #[inline(always)]
-    fn hide(self) -> Self {
-        // Safe because hide is guarenteed to be the identity function
-        unsafe { NonNull::new_unchecked(hide(self.as_ptr())) }
-    }
-
-    #[inline(always)]
-    fn assume_read(&self) {
-        consume(self.as_ptr())
-    }
-}
-//
-unsafe impl<T: ?Sized> PessimizeRef for NonNull<T>
-where
-    *mut T: PessimizeRef,
-{
-    #[inline(always)]
-    fn assume_accessed(&mut self) {
-        let mut ptr: *mut T = self.as_ptr();
-        assume_accessed(&mut ptr);
-        // Safe because assume_accessed doesn't change anything
-        *self = unsafe { NonNull::new_unchecked(ptr) };
-    }
-
-    #[inline(always)]
-    fn assume_accessed_imut(&self) {
-        assume_accessed_imut(&self.as_ptr())
-    }
-}
-
-// Implementation of Pessimize and PessimizeRef for references
-macro_rules! pessimize_references {
-    (
-        $(
-            ($ref_t:ty, $from_nonnull:ident)
-        ),*
-    ) => {
-        $(
-            unsafe impl<'a, T: ?Sized> Pessimize for $ref_t
-                where *const T: Pessimize
-            {
-                #[allow(clippy::transmute_ptr_to_ref)]
-                #[inline(always)]
-                fn hide(self) -> Self {
-                    unsafe {
-                        // While this may sound like a questionable operation
-                        // for &mut T, as it may lead to the transient existence
-                        // of two &mut to the same data, it is actually not UB
-                        // according to the current Unsafe Code Guidelines
-                        // consensus, which is that **using** the two
-                        // coexisting references is what causes UB.
-                        // This won't happen here since we drop the original
-                        // &mut w/o using it before returning the new one.
-                        core::mem::transmute(hide(self as *const T))
-                    }
-                }
-
-                #[inline(always)]
-                fn assume_read(&self) {
-                    let inner: &T = &**self;
-                    consume(inner as *const T)
-                }
-            }
-
-            unsafe impl<'a, T: ?Sized> PessimizeRef for $ref_t
-                where *const T: PessimizeRef
-            {
-                #[allow(clippy::unnecessary_mut_passed)]
-                #[inline(always)]
-                fn assume_accessed(&mut self) {
-                    let mut ptr: NonNull<T> = (*self).into();
-                    assume_accessed(&mut ptr);
-                    // Safe because assume_accessed doesn't change anything
-                    *self = unsafe { NonNull::$from_nonnull(&mut ptr) };
-                }
-
-                #[inline(always)]
-                fn assume_accessed_imut(&self) {
-                    assume_accessed_imut(&((*self) as *const T))
-                }
-            }
-        )*
-    };
-}
-//
-pessimize_references!((&'a T, as_ref), (&'a mut T, as_mut));
-
-// Implementation of Pessimize for function pointers
-macro_rules! pessimize_fn {
-    ($res:ident $( , $args:ident )* ) => {
-        unsafe impl< $res $( , $args )* > Pessimize for fn( $($args),* ) -> $res {
-            #[inline(always)]
-            fn hide(self) -> Self {
-                // Safe because hide is guaranteed to be the identity function
-                unsafe { core::mem::transmute(
-                    hide(self as *const ())
-                ) }
-            }
-
-            #[inline(always)]
-            fn assume_read(&self) {
-                consume((*self) as *const ())
-            }
-        }
-    }
-}
-pessimize_fn!(R);
-pessimize_fn!(R, A1);
-pessimize_fn!(R, A1, A2);
-pessimize_fn!(R, A1, A2, A3);
-pessimize_fn!(R, A1, A2, A3, A4);
-pessimize_fn!(R, A1, A2, A3, A4, A5);
-pessimize_fn!(R, A1, A2, A3, A4, A5, A6);
-pessimize_fn!(R, A1, A2, A3, A4, A5, A6, A7);
-pessimize_fn!(R, A1, A2, A3, A4, A5, A6, A7, A8);
 
 // Implementation of Pessimize for small tuples of Pessimize values
 //
@@ -643,7 +367,8 @@ mod alloc_feature {
     use alloc::{boxed::Box, string::String, vec::Vec};
     use core::mem::ManuallyDrop;
 
-    // Box<T> is effectively a fancy NonNull<T>
+    // Box<T> is effectively a NonNull<T> with RAII, so if the NonNull impl is
+    // correct, this impl is correct.
     unsafe impl<T: ?Sized> Pessimize for Box<T>
     where
         *mut T: Pessimize,
@@ -702,8 +427,8 @@ mod alloc_feature {
     unsafe impl<T> PessimizeRef for Vec<T> {
         #[inline(always)]
         fn assume_accessed(&mut self) {
-            let ptr = self.as_mut_ptr();
-            assume_accessed_thin_ptr(ptr);
+            let mut ptr = self.as_mut_ptr();
+            assume_accessed(&mut ptr);
             let length = hide(self.len());
             let capacity = hide(self.capacity());
             // Safe because self's destructor is inhibited through use of write,
@@ -713,7 +438,7 @@ mod alloc_feature {
 
         #[inline(always)]
         fn assume_accessed_imut(&self) {
-            assume_accessed_thin_ptr(self.as_ptr() as *mut T);
+            assume_accessed_imut(&(self.as_ptr() as *mut T));
             consume(self.len());
             consume(self.capacity());
         }
@@ -776,10 +501,10 @@ mod alloc_feature {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::ptr::tests::{test_all_pointers, test_unoptimized_ptrs};
     #[cfg(feature = "nightly")]
     use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
     use std::{
-        borrow::{Borrow, BorrowMut},
         fmt::Debug,
         time::{Duration, Instant},
     };
@@ -787,42 +512,7 @@ pub(crate) mod tests {
     // === Tests asserting that the barriers don't modify anything ===
     // ===    (should be run on both debug and release builds)     ===
 
-    // This may cause UB if the PessimizeRef implementation is wrong (hide is
-    // not an identity function, assume_xyz modifies the target), but we try
-    // extra hard to detect this situation.
-    unsafe fn test_pointer<Value: Debug + PartialEq + ?Sized, Ptr: PtrLike<Target = Value>>(
-        mut p: Ptr,
-        expected_target: &Value,
-    ) {
-        let old_p = p.as_const_ptr();
-        assert!(p.deep_eq(old_p, expected_target));
-        p = hide(p);
-        assert!(p.deep_eq(old_p, expected_target));
-        assume_read(&p);
-        assert!(p.deep_eq(old_p, expected_target));
-        assume_accessed(&mut p);
-        assert!(p.deep_eq(old_p, expected_target));
-        assume_accessed_imut(&p);
-        assert!(p.deep_eq(old_p, expected_target));
-        consume(p)
-    }
-
-    fn test_all_pointers<T: Debug + PartialEq + ?Sized, OwnedT: Clone + Borrow<T> + BorrowMut<T>>(
-        mut x: OwnedT,
-    ) where
-        *const T: PessimizeRef,
-    {
-        let old_x = x.clone();
-        let old_x = old_x.borrow();
-        unsafe {
-            test_pointer(x.borrow() as *const T, old_x);
-            test_pointer(x.borrow_mut() as *mut T, old_x);
-            test_pointer(x.borrow(), old_x);
-            test_pointer(x.borrow_mut(), old_x);
-            test_pointer(NonNull::<T>::from(x.borrow_mut()), old_x);
-        }
-    }
-
+    // Test that, for a given value, Pessimize seems to work
     fn test_value<T: Clone + Debug + PartialEq + Pessimize>(x: T) {
         let old_x = x.clone();
         assume_read(&x);
@@ -832,12 +522,14 @@ pub(crate) mod tests {
         consume(x);
     }
 
-    fn test_value_type<T: Clone + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
+    // Run test_value on the minimal, default and maximal value of a type
+    pub fn test_value_type<T: Clone + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
         test_value(min);
         test_value(T::default());
         test_value(max);
     }
 
+    // Run test_value_type for an encapsulated SIMD type
     #[allow(unused)]
     pub fn test_simd<
         Scalar: Copy + Default,
@@ -850,6 +542,7 @@ pub(crate) mod tests {
         test_value_type(T::from([min; LANES]), T::from([max; LANES]));
     }
 
+    // Run test_value_type for a portable_simd::Simd type
     #[allow(unused)]
     #[cfg(feature = "nightly")]
     pub fn test_portable_simd<
@@ -925,7 +618,7 @@ pub(crate) mod tests {
     // output of the last operation is emitted as the output of the test. This
     // allows running tests with values that cannot or should not be cloned.
     //
-    fn assert_unoptimized<T>(input: T, mut op: impl FnMut(T) -> T) -> T {
+    pub fn assert_unoptimized<T>(input: T, mut op: impl FnMut(T) -> T) -> T {
         // Run the operation in a loop
         let mut opt = Some(input);
         let elapsed = time_loop(|_iter| {
@@ -958,133 +651,6 @@ pub(crate) mod tests {
 
         // Finally, return the last output for the next benchmark test
         opt.take().unwrap()
-    }
-
-    // --- Tests for pointers with PessimizeRef support
-
-    // Check that one component of the output of hide() looks different
-    //
-    // The initial value of the component is provided, along with a way to
-    // extract the component for a complete pointer and a way to get back the
-    // complete pointer from a component value.
-    //
-    // # Safety
-    //
-    // - If Ptr is &mut, there should be no live &mut to the target
-    // - extract and rebuild should honor their contract, in the sense that
-    //   extract(rebuild(c)) == c && rebuild(extract(p)) == p.
-    // - The output of rebuild (which is the original pointer) should be safe to
-    //   cast to Ptr via PtrLike::from_const_ptr.
-    //
-    #[cfg(feature = "nightly")]
-    unsafe fn test_unoptimized_ptr_component<
-        Value: ?Sized,
-        Ptr: PtrLike<Target = Value>,
-        PtrComponent: Copy + PartialEq,
-    >(
-        component: PtrComponent,
-        mut extract: impl FnMut(*const Value) -> PtrComponent,
-        mut rebuild: impl FnMut(PtrComponent) -> *const Value,
-    ) where
-        *const Value: PessimizeRef,
-    {
-        // Check that hide() pretends to return a modified version of the
-        // selected pointer component
-        assert_unoptimized(component, |component| {
-            let old_component = component;
-            let const_ptr = rebuild(component);
-            let fat_ptr = hide(Ptr::from_const_ptr(const_ptr));
-            let component = extract(fat_ptr.to_const_ptr());
-            consume(component == old_component);
-            component
-        });
-    }
-    //
-    fn test_unoptimized_ptr<Value: PartialEq + ?Sized, Ptr: PtrLike<Target = Value>>(
-        mut p: Ptr,
-        expected_target: &Value,
-    ) where
-        *const Value: PessimizeRef,
-    {
-        // assume_accessed() makes the pointee look modified
-        let old_p = p.as_const_ptr();
-        assert_unoptimized((), |()| {
-            assume_accessed(&mut p);
-            // This is safe because assume_accessed doesn't modify anything
-            consume(unsafe { p.deep_eq(old_p, expected_target) });
-        });
-
-        // On stable, we only have thin pointers to care about
-        #[cfg(not(feature = "nightly"))]
-        {
-            // hide() seems to return a different pointer
-            assert_unoptimized(p, |mut p| {
-                p = hide(p);
-                consume(p.as_const_ptr() == old_p);
-                p
-            });
-        }
-
-        // On nightly, we must account for fat pointers
-        #[cfg(feature = "nightly")]
-        {
-            use core::ptr;
-
-            // assert_unoptimized() seems to modify the pointer's metadata
-            let extract_metdata = |p: &Ptr| p.as_const_ptr().to_raw_parts().1;
-            let metadata = extract_metdata(&p);
-            let nontrivial_metadata = core::mem::size_of_val(&metadata) > 0;
-            if nontrivial_metadata {
-                assert_unoptimized((), |()| {
-                    assume_accessed(&mut p);
-                    consume(extract_metdata(&p) == metadata);
-                });
-            }
-
-            // In the output of hide(), both the thin pointer and metadata look
-            // unrelated to that of the original pointer.
-            //
-            // This is safe because..
-            // - If p is an &mut, it is moved away by to_const_ptr.
-            // - The provided extract and rebuild impls are correct
-            // - The pointer emitted by rebuild is basically p.as_const_ptr().
-            //
-            let thin_ptr = p.to_const_ptr().to_raw_parts().0;
-            unsafe {
-                test_unoptimized_ptr_component::<Value, Ptr, *const ()>(
-                    thin_ptr,
-                    |const_ptr| {
-                        let (thin_ptr, _metadata) = const_ptr.to_raw_parts();
-                        thin_ptr
-                    },
-                    |thin_ptr| ptr::from_raw_parts(thin_ptr, metadata),
-                );
-                if nontrivial_metadata {
-                    test_unoptimized_ptr_component::<Value, Ptr, _>(
-                        metadata,
-                        |const_ptr| {
-                            let (_thin_ptr, metadata) = const_ptr.to_raw_parts();
-                            metadata
-                        },
-                        |metadata| ptr::from_raw_parts(thin_ptr, metadata),
-                    );
-                }
-            }
-        }
-    }
-    //
-    fn test_unoptimized_ptrs<T: PartialEq + ?Sized, OwnedT: Clone + Borrow<T> + BorrowMut<T>>(
-        mut x: OwnedT,
-    ) where
-        *const T: PessimizeRef,
-    {
-        let old_x = x.clone();
-        let old_x = old_x.borrow();
-        test_unoptimized_ptr(x.borrow() as *const T, old_x);
-        test_unoptimized_ptr(x.borrow_mut() as *mut T, old_x);
-        test_unoptimized_ptr(x.borrow(), old_x);
-        test_unoptimized_ptr(x.borrow_mut(), old_x);
-        test_unoptimized_ptr(NonNull::<T>::from(x.borrow_mut()), old_x);
     }
 
     // --- Tests for values with native Pessimize support ---
@@ -1156,28 +722,11 @@ pub(crate) mod tests {
     ))]
     primitive_tests!((f64, f64_optim));
 
-    // --- bool ---
-
-    // Basic test that can run in debug and release mode
-    #[test]
-    fn bool() {
-        test_value_type::<bool>(false, true);
-    }
-
-    // Advanced test that only makes sense in release mode
-    #[test]
-    #[ignore]
-    fn bool_optim() {
-        test_unoptimized_value_type::<bool>();
-    }
-
-    // === Test suite for types that only implement Pessimize by reference ===
-
-    // --- Array too big to fit in a register ---
+    // --- Array (doesn't implement Pessimize by reference) ---
 
     // What is considered too big (in units of isize)
     // 2 is enough as we don't currently pessimize arrays
-    const BIG: usize = 1;
+    const BIG: usize = 2;
 
     // Should be run on both debug and release builds
     #[test]
@@ -1198,57 +747,6 @@ pub(crate) mod tests {
         test_unoptimized_value_type::<[isize; BIG]>();
         #[cfg(not(feature = "default_impl"))]
         test_unoptimized_ptrs::<[isize; BIG], _>([0isize; BIG]);
-    }
-
-    // --- Function pointers ---
-
-    const MIN: isize = isize::MIN;
-    fn min() -> isize {
-        MIN
-    }
-
-    const ZERO: isize = 0;
-    fn zero() -> isize {
-        ZERO
-    }
-
-    const MAX: isize = isize::MAX;
-    fn max() -> isize {
-        MAX
-    }
-
-    fn test_function_pointer(fptr: fn() -> isize, expected_result: isize) {
-        assume_read(&fptr);
-        assert_eq!(fptr(), expected_result);
-        assert_eq!(hide(fptr)(), expected_result);
-        consume(fptr);
-    }
-
-    fn test_function_pointer_optim(fptr: fn() -> isize) {
-        let expected_result = fptr();
-        assert_unoptimized(fptr, |mut fptr| {
-            fptr = hide(fptr);
-            consume(fptr() == expected_result);
-            fptr
-        });
-        consume(fptr())
-    }
-
-    // Should be run on both debug and release builds
-    #[test]
-    fn function_pointer() {
-        test_function_pointer(min, MIN);
-        test_function_pointer(zero, ZERO);
-        test_function_pointer(max, MAX);
-    }
-
-    // Should only be run on release builds
-    #[test]
-    #[ignore]
-    fn function_pointer_optim() {
-        test_function_pointer_optim(min);
-        test_function_pointer_optim(zero);
-        test_function_pointer_optim(max);
     }
 
     // --- Fat pointer types ---
@@ -1288,132 +786,4 @@ pub(crate) mod tests {
     }
 
     // TODO: Test tuples, thin Box and Vec
-
-    // === Uninteresting helpers ===
-
-    // Abstraction layer to handle references and pointers homogeneously
-    trait PtrLike: PessimizeRef + Sized {
-        type Target: ?Sized;
-
-        // Abstraction of self as *const T
-        fn as_const_ptr(&self) -> *const Self::Target;
-
-        // Like as_const_ptr, but translating back is not UB
-        fn to_const_ptr(self) -> *const Self::Target {
-            self.as_const_ptr()
-        }
-
-        // Get back from *const Self::Target to Self after to_const_ptr
-        //
-        // # Safety
-        //
-        // Transmuting back from *const T to &mut T is UB if the original
-        // reference still exists (more precisely using the ref is UB).
-        //
-        // Transmuting *const T to a reference with a different lifetime than
-        // the original one can also lead to UB.
-        //
-        // Basically, only use this on a pointer from Self::to_const_ptr,
-        // obtained in the same scope or a parent scope, and stop using the
-        // *const T as soon as the original pointer is back..
-        //
-        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self;
-
-        // Abstraction of &**self
-        unsafe fn unsafe_deref(&self) -> &Self::Target {
-            &*self.as_const_ptr()
-        }
-
-        // Abstraction of (self as *const T) == (other as *const T)
-        fn ptr_eq(&self, other: *const Self::Target) -> bool {
-            self.as_const_ptr() == other
-        }
-
-        // Check ptr_eq, then target value against expectation
-        //
-        // Used in scenarios where there is a risk of pointer corruption, in
-        // which cas it is not safe to dereference the pointer.
-        //
-        unsafe fn deep_eq(&self, other: *const Self::Target, expected_target: &Self::Target) -> bool
-        where
-            Self::Target: PartialEq,
-        {
-            self.ptr_eq(other) && self.unsafe_deref() == expected_target
-        }
-    }
-    //
-    impl<'a, T: ?Sized> PtrLike for &'a T
-    where
-        *const T: PessimizeRef,
-    {
-        type Target = T;
-
-        fn as_const_ptr(&self) -> *const Self::Target {
-            *self as *const T
-        }
-
-        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            &*ptr
-        }
-    }
-    //
-    impl<'a, T: ?Sized> PtrLike for &'a mut T
-    where
-        *const T: PessimizeRef,
-    {
-        type Target = T;
-
-        fn as_const_ptr(&self) -> *const Self::Target {
-            *self as *const T
-        }
-
-        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            &mut *(ptr as *mut T)
-        }
-    }
-    //
-    impl<T: ?Sized> PtrLike for *const T
-    where
-        *const T: PessimizeRef,
-    {
-        type Target = T;
-
-        fn as_const_ptr(&self) -> *const Self::Target {
-            *self as *const T
-        }
-
-        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            ptr
-        }
-    }
-    //
-    impl<T: ?Sized> PtrLike for *mut T
-    where
-        *const T: PessimizeRef,
-    {
-        type Target = T;
-
-        fn as_const_ptr(&self) -> *const Self::Target {
-            *self as *const T
-        }
-
-        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            ptr as *mut T
-        }
-    }
-    //
-    impl<T: ?Sized> PtrLike for NonNull<T>
-    where
-        *const T: PessimizeRef,
-    {
-        type Target = T;
-
-        fn as_const_ptr(&self) -> *const Self::Target {
-            self.as_ptr()
-        }
-
-        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            Self::new_unchecked(ptr as *mut Self::Target)
-        }
-    }
 }
