@@ -59,15 +59,7 @@
 #[cfg(any(feature = "alloc", test))]
 extern crate alloc;
 
-// Each architecture-specific module is tasked to implement Pessimize for
-// primitive integers, floats and SIMD vector types.
-#[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-mod arm;
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-mod riscv;
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub mod x86;
-// TODO: On nightly, support more arches via asm_experimental_arch
+pub mod arch;
 
 use core::ptr::NonNull;
 

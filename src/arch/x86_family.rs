@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for x86 and x86_64
 
-use super::{pessimize_values, Pessimize};
+use crate::{pessimize_values, Pessimize};
 #[allow(unused)]
 #[cfg(target_arch = "x86")]
 use core::arch::x86 as target_arch;
