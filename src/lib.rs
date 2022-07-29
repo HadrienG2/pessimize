@@ -768,6 +768,10 @@ mod alloc_feature {
 //       beginning, with a TODO suggesting acquisition of a shared reference to
 //       the insides once more clearly allowed by UCG
 
+// TODO: Impl + tests: NonZero, char, PhantomData, PhantomPinned, ManuallyDrop,
+//       IpVxAddr, SocketAddrVx, Wrapping<T>, Range*, AssertUnwindSafe, OsStr,
+//       Path, PathBuf, Pin, task::{RawWaker, Waker, Context}, time::{Duration, Instant}...
+
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
 
