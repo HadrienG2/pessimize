@@ -470,6 +470,8 @@ mod portable_simd {
     );
 }
 
+// TODO: CpuidResult + tests
+
 #[allow(unused)]
 #[cfg(test)]
 mod tests {

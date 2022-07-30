@@ -6,10 +6,11 @@
 //! selected redundant or unnecessary computations in situations where such
 //! optimization is undesirable, like microbenchmarking.
 //!
-//! The barriers will be implemented for any standard type that...
-//! - Can be shoved into a CPU register, or a small set thereof
-//! - Can be losslessly converted back and forth to a set of values that
-//!   implement the barrier.
+//! The barriers will be implemented for any type from core/std that either...
+//! - Can be shoved into a CPU register (or a small set thereof), with a
+//!   "natural" target register dictated by normal ABI calling conventions.
+//! - Can be losslessly converted back and forth to a set of values that have
+//!   the above property, at no runtime cost.
 //!
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
@@ -50,9 +51,29 @@
 #[cfg(any(feature = "alloc", test))]
 extern crate alloc;
 
+// TODO: mod alloc
 pub mod arch;
+// TODO: mod boxed
+// TODO: mod cell
+// TODO: mod ffi
+// TODO: mod fmt (for fmt::Error)
+// TODO: mod fs (for File, at least)
+// TODO: mod io (for Error, at least)
+// TODO: mod marker (PhantomData and PhantomPinned)
+// TODO: mod mem (ManuallyDrop)
+// TODO: mod net (IpvNAddr, SocketAddrVN)
+// TODO: mod num (NonZeroXyz, Wrapping)
+// TODO: mod ops (RangeXyz)
+// TODO: mod path
+// TODO: mod pin
 mod primitive;
+// TODO: mod process (ExistStatus with ExitStatusExt)
 mod ptr;
+// TODO: mod string
+// TODO: mod sync (at least atomics)
+// TODO: mod task
+// TODO: mod time
+// TODO: mod vec
 
 /// Optimization barriers for supported values
 ///
@@ -216,6 +237,8 @@ pub fn assume_accessed<R: PessimizeRef>(r: &mut R) {
 pub fn assume_accessed_imut<R: PessimizeRef>(r: &R) {
     PessimizeRef::assume_accessed_imut(r)
 }
+
+// TODO: Rework based on an IntoPrimitiveTuple/FromPrimitiveTuple design
 
 /// Default implementation of Pessimize when no better one is available
 #[cfg(feature = "default_impl")]
