@@ -1,6 +1,7 @@
 //! This crate aims to implement minimally costly optimization barriers for
 //! every architecture that has `asm!()` support (currently x86(_64),
-//! 32-bit ARM, AArch64 and RISC-V).
+//! 32-bit ARM, AArch64 and RISC-V, more possible on nightly via the
+//! `asm_experimental_arch` unstable feature).
 //!
 //! You can use these barriers to prevent the compiler from optimizing out
 //! selected redundant or unnecessary computations in situations where such
@@ -58,6 +59,7 @@
 extern crate alloc;
 
 // TODO: mod alloc
+// TODO/FIXME: See inner TODOs and FIXMEs in arch::xyz
 pub mod arch;
 // TODO: mod boxed
 // TODO: mod cell
@@ -306,7 +308,7 @@ pub trait BorrowPessimize: PessimizeCast {
     /// Process shared self as a shared Pessimize value
     ///
     /// In the common case where `Self: Copy`, you can implement this by calling
-    /// `pessimize::with_pessimize_via_copy`.
+    /// `pessimize::impl_with_pessimize`.
     ///
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized));
 
@@ -315,7 +317,7 @@ pub trait BorrowPessimize: PessimizeCast {
     ///
     /// In the common case where there is a cheap way to go from an `&mut Self`
     /// to a `Self`, you can implement this by calling
-    /// `pessimize::assume_accessed_via_extract`.
+    /// `pessimize::impl_assume_accessed`.
     ///
     fn assume_accessed_impl(&mut self);
 }
@@ -323,7 +325,7 @@ pub trait BorrowPessimize: PessimizeCast {
 /// Implementation of `BorrowPessimize::with_pessimize` for `Copy` types
 // TODO: Use specializable BorrowPessimize impl once available on stable
 #[inline(always)]
-pub fn with_pessimize_via_copy<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
+pub fn impl_with_pessimize<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
     let pessimize = T::into_pessimize(*self_);
     f(&pessimize)
 }
@@ -336,7 +338,7 @@ pub fn with_pessimize_via_copy<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnc
 /// `Vec`), this is `core::mem::take`.
 ///
 #[inline(always)]
-pub fn assume_accessed_via_extract<T: PessimizeCast>(r: &mut T, extract: impl FnOnce(&mut T) -> T) {
+pub fn impl_assume_accessed<T: PessimizeCast>(r: &mut T, extract: impl FnOnce(&mut T) -> T) {
     let x: T = extract(r);
     let mut pessimize = T::into_pessimize(x);
     assume_accessed(&mut pessimize);
@@ -488,12 +490,12 @@ macro_rules! pessimize_portable_simd {
             impl $crate::BorrowPessimize for $simd_type {
                 #[inline(always)]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                    $crate::with_pessimize_via_copy(self, f)
+                    $crate::impl_with_pessimize(self, f)
                 }
 
                 #[inline(always)]
                 fn assume_accessed_impl(&mut self) {
-                    $crate::assume_accessed_via_extract(self, core::mem::take)
+                    $crate::impl_assume_accessed(self, core::mem::take)
                 }
             }
         )*)*
@@ -519,6 +521,7 @@ mod alloc_feature {
 
     // Box<T> is effectively a NonNull<T> with RAII, so if the NonNull impl is
     // correct, this impl is correct.
+    // FIXME: Migrate to crate::boxed, along with associated tests
     unsafe impl<T: ?Sized> PessimizeCast for Box<T>
     where
         *const T: Pessimize,
@@ -559,6 +562,7 @@ mod alloc_feature {
     }
 
     // Vec<T> is basically a thin NonNull<T>, a length and a capacity
+    // FIXME: Migrate to crate::vec, along with associated tests
     unsafe impl<T> PessimizeCast for Vec<T> {
         type Pessimized = (*const T, usize, usize);
 
@@ -583,11 +587,12 @@ mod alloc_feature {
 
         #[inline(always)]
         fn assume_accessed_impl(&mut self) {
-            assume_accessed_via_extract(self, core::mem::take)
+            impl_assume_accessed(self, core::mem::take)
         }
     }
 
     // String is basically a Vec<u8> with an UTF-8 validity invariant
+    // FIXME: Migrate to crate::string, along with associated tests
     unsafe impl PessimizeCast for String {
         type Pessimized = (*const u8, usize, usize);
 
@@ -611,7 +616,7 @@ mod alloc_feature {
 
         #[inline(always)]
         fn assume_accessed_impl(&mut self) {
-            assume_accessed_via_extract(self, core::mem::take)
+            impl_assume_accessed(self, core::mem::take)
         }
     }
 }

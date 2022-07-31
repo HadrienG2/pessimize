@@ -195,8 +195,7 @@ pub mod avx512 {
 mod safe_arch_types {
     use super::*;
     use crate::{
-        assume_accessed_via_extract, consume, hide, with_pessimize_via_copy, BorrowPessimize,
-        PessimizeCast,
+        consume, hide, impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast,
     };
     #[cfg(any(target_feature = "sse", doc))]
     use safe_arch::m128;
@@ -233,12 +232,12 @@ mod safe_arch_types {
                 impl BorrowPessimize for $safe_arch_type {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                        with_pessimize_via_copy(self, f)
+                        impl_with_pessimize(self, f)
                     }
 
                     #[inline(always)]
                     fn assume_accessed_impl(&mut self) {
-                        assume_accessed_via_extract(self, core::mem::take)
+                        impl_assume_accessed(self, core::mem::take)
                     }
                 }
             )*
@@ -294,8 +293,8 @@ mod safe_arch_types {
 mod portable_simd {
     use super::*;
     use crate::{
-        assume_accessed_via_extract, consume, hide, pessimize_portable_simd,
-        with_pessimize_via_copy, BorrowPessimize, PessimizeCast,
+        consume, hide, impl_assume_accessed, impl_with_pessimize, pessimize_portable_simd,
+        BorrowPessimize, PessimizeCast,
     };
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
@@ -435,12 +434,12 @@ mod portable_simd {
                 impl BorrowPessimize for $mask_type {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                        with_pessimize_via_copy(self, f)
+                        impl_with_pessimize(self, f)
                     }
 
                     #[inline(always)]
                     fn assume_accessed_impl(&mut self) {
-                        assume_accessed_via_extract(self, core::mem::take)
+                        impl_assume_accessed(self, core::mem::take)
                     }
                 }
             )*

@@ -4,8 +4,8 @@
 //! the CPU register in which they should end up is arch-specific.
 
 use crate::{
-    assume_accessed, assume_accessed_imut, assume_accessed_via_extract, assume_read, hide,
-    with_pessimize_via_copy, BorrowPessimize, Pessimize, PessimizeCast,
+    assume_accessed, assume_accessed_imut, assume_read, hide, impl_assume_accessed,
+    impl_with_pessimize, BorrowPessimize, Pessimize, PessimizeCast,
 };
 
 // Implementation of Pessimize for bool based on that for u8
@@ -27,12 +27,12 @@ unsafe impl PessimizeCast for bool {
 impl BorrowPessimize for bool {
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        with_pessimize_via_copy(self, f)
+        impl_with_pessimize(self, f)
     }
 
     #[inline(always)]
     fn assume_accessed_impl(&mut self) {
-        assume_accessed_via_extract(self, core::mem::take)
+        impl_assume_accessed(self, core::mem::take)
     }
 }
 
@@ -54,12 +54,12 @@ unsafe impl PessimizeCast for char {
 impl BorrowPessimize for char {
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        with_pessimize_via_copy(self, f)
+        impl_with_pessimize(self, f)
     }
 
     #[inline(always)]
     fn assume_accessed_impl(&mut self) {
-        assume_accessed_via_extract(self, core::mem::take)
+        impl_assume_accessed(self, core::mem::take)
     }
 }
 

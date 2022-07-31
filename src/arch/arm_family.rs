@@ -70,9 +70,9 @@ mod tests {
     use super::*;
     #[allow(unused)]
     use crate::{
-        assume_accessed_via_extract,
+        impl_assume_accessed, impl_with_pessimize,
         tests::{test_simd, test_unoptimized_value_type},
-        with_pessimize_via_copy, BorrowPessimize, PessimizeCast,
+        BorrowPessimize, PessimizeCast,
     };
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
@@ -156,12 +156,12 @@ mod tests {
                 impl BorrowPessimize for $name {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                        with_pessimize_via_copy(self, f)
+                        impl_with_pessimize(self, f)
                     }
 
                     #[inline(always)]
                     fn assume_accessed_impl(&mut self) {
-                        assume_accessed_via_extract(self, core::mem::take)
+                        impl_assume_accessed(self, core::mem::take)
                     }
                 }
             };
