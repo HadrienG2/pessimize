@@ -8,10 +8,10 @@
 //! optimization is undesirable, like microbenchmarking.
 //!
 //! The barriers will be implemented for any type from core/std that either...
-//! - Can be shoved into a CPU register (or a small set thereof), with a
-//!   "natural" target register dictated by normal ABI calling conventions.
+//! - Can be shoved into CPU registers, with "natural" target registers
+//!   dictated by normal ABI calling conventions.
 //! - Can be losslessly converted back and forth to a set of values that have
-//!   the above property, at no runtime cost.
+//!   this property, in a manner that is easily optimized out.
 //!
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
@@ -83,7 +83,7 @@ mod ptr;
 // TODO: mod time
 // TODO: mod vec
 
-/// Optimization barriers for supported values
+/// Optimization barriers provided by this crate
 ///
 /// This trait is implemented for both value and reference types, which can
 /// lead to unexpected method syntax semantics (you expected to call the
@@ -240,7 +240,7 @@ pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
     Pessimize::assume_accessed_imut(r)
 }
 
-/// Convert Self back and forth to a type that implements Pessimize
+/// Convert Self back and forth to a Pessimize impl (Pessimize impl helper)
 ///
 /// While only a small number of Pessimize types are supported by inline
 /// assembly, many standard types can be losslessly converted to a lower-level
@@ -255,38 +255,41 @@ pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
 ///
 /// By implementing this trait, you guarantee that someone using it as
 /// documented will not trigger Undefined Behavior, since the safe `Pessimize`
-/// trait will be automatically implemented on top of it
+/// trait can be automatically implemented on top of it
 ///
 pub unsafe trait PessimizeCast {
     /// Associated Pessimize type
     type Pessimized: Pessimize;
 
-    /// Convert to Pessimized
+    /// Convert Self to Pessimized
     fn into_pessimize(self) -> Self::Pessimized;
 
-    /// Convert back from Pessimized
+    /// Convert back from Pessimized to Self
     ///
     /// # Safety
     ///
-    /// This operation should be safe for the intended use case of converting
-    /// `Self` to `Pessimized` using `into_pessimize()`, invoking `Pessimize`
-    /// trait operations on the resulting value, and optionally converting the
-    /// `Pessimized` value back to `Self` afterwards via `from_pessimize()`.
+    /// A correct implementation of this operation only needs to be safe for the
+    /// intended purpose of converting `Self` to `Pessimized` using
+    /// `into_pessimize()`, invoking `Pessimize` trait operations on the
+    /// resulting value, and optionally converting the `Pessimized` value back
+    /// to `Self` afterwards via `from_pessimize()`.
     ///
-    /// The final `from_pessimize()` operation of this round trip should be
+    /// The final `from_pessimize()` operation of this round trip must be
     /// performed in the same scope where the initial `into_pessimize()`
     /// operation was called, or a child scope thereof.
     ///
-    /// Even if `Pessimized` is `Clone`, it is strongly advised to treat it as
-    /// a `!Clone` value: don't clone it, and stop using it after converting it
-    /// back to `Self`. Otherwise, _suprising_ (but safe) behavior may occur.
+    /// Even if `Pessimized` is `Clone`, it is strongly advised to treat the
+    /// `Pessimized` value from `into_pessimize()` as a `!Clone` value: don't
+    /// clone or copy it, and stop using it after converting it back to `Self`.
+    /// Otherwise, _suprising_ (but safe) behavior may occur.
     ///
-    /// Nothing else is guaranteed to work. To give a few examples...
+    /// **No other usage of `from_pessimize()` is safe.** To give a few examples
+    /// of incorrect usage of `from_pessimize()`...
     ///
     /// - `Self` may contain references to the surrounding stack frame, so even
     ///   if `Pessimized` is `'static`, letting a `Pessimized` escape the scope
     ///   in which `into_pessimize()` was called before converting it back to
-    //    `Self` using `from_pessimize()` is unsafe.
+    ///   `Self` is unsafe.
     /// - `Self` may contain `!Clone` data like &mut references, so even if
     ///   `Pessimized` is `Clone`, converting two clones of a single
     ///   `Pessimized` value back into `Self` is unsafe. In fact, even using the
@@ -303,7 +306,7 @@ pub unsafe trait PessimizeCast {
     unsafe fn from_pessimize(x: Self::Pessimized) -> Self;
 }
 
-/// Go from a reference to `Self` to a reference to `Self::Pessimized`
+/// Go from `&[mut] Self` to `&[mut] Self::Pessimized` (Pessimize impl helper)
 pub trait BorrowPessimize: PessimizeCast {
     /// Process shared self as a shared Pessimize value
     ///

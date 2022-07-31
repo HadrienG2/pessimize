@@ -7,7 +7,6 @@ mod arm_family;
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 mod riscv_family;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-#[doc(hidden)]
 pub mod x86_family;
 // TODO: On nightly, support more arches via asm_experimental_arch
 

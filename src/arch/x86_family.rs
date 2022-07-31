@@ -140,7 +140,7 @@ pub mod avx512 {
     /// By wrapping a primitive integer into this tuple struct, you access an
     /// alternate Pessimize implementation that asserts this integer should be
     /// kept resident in AVX-512 mask registers, not general purpose registers.
-    /// This will avoid register moves  if that's how it is actually used.
+    /// This will avoid register moves if that's how the integer is actually used.
     pub struct Mask<T>(pub T);
     //
     macro_rules! pessimize_mask {
