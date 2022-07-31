@@ -5,7 +5,7 @@
 
 use crate::{
     assume_accessed, assume_accessed_imut, assume_accessed_via_extract, assume_read, hide,
-    with_pessimize_copy, BorrowPessimize, Pessimize, PessimizeCast,
+    with_pessimize_via_copy, BorrowPessimize, Pessimize, PessimizeCast,
 };
 
 // Implementation of Pessimize for bool based on that for u8
@@ -27,7 +27,7 @@ unsafe impl PessimizeCast for bool {
 impl BorrowPessimize for bool {
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        with_pessimize_copy(self, f)
+        with_pessimize_via_copy(self, f)
     }
 
     #[inline(always)]
@@ -54,7 +54,7 @@ unsafe impl PessimizeCast for char {
 impl BorrowPessimize for char {
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        with_pessimize_copy(self, f)
+        with_pessimize_via_copy(self, f)
     }
 
     #[inline(always)]

@@ -72,7 +72,7 @@ mod tests {
     use crate::{
         assume_accessed_via_extract,
         tests::{test_simd, test_unoptimized_value_type},
-        with_pessimize_copy, BorrowPessimize, PessimizeCast,
+        with_pessimize_via_copy, BorrowPessimize, PessimizeCast,
     };
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
@@ -156,7 +156,7 @@ mod tests {
                 impl BorrowPessimize for $name {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                        with_pessimize_copy(self, f)
+                        with_pessimize_via_copy(self, f)
                     }
 
                     #[inline(always)]

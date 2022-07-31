@@ -298,7 +298,7 @@ pub unsafe trait PessimizeCast {
 
 /// Process a type as its Pessimize dual by reference
 ///
-/// Typical implementations are provided via `pessimize::with_pessimize_copy`
+/// Typical implementations are provided via `pessimize::with_pessimize_via_copy`
 /// and `pessimize::assume_accessed_via_extract`.
 ///
 pub trait BorrowPessimize: PessimizeCast {
@@ -313,7 +313,7 @@ pub trait BorrowPessimize: PessimizeCast {
 /// Implementation of `BorrowPessimize::with_pessimize` for `Copy` types
 // TODO: Use specializable BorrowPessimize impl once available on stable
 #[inline(always)]
-pub fn with_pessimize_copy<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
+pub fn with_pessimize_via_copy<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
     let pessimize = T::into_pessimize(*self_);
     f(&pessimize)
 }
@@ -478,7 +478,7 @@ macro_rules! pessimize_portable_simd {
             impl $crate::BorrowPessimize for $simd_type {
                 #[inline(always)]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                    $crate::with_pessimize_copy(self, f)
+                    $crate::with_pessimize_via_copy(self, f)
                 }
 
                 #[inline(always)]

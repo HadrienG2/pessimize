@@ -195,7 +195,7 @@ pub mod avx512 {
 mod safe_arch_types {
     use super::*;
     use crate::{
-        assume_accessed_via_extract, consume, hide, with_pessimize_copy, BorrowPessimize,
+        assume_accessed_via_extract, consume, hide, with_pessimize_via_copy, BorrowPessimize,
         PessimizeCast,
     };
     #[cfg(any(target_feature = "sse", doc))]
@@ -233,7 +233,7 @@ mod safe_arch_types {
                 impl BorrowPessimize for $safe_arch_type {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                        with_pessimize_copy(self, f)
+                        with_pessimize_via_copy(self, f)
                     }
 
                     #[inline(always)]
@@ -294,8 +294,8 @@ mod safe_arch_types {
 mod portable_simd {
     use super::*;
     use crate::{
-        assume_accessed_via_extract, consume, hide, pessimize_portable_simd, with_pessimize_copy,
-        BorrowPessimize, PessimizeCast,
+        assume_accessed_via_extract, consume, hide, pessimize_portable_simd,
+        with_pessimize_via_copy, BorrowPessimize, PessimizeCast,
     };
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
@@ -435,7 +435,7 @@ mod portable_simd {
                 impl BorrowPessimize for $mask_type {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                        with_pessimize_copy(self, f)
+                        with_pessimize_via_copy(self, f)
                     }
 
                     #[inline(always)]
