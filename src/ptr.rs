@@ -72,12 +72,17 @@ mod all_pointers {
     unsafe impl<T: ?Sized> Pessimize for DynMetadata<T> {
         #[inline(always)]
         fn hide(self) -> Self {
+            // Safe because `DynMetadata` is effectively defined to be a thin
+            // pointer to an opaque type, which can be converted to `*const ()`
+            // and back, and `hide_thin_ptr` doesn't modify the pointer.
             unsafe { core::mem::transmute(hide_thin_ptr::<*const ()>(core::mem::transmute(self))) }
         }
 
         #[inline(always)]
         fn assume_read(&self) {
-            unsafe { assume_read_thin_ptr::<*const ()>(core::mem::transmute(*self)) }
+            // Safe because `DynMetadata` is effectively defined to be a thin
+            // pointer to an opaque type, which can be converted to `*const ()`.
+            assume_read_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
         }
 
         #[inline(always)]

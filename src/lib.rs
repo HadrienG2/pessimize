@@ -89,6 +89,10 @@ mod ptr;
 /// it is strongly recommended to use the optimization barriers via the free
 /// functions provided at the crate root, rather than via method syntax.
 ///
+/// Implementing `Pessimize` requires fairly tricky code. Consider implementing
+/// `PessimizeCast` and `BorrowPessimize` instead, which is slightly easier, and
+/// will lead to an automatic `Pessimize` implementation.
+///
 /// # Safety
 ///
 /// Unsafe code may rely on hide() behaving as an identity function (returning
@@ -241,8 +245,9 @@ pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
 /// type (or tuple of types) that implement Pessimize and back in such a way
 /// that the runtime costs should be optimized out.
 ///
-/// This trait exposes that capability under a common abstraction vocabulary,
-/// for the purpose of automatically implementing `Pessimize`.
+/// This trait exposes that capability under a common abstraction vocabulary.
+/// Combined with the related `BorrowPessimize` trait, it enables implementation
+/// of `Pessimize` with reduced boilerplate.
 ///
 /// # Safety
 ///
@@ -296,17 +301,22 @@ pub unsafe trait PessimizeCast {
     unsafe fn from_pessimize(x: Self::Pessimized) -> Self;
 }
 
-/// Process a type as its Pessimize dual by reference
-///
-/// Typical implementations are provided via `pessimize::with_pessimize_via_copy`
-/// and `pessimize::assume_accessed_via_extract`.
-///
+/// Go from a reference to `Self` to a reference to `Self::Pessimized`
 pub trait BorrowPessimize: PessimizeCast {
     /// Process shared self as a shared Pessimize value
+    ///
+    /// In the common case where `Self: Copy`, you can implement this by calling
+    /// `pessimize::with_pessimize_via_copy`.
+    ///
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized));
 
     /// Extract an `&mut Pessimized` from `&mut self`, call `assume_accessed`
     /// on it, and propagate any "changes" back to the original `&mut self`.
+    ///
+    /// In the common case where there is a cheap way to go from an `&mut Self`
+    /// to a `Self`, you can implement this by calling
+    /// `pessimize::assume_accessed_via_extract`.
+    ///
     fn assume_accessed_impl(&mut self);
 }
 
@@ -538,7 +548,8 @@ mod alloc_feature {
 
         #[inline(always)]
         fn assume_accessed_impl(&mut self) {
-            // This (re)borrow would allow us to mutate, enabling assume_accessed
+            // This reborrow would allow us to mutate, which is needed for
+            // `assume_accessed` to reliably work.
             let inner: &mut T = self.as_mut();
             let mut inner_ptr = inner as *const T;
             assume_accessed(&mut inner_ptr);
