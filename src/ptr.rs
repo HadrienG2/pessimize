@@ -2,7 +2,8 @@
 //! *const T, *mut T, NonNull<T>, &T, &mut T and fn(Args...) -> Res
 
 use crate::{
-    with_pessimize_copy, with_pessimize_mut_impl, BorrowPessimize, Pessimize, PessimizeCast,
+    assume_accessed, assume_accessed_via_extract, with_pessimize_copy, BorrowPessimize, Pessimize,
+    PessimizeCast,
 };
 use core::ptr::NonNull;
 
@@ -154,8 +155,8 @@ where
     }
 
     #[inline(always)]
-    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
-        with_pessimize_mut_impl(self, f, |p: &mut *mut T| *p)
+    fn assume_accessed_impl(&mut self) {
+        assume_accessed_via_extract(self, |p: &mut *mut T| *p)
     }
 }
 
@@ -170,12 +171,12 @@ where
     type Pessimized = *mut T;
 
     #[inline(always)]
-    fn into_pessimize(self) -> Self::Pessimized {
+    fn into_pessimize(self) -> *mut T {
         self.as_ptr()
     }
 
     #[inline(always)]
-    unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
+    unsafe fn from_pessimize(x: *mut T) -> Self {
         NonNull::new_unchecked(x)
     }
 }
@@ -190,8 +191,8 @@ where
     }
 
     #[inline(always)]
-    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
-        with_pessimize_mut_impl(self, f, |nn: &mut NonNull<T>| *nn)
+    fn assume_accessed_impl(&mut self) {
+        assume_accessed_via_extract(self, |nn: &mut NonNull<T>| *nn)
     }
 }
 
@@ -282,7 +283,7 @@ macro_rules! pessimize_references {
                 }
 
                 #[inline(always)]
-                unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+                fn assume_accessed_impl(&mut self) {
                     // First, we create an owned reference to T via reborrow
                     // If *self is an &mut, this invalidates it as long as the
                     // reborrow is live, so we are allowed by Rust rules to
@@ -294,9 +295,10 @@ macro_rules! pessimize_references {
                     // into a NonNull, pass it through the
                     // NonNull::assume_accessed optimization barrier, and go
                     // back to a reference, like in the hide() implementation.
+                    // This is safe because assume_accessed does nothing.
                     let mut ptr = NonNull::from(reborrow);
-                    f(&mut ptr);
-                    reborrow = ptr.$from_nonnull();
+                    assume_accessed::<NonNull<T>>(&mut ptr);
+                    reborrow = unsafe { ptr.$from_nonnull() };
 
                     // At this point, "reborrow" contains the reference that we
                     // would like *self to be: the compiler knows that it still
@@ -322,7 +324,7 @@ macro_rules! pessimize_references {
                     //   a way that could create new UB at the optimizer level.
                     //
                     // So we extend the reborrow's lifteime to allow for this.
-                    let extended: Self = core::mem::transmute(reborrow);
+                    let extended: Self = unsafe { core::mem::transmute(reborrow) };
                     *self = extended;
                 }
             }

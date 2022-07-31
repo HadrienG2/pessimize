@@ -194,7 +194,10 @@ pub mod avx512 {
 #[cfg(any(feature = "safe_arch", test))]
 mod safe_arch_types {
     use super::*;
-    use crate::{consume, hide, BorrowPessimize, PessimizeCast};
+    use crate::{
+        assume_accessed_via_extract, consume, hide, with_pessimize_copy, BorrowPessimize,
+        PessimizeCast,
+    };
     #[cfg(any(target_feature = "sse", doc))]
     use safe_arch::m128;
     #[cfg(any(target_feature = "avx2", doc))]
@@ -230,12 +233,12 @@ mod safe_arch_types {
                 impl BorrowPessimize for $safe_arch_type {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                        $crate::with_pessimize_copy(self, f)
+                        with_pessimize_copy(self, f)
                     }
 
                     #[inline(always)]
-                    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut $inner)) {
-                        $crate::with_pessimize_mut_impl(self, f, core::mem::take)
+                    fn assume_accessed_impl(&mut self) {
+                        assume_accessed_via_extract(self, core::mem::take)
                     }
                 }
             )*
@@ -290,7 +293,10 @@ mod safe_arch_types {
 #[cfg(feature = "nightly")]
 mod portable_simd {
     use super::*;
-    use crate::{consume, hide, pessimize_portable_simd};
+    use crate::{
+        assume_accessed_via_extract, consume, hide, pessimize_portable_simd, with_pessimize_copy,
+        BorrowPessimize, PessimizeCast,
+    };
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
     use target_arch::{__m512, __m512d, __m512i};
@@ -411,7 +417,7 @@ mod portable_simd {
         ) => {
             $(
                 #[$doc_cfg]
-                unsafe impl $crate::PessimizeCast for $mask_type {
+                unsafe impl PessimizeCast for $mask_type {
                     type Pessimized = avx512::Mask<<Self as ToBitMask>::BitMask>;
 
                     #[inline(always)]
@@ -426,15 +432,15 @@ mod portable_simd {
                 }
                 //
                 #[$doc_cfg]
-                impl $crate::BorrowPessimize for $mask_type {
+                impl BorrowPessimize for $mask_type {
                     #[inline(always)]
                     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                        $crate::with_pessimize_copy(self, f)
+                        with_pessimize_copy(self, f)
                     }
 
                     #[inline(always)]
-                    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
-                        $crate::with_pessimize_mut_impl(self, f, core::mem::take)
+                    fn assume_accessed_impl(&mut self) {
+                        assume_accessed_via_extract(self, core::mem::take)
                     }
                 }
             )*

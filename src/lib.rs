@@ -38,6 +38,12 @@
 //!   `black_box`, for which "do nothing" is a valid implementation).
 //! - It exposes finer-grained operations, which clarify your code's intent and
 //!   reduce harmful side-effects.
+//!
+//! The main drawbacks of this crate's approach being that...
+//! - It only works on a few hardware architectures (though these are the ones
+//!   on which you are most likely to run benchmarks, and it should get better
+//!   over time as more inline assembly architectures get stabilized).
+//! - It needs a lot of tricky unsafe code.
 
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(feature = "default_impl", allow(incomplete_features))]
@@ -230,9 +236,10 @@ pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
 
 /// Convert Self back and forth to a type that implements Pessimize
 ///
-/// While only a small number of Pessimize types are supported in hardware, many
-/// standard types can be losslessly converted to a lower-level type (or tuple
-/// of types) that implement Pessimize and back at no runtime cost.
+/// While only a small number of Pessimize types are supported by inline
+/// assembly, many standard types can be losslessly converted to a lower-level
+/// type (or tuple of types) that implement Pessimize and back in such a way
+/// that the runtime costs should be optimized out.
 ///
 /// This trait exposes that capability under a common abstraction vocabulary,
 /// for the purpose of automatically implementing `Pessimize`.
@@ -289,24 +296,21 @@ pub unsafe trait PessimizeCast {
     unsafe fn from_pessimize(x: Self::Pessimized) -> Self;
 }
 
-/// Process a type as its Pessimize dual by shared reference
+/// Process a type as its Pessimize dual by reference
+///
+/// Typical implementations are provided via `pessimize::with_pessimize_copy`
+/// and `pessimize::assume_accessed_via_extract`.
+///
 pub trait BorrowPessimize: PessimizeCast {
     /// Process shared self as a shared Pessimize value
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized));
 
-    /// Process unique self as a unique Pessimize value
-    ///
-    /// Be sure to propagate the updates performed to Self::Pessimized into
-    /// the original &mut self reference at the end.
-    ///
-    /// # Safety
-    ///
-    /// `f` should only perform operations allowed before `from_pessimize`.
-    ///
-    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized));
+    /// Extract an `&mut Pessimized` from `&mut self`, call `assume_accessed`
+    /// on it, and propagate any "changes" back to the original `&mut self`.
+    fn assume_accessed_impl(&mut self);
 }
 
-/// Implementation of BorrowPessimize::with_pessimize for Copy types
+/// Implementation of `BorrowPessimize::with_pessimize` for `Copy` types
 // TODO: Use specializable BorrowPessimize impl once available on stable
 #[inline(always)]
 pub fn with_pessimize_copy<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
@@ -314,23 +318,20 @@ pub fn with_pessimize_copy<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T
     f(&pessimize)
 }
 
-/// Implementation of BorrowPessimize::with_pessimize_mut for types where there
-/// is a cheap way to get a T from an &mut T (typically Copy or core::mem::take)
+/// Implementation of `BorrowPessimize::assume_accessed_impl` for types where
+/// there is a cheap way to get a T from an &mut T
 ///
-/// # Safety
-///
-/// `f` must only contain operations allowed before `T::from_pessimize`.
+/// For `Copy` types, this is a dereference, and for `Default` types where the
+/// default value is truly trivial and guaranteed to be optimized out (like
+/// `Vec`), this is `core::mem::take`.
 ///
 #[inline(always)]
-pub unsafe fn with_pessimize_mut_impl<T: PessimizeCast>(
-    r: &mut T,
-    f: impl FnOnce(&mut T::Pessimized),
-    extract: impl FnOnce(&mut T) -> T,
-) {
+pub fn assume_accessed_via_extract<T: PessimizeCast>(r: &mut T, extract: impl FnOnce(&mut T) -> T) {
     let x: T = extract(r);
     let mut pessimize = T::into_pessimize(x);
-    f(&mut pessimize);
-    *r = T::from_pessimize(pessimize);
+    assume_accessed(&mut pessimize);
+    // Safe because assume_accessed is allowed between into_pessimize and from_pessimize
+    *r = unsafe { T::from_pessimize(pessimize) };
 }
 
 // Given a BorrowPessimize impl, we can automatically implement Pessimize
@@ -349,10 +350,7 @@ unsafe impl<T: BorrowPessimize> Pessimize for T {
 
     #[inline(always)]
     fn assume_accessed(&mut self) {
-        // Safe because `assume_accessed` is allowed before `from_pessimize`
-        unsafe {
-            Self::with_pessimize_mut(self, assume_accessed);
-        }
+        Self::assume_accessed_impl(self)
     }
 
     #[inline(always)]
@@ -484,8 +482,8 @@ macro_rules! pessimize_portable_simd {
                 }
 
                 #[inline(always)]
-                unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut $inner)) {
-                    $crate::with_pessimize_mut_impl(self, f, core::mem::take)
+                fn assume_accessed_impl(&mut self) {
+                    $crate::assume_accessed_via_extract(self, core::mem::take)
                 }
             }
         )*)*
@@ -539,11 +537,13 @@ mod alloc_feature {
         }
 
         #[inline(always)]
-        unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+        fn assume_accessed_impl(&mut self) {
+            // This (re)borrow would allow us to mutate, enabling assume_accessed
             let inner: &mut T = self.as_mut();
             let mut inner_ptr = inner as *const T;
-            f(&mut inner_ptr);
-            (self as *mut Self).write(Self::from_pessimize(inner_ptr))
+            assume_accessed(&mut inner_ptr);
+            // Safe because we avoid drop and the pointer effectively wasn't modified
+            unsafe { (self as *mut Self).write(Self::from_pessimize(inner_ptr)) }
         }
     }
 
@@ -571,8 +571,8 @@ mod alloc_feature {
         }
 
         #[inline(always)]
-        unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
-            with_pessimize_mut_impl(self, f, core::mem::take)
+        fn assume_accessed_impl(&mut self) {
+            assume_accessed_via_extract(self, core::mem::take)
         }
     }
 
@@ -599,8 +599,8 @@ mod alloc_feature {
         }
 
         #[inline(always)]
-        unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
-            with_pessimize_mut_impl(self, f, core::mem::take)
+        fn assume_accessed_impl(&mut self) {
+            assume_accessed_via_extract(self, core::mem::take)
         }
     }
 }
