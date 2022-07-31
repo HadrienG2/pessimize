@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for RISC-V
 
-use super::{pessimize_values, Pessimize};
+use crate::pessimize_values;
 
 pessimize_values!(
     allow(missing_docs)

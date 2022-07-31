@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for x86 and x86_64
 
-use crate::{pessimize_values, Pessimize};
+use crate::pessimize_values;
 #[allow(unused)]
 #[cfg(target_arch = "x86")]
 use core::arch::x86 as target_arch;
@@ -104,6 +104,7 @@ pessimize_values!(
 #[cfg(all(feature = "nightly", any(target_feature = "avx512f", doc)))]
 pub mod avx512 {
     use super::*;
+    use crate::Pessimize;
     use core::arch::asm;
     #[cfg(any(target_feature = "avx512bf16", doc))]
     use target_arch::__m512bh;
@@ -164,6 +165,16 @@ pub mod avx512 {
                             asm!("/* {0} */", in(kreg) self.0, options(preserves_flags, nostack, nomem))
                         }
                     }
+
+                    #[inline(always)]
+                    fn assume_accessed(&mut self) {
+                        Self::assume_read(self)
+                    }
+
+                    #[inline(always)]
+                    fn assume_accessed_imut(&self) {
+                        Self::assume_read(self)
+                    }
                 }
             )*
         };
@@ -179,10 +190,11 @@ pub mod avx512 {
 }
 
 // Support safe_arch types if enabled
+#[allow(unused)]
 #[cfg(any(feature = "safe_arch", test))]
-mod safe_arch {
-    #[allow(unused)]
-    use crate::{consume, hide, Pessimize};
+mod safe_arch_types {
+    use super::*;
+    use crate::{consume, hide, BorrowPessimize, PessimizeCast};
     #[cfg(any(target_feature = "sse", doc))]
     use safe_arch::m128;
     #[cfg(any(target_feature = "avx2", doc))]
@@ -196,19 +208,34 @@ mod safe_arch {
     macro_rules! pessimize_safe_arch {
         (
             $doc_cfg:meta
-            { $($safe_arch_type:ty),* }
+            { $( $inner:ty: $safe_arch_type:ty ),* }
         ) => {
             $(
                 #[$doc_cfg]
-                unsafe impl Pessimize for $safe_arch_type {
+                unsafe impl PessimizeCast for $safe_arch_type {
+                    type Pessimized = $inner;
+
                     #[inline(always)]
-                    fn hide(self) -> Self {
-                        Self(hide(self.0))
+                    fn into_pessimize(self) -> $inner {
+                        self.0
                     }
 
                     #[inline(always)]
-                    fn assume_read(&self) {
-                        consume(self.0)
+                    unsafe fn from_pessimize(x: $inner) -> Self {
+                        Self(x)
+                    }
+                }
+                //
+                #[$doc_cfg]
+                impl BorrowPessimize for $safe_arch_type {
+                    #[inline(always)]
+                    fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
+                        $crate::with_pessimize_copy(self, f)
+                    }
+
+                    #[inline(always)]
+                    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut $inner)) {
+                        $crate::with_pessimize_mut_impl(self, f, core::mem::take)
                     }
                 }
             )*
@@ -221,7 +248,7 @@ mod safe_arch {
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "sse")))
         )
-        { m128 }
+        { __m128: m128 }
     );
 
     #[cfg(any(target_feature = "sse2", doc))]
@@ -230,7 +257,11 @@ mod safe_arch {
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "sse2")))
         )
-        { m128d, m128i });
+        {
+            __m128d: m128d,
+            __m128i: m128i
+        }
+    );
 
     #[cfg(any(target_feature = "avx", doc))]
     pessimize_safe_arch!(
@@ -238,7 +269,10 @@ mod safe_arch {
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "avx")))
         )
-        { m256, m256d }
+        {
+            __m256: m256,
+            __m256d: m256d
+        }
     );
 
     #[cfg(any(target_feature = "avx2", doc))]
@@ -247,7 +281,7 @@ mod safe_arch {
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "avx2")))
         )
-        { m256i }
+        { __m256i: m256i }
     );
 }
 
@@ -256,7 +290,7 @@ mod safe_arch {
 #[cfg(feature = "nightly")]
 mod portable_simd {
     use super::*;
-    use crate::{consume, hide, pessimize_portable_simd, Pessimize};
+    use crate::{consume, hide, pessimize_portable_simd};
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
     use target_arch::{__m512, __m512d, __m512i};
@@ -377,17 +411,30 @@ mod portable_simd {
         ) => {
             $(
                 #[$doc_cfg]
-                unsafe impl Pessimize for $mask_type {
+                unsafe impl $crate::PessimizeCast for $mask_type {
+                    type Pessimized = avx512::Mask<<Self as ToBitMask>::BitMask>;
+
                     #[inline(always)]
-                    fn hide(self) -> Self {
-                        Self::from_bitmask(
-                            hide(avx512::Mask(self.to_bitmask())).0
-                        )
+                    fn into_pessimize(self) -> Self::Pessimized {
+                        avx512::Mask(self.to_bitmask())
                     }
 
                     #[inline(always)]
-                    fn assume_read(&self) {
-                        consume(avx512::Mask(self.to_bitmask()))
+                    unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
+                        Self::from_bitmask(x.0)
+                    }
+                }
+                //
+                #[$doc_cfg]
+                impl $crate::BorrowPessimize for $mask_type {
+                    #[inline(always)]
+                    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+                        $crate::with_pessimize_copy(self, f)
+                    }
+
+                    #[inline(always)]
+                    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+                        $crate::with_pessimize_mut_impl(self, f, core::mem::take)
                     }
                 }
             )*

@@ -3,34 +3,63 @@
 //! Integers, floats and SIMD types are taken care of by the arch module, since
 //! the CPU register in which they should end up is arch-specific.
 
-use crate::{assume_read, consume, hide, Pessimize};
+use crate::{
+    assume_accessed, assume_accessed_imut, assume_read, hide, with_pessimize_copy,
+    with_pessimize_mut_impl, BorrowPessimize, Pessimize, PessimizeCast,
+};
 
 // Implementation of Pessimize for bool based on that for u8
-unsafe impl Pessimize for bool {
+unsafe impl PessimizeCast for bool {
+    type Pessimized = u8;
+
+    #[inline(always)]
+    fn into_pessimize(self) -> u8 {
+        self.into()
+    }
+
     #[allow(clippy::transmute_int_to_bool)]
     #[inline(always)]
-    fn hide(self) -> Self {
-        // Safe because hide() is guaranteed to be the identity function
-        unsafe { core::mem::transmute(hide(u8::from(self))) }
+    unsafe fn from_pessimize(x: u8) -> Self {
+        core::mem::transmute(x)
+    }
+}
+//
+impl BorrowPessimize for bool {
+    #[inline(always)]
+    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+        with_pessimize_copy(self, f)
     }
 
     #[inline(always)]
-    fn assume_read(&self) {
-        consume(u8::from(*self))
+    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+        with_pessimize_mut_impl(self, f, core::mem::take)
     }
 }
 
 // Implementation of Pessimize for char based on that for u32
-unsafe impl Pessimize for char {
+unsafe impl PessimizeCast for char {
+    type Pessimized = u32;
+
     #[inline(always)]
-    fn hide(self) -> Self {
-        // Safe because hide() is guaranteed to be the identity function
-        unsafe { char::from_u32_unchecked(hide(u32::from(self))) }
+    fn into_pessimize(self) -> u32 {
+        self.into()
     }
 
     #[inline(always)]
-    fn assume_read(&self) {
-        consume(u32::from(*self))
+    unsafe fn from_pessimize(x: u32) -> Self {
+        char::from_u32_unchecked(x)
+    }
+}
+//
+impl BorrowPessimize for char {
+    #[inline(always)]
+    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+        with_pessimize_copy(self, f)
+    }
+
+    #[inline(always)]
+    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+        with_pessimize_mut_impl(self, f, core::mem::take)
     }
 }
 
@@ -48,13 +77,25 @@ macro_rules! pessimize_tuple {
             #[inline(always)]
             fn hide(self) -> Self {
                 let ($($args,)*) = self;
-                ( $(hide($args),)* )
+                ( $(hide::<$args>($args),)* )
             }
 
             #[inline(always)]
             fn assume_read(&self) {
                 let ($(ref $args,)*) = self;
-                $( assume_read($args) );*
+                $( assume_read::<$args>($args) );*
+            }
+
+            #[inline(always)]
+            fn assume_accessed(&mut self) {
+                let ($(ref mut $args,)*) = self;
+                $( assume_accessed::<$args>($args) );*
+            }
+
+            #[inline(always)]
+            fn assume_accessed_imut(&self) {
+                let ($(ref $args,)*) = self;
+                $( assume_accessed_imut::<$args>($args) );*
             }
         }
     };
@@ -76,18 +117,32 @@ pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
 //
 // We do make an exception for [T; 1], since that is unfit for SIMD anyway.
 //
-// This is safe because [T; 1] is just a T in disguise.
-//
-unsafe impl<T: Pessimize> Pessimize for [T; 1] {
+unsafe impl<T: Pessimize> PessimizeCast for [T; 1] {
+    type Pessimized = T;
+
     #[inline(always)]
-    fn hide(self) -> Self {
+    fn into_pessimize(self) -> T {
         let [x] = self;
-        [hide(x)]
+        x
     }
 
     #[inline(always)]
-    fn assume_read(&self) {
-        assume_read(&self[0])
+    unsafe fn from_pessimize(x: T) -> Self {
+        [x]
+    }
+}
+//
+impl<T: Pessimize> BorrowPessimize for [T; 1] {
+    #[inline(always)]
+    fn with_pessimize(&self, f: impl FnOnce(&T)) {
+        let [ref x] = self;
+        f(x)
+    }
+
+    #[inline(always)]
+    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut T)) {
+        let [ref mut x] = self;
+        f(x);
     }
 }
 

@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for arm and aarch64
 
-use super::{pessimize_values, Pessimize};
+use crate::pessimize_values;
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
 use core::arch::aarch64::{float64x1_t, float64x2_t};
 
@@ -40,7 +40,9 @@ pessimize_values!(
     cfg_attr(feature = "nightly", doc(cfg(target_feature = "neon")))
     { vreg: (float64x1_t, float64x2_t) }
 );
-
+//
+// TODO: Support float64xNxM_t via PessimizeCast & BorrowPessimize
+//
 // TODO: Add nightly support for SIMD types which are currently gated by stdsimd
 //       (+ portable_simd support and associated tests)
 
@@ -48,7 +50,7 @@ pessimize_values!(
 #[cfg(feature = "nightly")]
 mod portable_simd {
     #[allow(unused)]
-    use crate::{arm::*, pessimize_portable_simd, Pessimize};
+    use crate::{arm::*, pessimize_portable_simd};
     #[allow(unused)]
     use core::simd::Simd;
 
@@ -68,8 +70,8 @@ mod tests {
     use super::*;
     #[allow(unused)]
     use crate::{
-        consume, hide,
         tests::{test_simd, test_unoptimized_value_type},
+        with_pessimize_copy, with_pessimize_mut_impl, BorrowPessimize, PessimizeCast,
     };
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
@@ -125,7 +127,10 @@ mod tests {
                             let mut result = [0.0; $lanes];
                             unsafe {
                                 // FIXME: Check alignment requirements, not sure if this is right
-                                aarch64::$store((&mut x) as *mut [f64; $lanes] *mut f64, x.0)
+                                aarch64::$store(
+                                    (&mut result) as *mut [f64; $lanes] as *mut f64,
+                                    x.0,
+                                )
                             }
                             result
                         };
@@ -133,13 +138,29 @@ mod tests {
                     }
                 }
 
-                unsafe impl Pessimize for $name {
-                    fn hide(self) -> Self {
-                        Self(hide(self.0))
+                unsafe impl PessimizeCast for $name {
+                    type Pessimized = $inner;
+
+                    #[inline(always)]
+                    fn into_pessimize(self) -> $inner {
+                        self.0
                     }
 
-                    fn assume_read(&self) {
-                        consume(self.0)
+                    #[inline(always)]
+                    unsafe fn from_pessimize(x: $inner) -> Self {
+                        Self(x)
+                    }
+                }
+                //
+                impl BorrowPessimize for $name {
+                    #[inline(always)]
+                    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+                        with_pessimize_copy(self, f)
+                    }
+
+                    #[inline(always)]
+                    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+                        with_pessimize_mut_impl(self, f, core::mem::take)
                     }
                 }
             };

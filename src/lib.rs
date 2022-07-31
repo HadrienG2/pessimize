@@ -86,7 +86,7 @@ mod ptr;
 /// # Safety
 ///
 /// Unsafe code may rely on hide() behaving as an identity function (returning
-/// the input value unaltered) and assume_read not altering anything even if
+/// the input value unaltered) and `assume_xyz()` not altering anything even if
 /// the type is internally mutable.
 ///
 pub unsafe trait Pessimize {
@@ -95,26 +95,7 @@ pub unsafe trait Pessimize {
 
     /// See `pessimize::assume_read()` for documentation
     fn assume_read(&self);
-}
 
-/// Optimization barriers for pointers and references
-///
-/// This trait is only implemented for thin pointers and references on stable,
-/// but also supports fat pointers (slices and trait objects) on nightly.
-///
-/// Calling this trait on a reference does not have the same semantics as
-/// calling it on a reference of reference, which can lead to unexpected method
-/// syntax semantics (you expected to call the `Pessimize` impl of `&T`, and you
-/// actually called that of `&&T`). As a result, it is strongly recommended to
-/// use the optimization barriers via the free functions provided at the crate
-/// root, rather than via method syntax.
-///
-/// # Safety
-///
-/// Unsafe code may rely on assume_accessed and assume_accessed_imut not
-/// altering anything even if the type is internally mutable.
-///
-pub unsafe trait PessimizeRef: Pessimize {
     /// See `pessimize::assume_accessed()` for documentation
     fn assume_accessed(&mut self);
 
@@ -155,6 +136,10 @@ pub fn hide<T: Pessimize>(x: T) -> T {
 /// You can apply this barrier to unused computation results in order to
 /// prevent the compiler from optimizing out the associated computations.
 ///
+/// On pointers/references, it will have the side effect of spilling target data
+/// resident in CPU registers to memory, although the in-register copies remain
+/// valid and can be reused later on without reloading.
+///
 /// If you need an `assume_read` alternative for a variable `x` that does not
 /// implement `Pessimize`, you can use `assume_read(&x)`, at the cost of
 /// forcing any data from x which is currently cached in registers to be
@@ -185,8 +170,13 @@ pub fn consume<T: Pessimize>(x: T) {
 /// Force the compiler to assume that any data transitively reachable via a
 /// pointer/reference has been read, and modified if Rust rules allow for it.
 ///
-/// This will cause all target data which is currently cached in registers
-/// to be spilled to memory and reloaded when needed later on.
+/// This operation only makes sense on pointers/references, or values that
+/// contain them. On others, it is equivalent to `assume_read()`. That's because
+/// we assume that the pointer's target has changed, not the pointer itself
+/// (except for fat pointer types where pointer metadata is target-dependent).
+///
+/// At the optimizer level, `assume_accessed()` will cause all target data which
+/// is currently cached in registers to be spilled to memory and invalidated.
 ///
 /// The compiler is allowed to assume that data which is only reachable via
 /// an &-reference and does not have interior mutability semantics cannot be
@@ -218,41 +208,192 @@ pub fn consume<T: Pessimize>(x: T) {
 /// used to modify or read their targets where that would be undefined behavior.
 ///
 #[inline(always)]
-pub fn assume_accessed<R: PessimizeRef>(r: &mut R) {
-    PessimizeRef::assume_accessed(r)
+pub fn assume_accessed<R: Pessimize>(r: &mut R) {
+    Pessimize::assume_accessed(r)
 }
 
 /// Variant of `assume_accessed` for internally mutable types
 ///
-/// You should only use this variant on internally mutable types (Cell,
-/// RefCell, Mutex, AtomicXyz...), otherwise you will instantly fall victim
-/// of the "shared reference mutation is UB" edge case mentioned in the
-/// documentation of `assume_accessed`.
+/// You should only use this variant on pointers/references to internally
+/// mutable types (Cell, RefCell, Mutex, AtomicXyz...), or values that contain
+/// them. Otherwise you will instantly fall victim of the "shared reference
+/// mutation is UB" edge case mentioned in the docs of `assume_accessed()`.
 ///
-/// For example, calling assume_accessed_imut on a slice pointer will not assume
-/// that the slice length has changed, since slice length does not have
+/// For example, calling `assume_accessed_imut()` on a slice pointer will not
+/// assume that the slice length has changed, since slice length does not have
 /// internal mutability semantics.
 ///
 #[inline(always)]
-pub fn assume_accessed_imut<R: PessimizeRef>(r: &R) {
-    PessimizeRef::assume_accessed_imut(r)
+pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
+    Pessimize::assume_accessed_imut(r)
 }
 
-// TODO: Rework based on an IntoPrimitiveTuple/FromPrimitiveTuple design
+/// Convert Self back and forth to a type that implements Pessimize
+///
+/// While only a small number of Pessimize types are supported in hardware, many
+/// standard types can be losslessly converted to a lower-level type (or tuple
+/// of types) that implement Pessimize and back at no runtime cost.
+///
+/// This trait exposes that capability under a common abstraction vocabulary,
+/// for the purpose of automatically implementing `Pessimize`.
+///
+/// # Safety
+///
+/// By implementing this trait, you guarantee that someone using it as
+/// documented will not trigger Undefined Behavior, since the safe `Pessimize`
+/// trait will be automatically implemented on top of it
+///
+pub unsafe trait PessimizeCast {
+    /// Associated Pessimize type
+    type Pessimized: Pessimize;
 
-/// Default implementation of Pessimize when no better one is available
-#[cfg(feature = "default_impl")]
-#[doc(cfg(all(feature = "nightly", feature = "default_impl")))]
-unsafe impl<T> Pessimize for T {
+    /// Convert to Pessimized
+    fn into_pessimize(self) -> Self::Pessimized;
+
+    /// Convert back from Pessimized
+    ///
+    /// # Safety
+    ///
+    /// This operation should be safe for the intended use case of converting
+    /// `Self` to `Pessimized` using `into_pessimize()`, invoking `Pessimize`
+    /// trait operations on the resulting value, and optionally converting the
+    /// `Pessimized` value back to `Self` afterwards via `from_pessimize()`.
+    ///
+    /// The final `from_pessimize()` operation of this round trip should be
+    /// performed in the same scope where the initial `into_pessimize()`
+    /// operation was called, or a child scope thereof.
+    ///
+    /// Even if `Pessimized` is `Clone`, it is strongly advised to treat it as
+    /// a `!Clone` value: don't clone it, and stop using it after converting it
+    /// back to `Self`. Otherwise, _suprising_ (but safe) behavior may occur.
+    ///
+    /// Nothing else is guaranteed to work. To give a few examples...
+    ///
+    /// - `Self` may contain references to the surrounding stack frame, so even
+    ///   if `Pessimized` is `'static`, letting a `Pessimized` escape the scope
+    ///   in which `into_pessimize()` was called before converting it back to
+    //    `Self` using `from_pessimize()` is unsafe.
+    /// - `Self` may contain `!Clone` data like &mut references, so even if
+    ///   `Pessimized` is `Clone`, converting two clones of a single
+    ///   `Pessimized` value back into `Self` is unsafe. In fact, even using the
+    ///   `Pessimize` implementation after converting one of the clones to
+    ///   `Self` is not guaranteed to produce the desired optimization barrier.
+    /// - `Self` may be `!Send`, so even if `Pessimized` is `Send`, sending a
+    ///   `Pessimized` value to another thread before calling `from_pessimize()`
+    ///   on that separate thread is unsafe.
+    /// - Even if two types share the same `Pessimized` representation, abusing
+    ///   the `PessimizeCast` trait to perform a cast operation, like casting a
+    ///   reference to another reference with different mutability or lifetime,
+    ///   is unsafe.
+    ///
+    unsafe fn from_pessimize(x: Self::Pessimized) -> Self;
+}
+
+/// Process a type as its Pessimize dual by shared reference
+pub trait BorrowPessimize: PessimizeCast {
+    /// Process shared self as a shared Pessimize value
+    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized));
+
+    /// Process unique self as a unique Pessimize value
+    ///
+    /// Be sure to propagate the updates performed to Self::Pessimized into
+    /// the original &mut self reference at the end.
+    ///
+    /// # Safety
+    ///
+    /// `f` should only perform operations allowed before `from_pessimize`.
+    ///
+    unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized));
+}
+
+/// Implementation of BorrowPessimize::with_pessimize for Copy types
+// TODO: Use specializable BorrowPessimize impl once available on stable
+#[inline(always)]
+pub fn with_pessimize_copy<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
+    let pessimize = T::into_pessimize(*self_);
+    f(&pessimize)
+}
+
+/// Implementation of BorrowPessimize::with_pessimize_mut for types where there
+/// is a cheap way to get a T from an &mut T (typically Copy or core::mem::take)
+///
+/// # Safety
+///
+/// `f` must only contain operations allowed before `T::from_pessimize`.
+///
+#[inline(always)]
+pub unsafe fn with_pessimize_mut_impl<T: PessimizeCast>(
+    r: &mut T,
+    f: impl FnOnce(&mut T::Pessimized),
+    extract: impl FnOnce(&mut T) -> T,
+) {
+    let x: T = extract(r);
+    let mut pessimize = T::into_pessimize(x);
+    f(&mut pessimize);
+    *r = T::from_pessimize(pessimize);
+}
+
+// Given a BorrowPessimize impl, we can automatically implement Pessimize
+unsafe impl<T: BorrowPessimize> Pessimize for T {
     #[inline(always)]
-    default fn hide(mut self) -> Self {
-        assume_accessed(&mut &mut self);
-        self
+    fn hide(self) -> Self {
+        // Safe because `from_pessimize` is from the same scope and `hide` is
+        // allowed before `from_pessimize`.
+        unsafe { Self::from_pessimize(hide(self.into_pessimize())) }
     }
 
     #[inline(always)]
-    default fn assume_read(&self) {
-        consume(self)
+    fn assume_read(&self) {
+        Self::with_pessimize(self, assume_read)
+    }
+
+    #[inline(always)]
+    fn assume_accessed(&mut self) {
+        // Safe because `assume_accessed` is allowed before `from_pessimize`
+        unsafe {
+            Self::with_pessimize_mut(self, assume_accessed);
+        }
+    }
+
+    #[inline(always)]
+    fn assume_accessed_imut(&self) {
+        Self::with_pessimize(self, assume_accessed_imut)
+    }
+}
+
+/// Default implementation of Pessimize when no better one is available
+///
+/// Uses the implementation of `Pessimize` for references, which will cause any
+/// state currently cached in CPU registers to be spilled to memory and reloaded
+/// if used again.
+///
+#[cfg(feature = "default_impl")]
+#[doc(cfg(all(feature = "nightly", feature = "default_impl")))]
+mod default_impl {
+    use super::*;
+
+    unsafe impl<T> Pessimize for T {
+        #[inline(always)]
+        default fn hide(mut self) -> Self {
+            let mut r: &mut Self = &mut self;
+            assume_accessed::<&mut T>(&mut r);
+            self
+        }
+
+        #[inline(always)]
+        default fn assume_read(&self) {
+            consume::<&T>(self)
+        }
+
+        #[inline(always)]
+        default fn assume_accessed(mut self: &mut Self) {
+            assume_accessed::<&mut T>(&mut self);
+        }
+
+        #[inline(always)]
+        default fn assume_accessed_imut(&self) {
+            assume_accessed_imut::<&T>(&self)
+        }
     }
 }
 
@@ -275,7 +416,7 @@ macro_rules! pessimize_values {
         $($(
             #[allow(asm_sub_register)]
             #[$doc_cfg]
-            unsafe impl Pessimize for $value_type {
+            unsafe impl $crate::Pessimize for $value_type {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
                     unsafe {
@@ -289,6 +430,16 @@ macro_rules! pessimize_values {
                     unsafe {
                         core::arch::asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
                     }
+                }
+
+                #[inline(always)]
+                fn assume_accessed(&mut self) {
+                    Self::assume_read(self)
+                }
+
+                #[inline(always)]
+                fn assume_accessed_imut(&self) {
+                    Self::assume_read(self)
                 }
             }
         )*)*
@@ -311,15 +462,30 @@ macro_rules! pessimize_portable_simd {
     ) => {
         $($(
             #[$doc_cfg]
-            unsafe impl Pessimize for $simd_type {
+            unsafe impl $crate::PessimizeCast for $simd_type {
+                type Pessimized = $inner;
+
                 #[inline(always)]
-                fn hide(self) -> Self {
-                    $crate::hide($inner::from(self)).into()
+                fn into_pessimize(self) -> $inner {
+                    self.into()
                 }
 
                 #[inline(always)]
-                fn assume_read(&self) {
-                    $crate::consume($inner::from(*self))
+                unsafe fn from_pessimize(x: $inner) -> Self {
+                    Self::from(x)
+                }
+            }
+            //
+            #[$doc_cfg]
+            impl $crate::BorrowPessimize for $simd_type {
+                #[inline(always)]
+                fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
+                    $crate::with_pessimize_copy(self, f)
+                }
+
+                #[inline(always)]
+                unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut $inner)) {
+                    $crate::with_pessimize_mut_impl(self, f, core::mem::take)
                 }
             }
         )*)*
@@ -345,107 +511,96 @@ mod alloc_feature {
 
     // Box<T> is effectively a NonNull<T> with RAII, so if the NonNull impl is
     // correct, this impl is correct.
-    unsafe impl<T: ?Sized> Pessimize for Box<T>
+    unsafe impl<T: ?Sized> PessimizeCast for Box<T>
+    where
+        *const T: Pessimize,
+    {
+        type Pessimized = *const T;
+
+        #[inline(always)]
+        fn into_pessimize(self) -> *const T {
+            Box::into_raw(self) as *const T
+        }
+
+        #[inline(always)]
+        unsafe fn from_pessimize(x: *const T) -> Self {
+            Box::from_raw(x as *mut T)
+        }
+    }
+    //
+    impl<T: ?Sized> BorrowPessimize for Box<T>
     where
         *const T: Pessimize,
     {
         #[inline(always)]
-        fn hide(self) -> Self {
-            // Safe because hide is the identity function
-            unsafe { Box::from_raw(hide(Box::into_raw(self))) }
+        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+            let inner: &T = self.as_ref();
+            f(&(inner as *const T))
         }
 
         #[inline(always)]
-        fn assume_read(&self) {
-            let inner: &T = self.as_ref();
-            consume(<*const T>::from(inner))
-        }
-    }
-    //
-    unsafe impl<T: ?Sized> PessimizeRef for Box<T>
-    where
-        *const T: PessimizeRef,
-    {
-        #[inline(always)]
-        fn assume_accessed(&mut self) {
+        unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
             let inner: &mut T = self.as_mut();
-            let mut inner_ptr = <*mut T>::from(inner);
-            assume_accessed(&mut inner_ptr);
-            // Safe because assume_accessed doesn't modify its target
-            unsafe { (self as *mut Self).write(Box::from_raw(inner_ptr)) }
-        }
-
-        #[inline(always)]
-        fn assume_accessed_imut(&self) {
-            let inner: &T = self.as_ref();
-            assume_accessed_imut(&(<*const T>::from(inner)))
+            let mut inner_ptr = inner as *const T;
+            f(&mut inner_ptr);
+            (self as *mut Self).write(Self::from_pessimize(inner_ptr))
         }
     }
 
     // Vec<T> is basically a thin NonNull<T>, a length and a capacity
-    unsafe impl<T> Pessimize for Vec<T> {
+    unsafe impl<T> PessimizeCast for Vec<T> {
+        type Pessimized = (*const T, usize, usize);
+
         #[inline(always)]
-        fn hide(self) -> Self {
+        fn into_pessimize(self) -> Self::Pessimized {
             let mut v = ManuallyDrop::new(self);
-            // Safe because self destructor has been inhibited and hide is
-            // guaranteed to be the identity function
-            unsafe { Vec::from_raw_parts(hide(v.as_mut_ptr()), hide(v.len()), hide(v.capacity())) }
+            (v.as_mut_ptr() as *const T, v.len(), v.capacity())
         }
 
         #[inline(always)]
-        fn assume_read(&self) {
-            consume(self.as_ptr());
-            consume(self.len());
-            consume(self.capacity());
+        unsafe fn from_pessimize((ptr, length, capacity): Self::Pessimized) -> Self {
+            Vec::from_raw_parts(ptr as *mut T, length, capacity)
         }
     }
     //
-    unsafe impl<T> PessimizeRef for Vec<T> {
+    impl<T> BorrowPessimize for Vec<T> {
         #[inline(always)]
-        fn assume_accessed(&mut self) {
-            let mut ptr = self.as_mut_ptr();
-            assume_accessed(&mut ptr);
-            let length = hide(self.len());
-            let capacity = hide(self.capacity());
-            // Safe because self's destructor is inhibited through use of write,
-            // hide is identity and assume_accessed doesn't modify its target
-            unsafe { (self as *mut Self).write(Vec::from_raw_parts(ptr, length, capacity)) }
+        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+            let pessimized = (self.as_ptr(), self.len(), self.capacity());
+            f(&pessimized)
         }
 
         #[inline(always)]
-        fn assume_accessed_imut(&self) {
-            assume_accessed_imut(&(self.as_ptr() as *mut T));
-            consume(self.len());
-            consume(self.capacity());
+        unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+            with_pessimize_mut_impl(self, f, core::mem::take)
         }
     }
 
     // String is basically a Vec<u8> with an UTF-8 validity invariant
-    unsafe impl Pessimize for String {
+    unsafe impl PessimizeCast for String {
+        type Pessimized = (*const u8, usize, usize);
+
         #[inline(always)]
-        fn hide(self) -> Self {
-            // Safe because hide is the identity function
-            unsafe { String::from_utf8_unchecked(hide(self.into_bytes())) }
+        fn into_pessimize(self) -> Self::Pessimized {
+            self.into_bytes().into_pessimize()
         }
 
         #[inline(always)]
-        fn assume_read(&self) {
-            consume(self.as_bytes() as *const [u8] as *const u8);
-            consume(self.len());
-            consume(self.capacity());
+        unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
+            String::from_utf8_unchecked(Vec::<u8>::from_pessimize(x))
         }
     }
     //
-    unsafe impl PessimizeRef for String {
+    impl BorrowPessimize for String {
         #[inline(always)]
-        fn assume_accessed(&mut self) {
-            // Safe because assume_accessed does not modify anything
-            assume_accessed(unsafe { self.as_mut_vec() })
+        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+            let pessimized = (self.as_ptr(), self.len(), self.capacity());
+            f(&pessimized)
         }
 
         #[inline(always)]
-        fn assume_accessed_imut(&self) {
-            assume_read(self)
+        unsafe fn with_pessimize_mut(&mut self, f: impl FnOnce(&mut Self::Pessimized)) {
+            with_pessimize_mut_impl(self, f, core::mem::take)
         }
     }
 }
