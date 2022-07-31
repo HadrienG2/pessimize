@@ -240,9 +240,9 @@ pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
     Pessimize::assume_accessed_imut(r)
 }
 
-/// Convert Self back and forth to a Pessimize impl (Pessimize impl helper)
+/// Convert `Self` back and forth to a `Pessimize` impl (`Pessimize` impl helper)
 ///
-/// While only a small number of Pessimize types are supported by inline
+/// While only a small number of `Pessimize` types are supported by inline
 /// assembly, many standard types can be losslessly converted to a lower-level
 /// type (or tuple of types) that implement Pessimize and back in such a way
 /// that the runtime costs should be optimized out.
@@ -306,9 +306,10 @@ pub unsafe trait PessimizeCast {
     unsafe fn from_pessimize(x: Self::Pessimized) -> Self;
 }
 
-/// Go from `&[mut] Self` to `&[mut] Self::Pessimized` (Pessimize impl helper)
+/// Go from `&[mut] Self` to `&[mut] Self::Pessimized` (`Pessimize` impl helper)
 pub trait BorrowPessimize: PessimizeCast {
-    /// Process shared self as a shared Pessimize value
+    /// Extract an `&Pessimized` from `&self` and all the provided operation
+    /// on it.
     ///
     /// In the common case where `Self: Copy`, you can implement this by calling
     /// `pessimize::impl_with_pessimize`.
@@ -381,10 +382,10 @@ unsafe impl<T: BorrowPessimize> Pessimize for T {
 /// if used again.
 ///
 #[cfg(feature = "default_impl")]
-#[doc(cfg(all(feature = "nightly", feature = "default_impl")))]
 mod default_impl {
     use super::*;
 
+    #[doc(cfg(all(feature = "nightly", feature = "default_impl")))]
     unsafe impl<T> Pessimize for T {
         #[inline(always)]
         default fn hide(mut self) -> Self {
@@ -525,6 +526,7 @@ mod alloc_feature {
     // Box<T> is effectively a NonNull<T> with RAII, so if the NonNull impl is
     // correct, this impl is correct.
     // FIXME: Migrate to crate::boxed, along with associated tests
+    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     unsafe impl<T: ?Sized> PessimizeCast for Box<T>
     where
         *const T: Pessimize,
@@ -542,6 +544,7 @@ mod alloc_feature {
         }
     }
     //
+    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     impl<T: ?Sized> BorrowPessimize for Box<T>
     where
         *const T: Pessimize,
@@ -566,6 +569,7 @@ mod alloc_feature {
 
     // Vec<T> is basically a thin NonNull<T>, a length and a capacity
     // FIXME: Migrate to crate::vec, along with associated tests
+    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     unsafe impl<T> PessimizeCast for Vec<T> {
         type Pessimized = (*const T, usize, usize);
 
@@ -581,6 +585,7 @@ mod alloc_feature {
         }
     }
     //
+    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     impl<T> BorrowPessimize for Vec<T> {
         #[inline(always)]
         fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
@@ -596,6 +601,7 @@ mod alloc_feature {
 
     // String is basically a Vec<u8> with an UTF-8 validity invariant
     // FIXME: Migrate to crate::string, along with associated tests
+    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     unsafe impl PessimizeCast for String {
         type Pessimized = (*const u8, usize, usize);
 
@@ -610,6 +616,7 @@ mod alloc_feature {
         }
     }
     //
+    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     impl BorrowPessimize for String {
         #[inline(always)]
         fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {

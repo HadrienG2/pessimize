@@ -57,7 +57,7 @@ pessimize_values!(
 // Ditto for double precision, but we need SSE2 for that
 #[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse2")))
+    cfg_attr(all(feature = "nightly", target_arch = "x86"), doc(cfg(target_feature = "sse2")))
     {
         xmm_reg: (f64)
     }
@@ -66,7 +66,7 @@ pessimize_values!(
 // Then come SIMD registers
 #[cfg(any(target_feature = "sse", doc))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse")))
+    cfg_attr(all(feature = "nightly", target_arch = "x86"), doc(cfg(target_feature = "sse")))
     {
         xmm_reg: (__m128)
     }
@@ -74,7 +74,7 @@ pessimize_values!(
 //
 #[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse2")))
+    cfg_attr(all(feature = "nightly", target_arch = "x86"), doc(cfg(target_feature = "sse2")))
     {
         xmm_reg: (__m128d, __m128i)
     }
@@ -515,7 +515,7 @@ mod portable_simd {
     pessimize_portable_mask!(
         doc(cfg(all(
             feature = "nightly",
-            target_feature = "avx512bw"
+            target_feature = "avx512bw",
             target_feature = "avx512vl"
         )))
         { Mask<i8, 32> }

@@ -69,6 +69,7 @@ mod all_pointers {
     use core::ptr::{self, DynMetadata, Pointee};
 
     // DynMetadata is a pointer to a type vtable, which is read only data
+    #[doc(cfg(feature = "nightly"))]
     unsafe impl<T: ?Sized> Pessimize for DynMetadata<T> {
         #[inline(always)]
         fn hide(self) -> Self {
@@ -97,6 +98,7 @@ mod all_pointers {
     }
 
     // Safe if the toplevel functions & DynMetadata impl operate as expected
+    #[doc(cfg(feature = "nightly"))]
     unsafe impl<T: Pointee + ?Sized> Pessimize for *const T
     where
         T::Metadata: Pessimize,
