@@ -2,7 +2,12 @@
 
 use crate::pessimize_values;
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-use core::arch::aarch64::{float64x1_t, float64x2_t};
+use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
+#[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
+use core::arch::aarch64::{
+    float64x1_t, float64x1x2_t, float64x1x3_t, float64x1x4_t, float64x2_t, float64x2x2_t,
+    float64x2x3_t, float64x2x4_t,
+};
 
 pessimize_values!(allow(missing_docs) { reg: (i8, u8, i16, u16, i32, u32, isize, usize) });
 
@@ -41,7 +46,62 @@ pessimize_values!(
     { vreg: (float64x1_t, float64x2_t) }
 );
 //
-// TODO: Support float64xNxM_t via PessimizeCast & BorrowPessimize
+#[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
+macro_rules! pessimize_float64xNxM {
+    (
+        $doc_cfg:meta
+        {
+            $(
+                $outer:ident { $( $name:ident: $inner:ty ),* }
+            ),*
+        }
+    ) => {
+        $(
+            #[$doc_cfg]
+            unsafe impl PessimizeCast for $outer {
+                type Pessimized = ( $( $inner ),* );
+
+                #[inline(always)]
+                fn into_pessimize(self) -> Self::Pessimized {
+                    let $outer( $($name),* ) = self;
+                    ( $($name),* )
+                }
+
+                #[inline(always)]
+                unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
+                    let ( $($name),* ) = x;
+                    Self( $($name),* )
+                }
+            }
+            //
+            #[$doc_cfg]
+            impl BorrowPessimize for $outer {
+                #[inline(always)]
+                fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+                    impl_with_pessimize(self, f)
+                }
+
+                #[inline(always)]
+                fn assume_accessed_impl(&mut self) {
+                    impl_assume_accessed(self, |r| *r)
+                }
+            }
+        )*
+    };
+}
+//
+#[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
+pessimize_float64xNxM!(
+    cfg_attr(feature = "nightly", doc(cfg(target_feature = "neon")))
+    {
+        float64x1x2_t { a: float64x1_t, b: float64x1_t },
+        float64x1x3_t { a: float64x1_t, b: float64x1_t, c: float64x1_t },
+        float64x1x4_t { a: float64x1_t, b: float64x1_t, c: float64x1_t, d: float64x1_t },
+        float64x2x2_t { a: float64x2_t, b: float64x2_t },
+        float64x2x3_t { a: float64x2_t, b: float64x2_t, c: float64x2_t },
+        float64x2x4_t { a: float64x2_t, b: float64x2_t, c: float64x2_t, d: float64x2_t }
+    }
+);
 //
 // TODO: Add nightly support for SIMD types which are currently gated by stdsimd
 //       (+ portable_simd support and associated tests)
@@ -168,5 +228,8 @@ mod tests {
         }
         abstract_float64xN_t!(F64x1, float64x1_t, 1, vld1_f64, vst1_f64);
         abstract_float64xN_t!(F64x2, float64x2_t, 2, vld1q_f64, vst1q_f64);
+
+        // TODO: Once convinced that above strategy is right, use a variant of
+        //       the same idea to test float64xNxM
     }
 }
