@@ -5,7 +5,11 @@
 //!
 //! You can use these barriers to prevent the compiler from optimizing out
 //! selected redundant or unnecessary computations in situations where such
-//! optimization is undesirable, like microbenchmarking.
+//! optimization is undesirable. The most typical usage scenario is
+//! microbenchmarking, but there might also be applications to cryptography or
+//! low-level development, where optimization must also be controlled.
+//!
+//! # Implementations
 //!
 //! The barriers will be implemented for any type from core/std that either...
 //! - Can be shoved into CPU registers, with "natural" target registers
@@ -16,15 +20,31 @@
 //! Any type which is not directly supported can still be subjected to an
 //! optimization barrier by taking a reference to it and subjecting that
 //! reference to an optimization barrier, at the cost of causing the value to
-//! be spilled to memory. If the `default_impl` feature is enabled, the crate
-//! will provide a default `Pessimize` impl that does this for you.
+//! be spilled to memory. If the nightly `default_impl` feature is enabled, the
+//! crate will provide a default `Pessimize` impl that does this for you.
+//!
+//! You can tell which types implement `Pessimize` on your compiler target by
+//! running `cargo doc` and checking the implementor list of `Pessimize` and
+//! `BorrowPessimize`.
+//!
+//! To implement `Pessimize` for your own types, you should consider
+//! implementing `PessimizeCast` and `BorrowPessimize`, which make the job a
+//! bit easier. `Pessimize` is automatically implemented for any type that
+//! implements `BorrowPessimize`.
+//!
+//! # Semantics
+//!
+//! In general, you should check the documentation of the top-level functions
+//! (`hide`, `assume_read`, `consume`, `assume_accessed` and
+//! `assume_accessed_imut`) for a precise description of the optimization
+//! barrier that is being implemented.
 //!
 //! For pointer-like entities, optimization barriers other than `hide` will
 //! have the side-effect of causing the compiler to assume that global and
 //! thread-local variable might have been accessed using similar semantics as
 //! the pointer itself. This will reduce applicable compiler optimizations for
-//! such variables, so use of `hide` should be preferred when global or
-//! thread-local variables are used.
+//! such variables, so use of `hide` should be favored whenever global or
+//! thread-local variables are used (or you don't know if they are used).
 //!
 //! In general, `assume_read` and `assume_accessed` can have more surprising
 //! behavior than `hide` (see their documentation for details), so you
@@ -32,16 +52,18 @@
 //! reach for `assume_read` and `assume_accessed` where the extra expressive
 //! power of these primitives is truly needed.
 //!
+//! # When to use this crate
+//!
 //! You should consider use of this crate over `core::hint::black_box`, or
 //! third party cousins thereof, because...
 //! - It works on stable Rust
 //! - It has a better-defined API contract with stronger guarantees (unlike
-//!   `black_box`, for which "do nothing" is a valid implementation).
+//!   `core::hint::black_box`, where "do nothing" is a valid implementation).
 //! - It exposes finer-grained operations, which clarify your code's intent and
 //!   reduce harmful side-effects.
 //!
 //! The main drawbacks of this crate's approach being that...
-//! - It only works on a few hardware architectures (though these are the ones
+//! - It only works on selected hardware architectures (though they are the ones
 //!   on which you are most likely to run benchmarks, and it should get better
 //!   over time as more inline assembly architectures get stabilized).
 //! - It needs a lot of tricky unsafe code.
@@ -55,6 +77,12 @@
 )]
 #![deny(missing_docs)]
 
+// TODO: Once allocator_api is stable, support collections with custom
+//       allocators by applying optimization barriers to the allocator as well.
+//       Right now, doing so would require either duplicating the tricky
+//       collection code (one version with allocators and one version without)
+//       or dropping collection support on stable, neither of which sound
+//       satisfactory given that custom allocators are expected to be niche.
 #[cfg(any(feature = "alloc", test))]
 extern crate alloc as std_alloc;
 
@@ -140,10 +168,10 @@ pub unsafe trait Pessimize {
 /// analogs in benchmarking libraries like Criterion, please note that although
 /// this function has a similar API signature, it does not have the same
 /// semantics and cannot be used as a direct replacement. For example,
-/// `black_box(&mut x)` should have the effect of `assume_accessed(&mut x)` in
-/// this crate's vocabulary, whereas `hide` does not enforce any compiler
-/// assumptions concerning the original value, it just turns it into another
-/// value that looks unrelated in the eye of the compiler.
+/// `core::hint::black_box(&mut x)` should have the effect of
+/// `pessimize::assume_accessed(&mut x)`, whereas `pessimize::hide(x)` does not
+/// enforce any compiler assumptions concerning the input value, it just turns
+/// it into another value that looks unrelated in the eye of the compiler.
 ///
 #[inline(always)]
 pub fn hide<T: Pessimize>(x: T) -> T {
@@ -181,8 +209,11 @@ pub fn assume_read<T: Pessimize>(x: &T) {
     Pessimize::assume_read(x)
 }
 
-/// Variant of `assume_read` which is more ergonomic in the common case where
-/// a `Pessimize` value is Copy or will not be needed anymore.
+/// Like `assume_read`, but by value
+///
+/// This is a more ergonomic alternative to `assume_read` in the common case
+/// where the input is `Copy` or will not be needed anymore.
+///
 #[inline(always)]
 pub fn consume<T: Pessimize>(x: T) {
     assume_read(&x);
@@ -258,7 +289,7 @@ pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
 ///
 /// This trait exposes that capability under a common abstraction vocabulary.
 /// Combined with the related `BorrowPessimize` trait, it enables implementation
-/// of `Pessimize` with reduced boilerplate.
+/// of `Pessimize` with increased safety reduced boilerplate.
 ///
 /// # Safety
 ///
@@ -518,14 +549,6 @@ macro_rules! pessimize_portable_simd {
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
 // there is a way to build a collection back from all the raw parts
-//
-// TODO: Once allocator_api is stable, support collections with custom
-//       allocators by applying optimization barriers to the allocator as well.
-//       Right now, doing so would require either duplicating the tricky
-//       collection code (one version with allocators and one version without)
-//       or dropping collection support on stable, neither of which sound
-//       satisfactory given that custom allocators are expected to be niche.
-//
 #[cfg(any(feature = "alloc", test))]
 mod alloc_feature {
     use super::*;
@@ -596,29 +619,11 @@ mod alloc_feature {
     }
 }
 
-// TODO: Implement Pessimize for internally mutable types with
-//       no hidden state (UnsafeCell, Cell, AtomicXyz).
-// NOTE: hide() is easy: just call into_inner(), call the contained value's
-//       Pessimize::hide() impl, and get back to the original type via new().
-//       But assume_read() is tricky: in the current state of Rust's mutability
-//       rules, it is dangerous to create an &T to the inside of an internally
-//       mutable type without knowing about the existence of concurrent refs to
-//       said data. Consider going via the consume(&self) route in the
-//       beginning, with a TODO suggesting acquisition of a shared reference to
-//       the insides once more clearly allowed by UCG
-
-// TODO: Impl + tests: NonZero, char, PhantomData, PhantomPinned, ManuallyDrop,
-//       IpVxAddr, SocketAddrVx, Wrapping<T>, Range*, AssertUnwindSafe, OsStr,
-//       Path, PathBuf, Pin, task::{RawWaker, Waker, Context}, time::{Duration, Instant}...
-
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
 
 // TODO: Set up CI in the spirit of test-everything.sh
 
-// FIXME: Test new types: str (nightly), trait objects (nightly),
-//        Vec<T> (alloc), String (alloc) and internally mutable types with no
-//        internal state (remember to check assume_accessed_imut for those)
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
