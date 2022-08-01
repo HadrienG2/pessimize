@@ -30,6 +30,10 @@ unsafe impl PessimizeCast for OsString {
     }
 }
 //
+#[cfg_attr(
+    feature = "nightly",
+    doc(cfg(all(feature = "std", any(unix, target_os = "wasi"))))
+)]
 impl BorrowPessimize for OsString {
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
