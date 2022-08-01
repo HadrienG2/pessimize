@@ -3,6 +3,7 @@
 use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
 use core::alloc::Layout;
 
+// Correct because Pessimize operations do nothing
 unsafe impl PessimizeCast for Layout {
     type Pessimized = (usize, usize);
 
@@ -47,7 +48,7 @@ pub(crate) mod tests {
 
     #[test]
     #[ignore]
-    fn bool_optim() {
+    fn layout_optim() {
         test_unoptimized_value(Layout::from_size_align(0, 1).unwrap());
     }
 }

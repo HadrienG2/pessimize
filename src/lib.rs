@@ -59,7 +59,6 @@
 extern crate alloc as std_alloc;
 
 mod alloc;
-// TODO/FIXME: See inner TODOs and FIXMEs in arch::xyz
 pub mod arch;
 // TODO: mod boxed
 // TODO: mod cell

@@ -63,7 +63,7 @@ macro_rules! pessimize_float64xNxM {
 
                 #[inline(always)]
                 fn into_pessimize(self) -> Self::Pessimized {
-                    let $outer( $($name),* ) = self;
+                    let Self( $($name),* ) = self;
                     ( $($name),* )
                 }
 

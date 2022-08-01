@@ -1,11 +1,14 @@
 //! Implementations of Pessimize for x86 and x86_64
 
-use crate::pessimize_values;
+use crate::{
+    impl_assume_accessed, impl_with_pessimize, pessimize_values, BorrowPessimize, PessimizeCast,
+};
 #[allow(unused)]
 #[cfg(target_arch = "x86")]
 use core::arch::x86 as target_arch;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64 as target_arch;
+use target_arch::CpuidResult;
 #[cfg(any(target_feature = "sse", doc))]
 use target_arch::__m128;
 #[cfg(any(target_feature = "avx2", doc))]
@@ -522,7 +525,34 @@ mod portable_simd {
     );
 }
 
-// TODO: CpuidResult + tests
+// Trivially correct if the u32 Pessimize impl is correct
+unsafe impl PessimizeCast for CpuidResult {
+    type Pessimized = (u32, u32, u32, u32);
+
+    #[inline(always)]
+    fn into_pessimize(self) -> Self::Pessimized {
+        let Self { eax, ebx, ecx, edx } = self;
+        (eax, ebx, ecx, edx)
+    }
+
+    #[inline(always)]
+    unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
+        let (eax, ebx, ecx, edx) = x;
+        Self { eax, ebx, ecx, edx }
+    }
+}
+//
+impl BorrowPessimize for CpuidResult {
+    #[inline(always)]
+    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+        impl_with_pessimize(self, f)
+    }
+
+    #[inline(always)]
+    fn assume_accessed_impl(&mut self) {
+        impl_assume_accessed(self, |r| *r)
+    }
+}
 
 #[allow(unused)]
 #[cfg(test)]
@@ -530,9 +560,10 @@ mod tests {
     #[cfg(feature = "nightly")]
     use crate::tests::test_portable_simd;
     use crate::{
-        tests::{test_simd, test_unoptimized_value_type},
+        tests::{test_simd, test_unoptimized_value, test_unoptimized_value_type, test_value},
         Pessimize,
     };
+    use core::arch::x86_64::CpuidResult;
     #[cfg(feature = "nightly")]
     use std::{
         fmt::Debug,
@@ -836,5 +867,32 @@ mod tests {
 
         // TODO: Add avx512bf16 tests once there are enough operations to allow
         //       for it (at least conversion from BF16 back to F32).
+    }
+
+    #[test]
+    fn cpuid_result() {
+        test_value(CpuidResult {
+            eax: 0,
+            ebx: 0,
+            ecx: 0,
+            edx: 0,
+        });
+        test_value(CpuidResult {
+            eax: u32::MAX,
+            ebx: u32::MAX,
+            ecx: u32::MAX,
+            edx: u32::MAX,
+        });
+    }
+
+    #[test]
+    #[ignore]
+    fn cpuid_result_optim() {
+        test_unoptimized_value(CpuidResult {
+            eax: 0,
+            ebx: 0,
+            ecx: 0,
+            edx: 0,
+        });
     }
 }
