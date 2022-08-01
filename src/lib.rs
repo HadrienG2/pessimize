@@ -56,9 +56,9 @@
 #![deny(missing_docs)]
 
 #[cfg(any(feature = "alloc", test))]
-extern crate alloc;
+extern crate alloc as std_alloc;
 
-// TODO: mod alloc
+mod alloc;
 // TODO/FIXME: See inner TODOs and FIXMEs in arch::xyz
 pub mod arch;
 // TODO: mod boxed
@@ -520,8 +520,8 @@ macro_rules! pessimize_portable_simd {
 #[cfg(any(feature = "alloc", test))]
 mod alloc_feature {
     use super::*;
-    use alloc::{boxed::Box, string::String, vec::Vec};
     use core::mem::ManuallyDrop;
+    use std_alloc::{boxed::Box, string::String, vec::Vec};
 
     // Box<T> is effectively a NonNull<T> with RAII, so if the NonNull impl is
     // correct, this impl is correct.
@@ -670,7 +670,7 @@ pub(crate) mod tests {
     // ===    (should be run on both debug and release builds)     ===
 
     // Test that, for a given value, Pessimize seems to work
-    fn test_value<T: Clone + Debug + PartialEq + Pessimize>(x: T) {
+    pub fn test_value<T: Clone + Debug + PartialEq + Pessimize>(x: T) {
         let old_x = x.clone();
         assume_read(&x);
         assert_eq!(x, old_x);
@@ -812,7 +812,7 @@ pub(crate) mod tests {
 
     // --- Tests for values with native Pessimize support ---
 
-    fn test_unoptimized_value<T: Clone + PartialEq + Pessimize>(x: T) {
+    pub fn test_unoptimized_value<T: Clone + PartialEq + Pessimize>(x: T) {
         let old_x = x.clone();
         assert_unoptimized(x, |mut x| {
             x = hide(x);
