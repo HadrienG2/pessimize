@@ -34,23 +34,21 @@
 //!
 //! # Semantics
 //!
-//! In general, you should check the documentation of the top-level functions
-//! (`hide`, `assume_read`, `consume`, `assume_accessed` and
-//! `assume_accessed_imut`) for a precise description of the optimization
-//! barrier that is being implemented.
-//!
-//! For pointer-like entities, optimization barriers other than `hide` will
+//! For pointer-like entities, optimization barriers other than `hide` can
 //! have the side-effect of causing the compiler to assume that global and
-//! thread-local variable might have been accessed using similar semantics as
+//! thread-local variables might have been accessed using similar semantics as
 //! the pointer itself. This will reduce applicable compiler optimizations for
-//! such variables, so use of `hide` should be favored whenever global or
+//! such variables, so the use of `hide` should be favored whenever global or
 //! thread-local variables are used (or you don't know if they are used).
 //!
-//! In general, `assume_read` and `assume_accessed` can have more surprising
-//! behavior than `hide` (see their documentation for details), so you
-//! should strive to do what you want with `hide` if possible, and only
-//! reach for `assume_read` and `assume_accessed` where the extra expressive
-//! power of these primitives is truly needed.
+//! In general, barriers other than `hide` have more avenues for surprising
+//! behavior (see their documentation for details), so you should strive to do
+//! what you want with `hide` if possible, and only reach for other barriers
+//! where the extra expressive power of these primitives is truly needed.
+//!
+//! The documentation of the top-level functions (`hide`, `assume_read`,
+//! `consume`, `assume_accessed` and `assume_accessed_imut`) contain more
+//! details on the optimization barrier that is being implemented.
 //!
 //! # When to use this crate
 //!
