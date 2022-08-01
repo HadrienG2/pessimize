@@ -92,9 +92,9 @@ mod cell;
 mod cmp;
 #[cfg(all(feature = "std", any(unix, target_os = "wasi")))]
 mod ffi;
-// TODO: mod fmt (fmt::Error)
-// TODO: mod fs (File, at least)
-// TODO: mod io (Error, at least)
+mod fmt;
+// TODO: mod fs (File, Permissions)
+// TODO: mod io (Cursor, Empty, Repeat, Sink)
 // TODO: mod marker (PhantomData and PhantomPinned)
 // TODO: mod mem (ManuallyDrop)
 // TODO: mod net (IpvNAddr, SocketAddrVN)
