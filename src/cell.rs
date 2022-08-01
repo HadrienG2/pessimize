@@ -40,10 +40,10 @@ pub(crate) mod tests {
         mut cell: CellT,
         mut get_mut: impl FnMut(&mut CellT) -> &mut T,
     ) {
-        let old_x = get_mut(&mut cell).clone();
+        let old_value = get_mut(&mut cell).clone();
         assert_unoptimized(cell, |mut cell| {
             assume_accessed_imut::<&CellT>(&&cell);
-            consume(*get_mut(&mut cell) == old_x);
+            consume(*get_mut(&mut cell) == old_value);
             cell
         });
     }
