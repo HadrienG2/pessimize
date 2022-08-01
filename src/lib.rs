@@ -90,10 +90,11 @@ pub mod arch;
 mod boxed;
 mod cell;
 mod cmp;
-#[cfg(all(feature = "std", any(unix, target_os = "wasi")))]
+#[cfg(all(any(feature = "std", test), any(unix, target_os = "wasi")))]
 mod ffi;
 mod fmt;
-// TODO: mod fs (File, Permissions)
+#[cfg(any(feature = "std", test))]
+mod fs;
 // TODO: mod io (Cursor, Empty, Repeat, Sink)
 // TODO: mod marker (PhantomData and PhantomPinned)
 // TODO: mod mem (ManuallyDrop)
