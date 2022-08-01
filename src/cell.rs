@@ -1,7 +1,7 @@
 //! Pessimize implementations for core::cell
 
 use crate::{assume_accessed, assume_accessed_imut, consume, hide, Pessimize};
-use core::cell::Cell;
+use core::cell::{Cell, UnsafeCell};
 
 // TODO: Once specialization is available, provide a default implementation for
 //       all Cell<T> that goes through as_ptr().
@@ -29,7 +29,31 @@ unsafe impl<T: Copy + Pessimize> Pessimize for Cell<T> {
     }
 }
 
-// TODO: UnsafeCell, tests
+unsafe impl<T: Pessimize> Pessimize for UnsafeCell<T> {
+    #[inline(always)]
+    fn hide(self) -> Self {
+        UnsafeCell::new(hide(self.into_inner()))
+    }
+
+    #[inline(always)]
+    fn assume_read(&self) {
+        // Will force a spill to memory, but there is no way to safely read a T
+        // or get an &T from &UnsafeCell<T> without knowing the usage protocol
+        consume::<*mut T>(self.get())
+    }
+
+    #[inline(always)]
+    fn assume_accessed(&mut self) {
+        assume_accessed::<T>(self.get_mut())
+    }
+
+    #[inline(always)]
+    fn assume_accessed_imut(&self) {
+        // Will force a spill to memory and invalidation, but there is no way to
+        // safely get an &T from &UnsafeCell<T> without knowing the usage protocol
+        assume_accessed_imut::<*mut T>(&self.get());
+    }
+}
 
 #[cfg(test)]
 pub(crate) mod tests {
@@ -58,5 +82,15 @@ pub(crate) mod tests {
     fn cell_optim() {
         test_unoptimized_value_type::<Cell<isize>>();
         test_unoptimized_cell(Cell::new(0isize), Cell::get_mut);
+    }
+
+    // FIXME: Can't test UnsafeCell<T> as a value type since it doesn't impl the
+    //        required traits. Whatever solution is chosen will likely also
+    //        enable testing of Box<dyn Trait>.
+    #[test]
+    #[ignore]
+    fn unsafe_cell_optim() {
+        // FIXME: Add a test_unoptimized_value_type
+        test_unoptimized_cell(UnsafeCell::new(0isize), UnsafeCell::get_mut);
     }
 }
