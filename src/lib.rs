@@ -66,7 +66,7 @@
 //!   over time as more inline assembly architectures get stabilized).
 //! - It needs a lot of tricky unsafe code.
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![cfg_attr(feature = "default_impl", allow(incomplete_features))]
 #![cfg_attr(feature = "default_impl", feature(specialization))]
 #![cfg_attr(
@@ -90,7 +90,8 @@ pub mod arch;
 mod boxed;
 mod cell;
 mod cmp;
-// TODO: mod ffi (OsStr, OsString)
+#[cfg(all(feature = "std", any(unix, target_os = "wasi")))]
+mod ffi;
 // TODO: mod fmt (fmt::Error)
 // TODO: mod fs (File, at least)
 // TODO: mod io (Error, at least)
@@ -625,7 +626,7 @@ mod alloc_feature {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::ptr::tests::{test_all_pointers, test_unoptimized_ptrs};
+    use crate::ptr::tests::test_all_pointers;
     #[cfg(feature = "nightly")]
     use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
     use std::{
@@ -818,6 +819,6 @@ pub(crate) mod tests {
         #[cfg(feature = "default_impl")]
         test_unoptimized_value_type::<[isize; BIG]>();
         #[cfg(not(feature = "default_impl"))]
-        test_unoptimized_ptrs::<[isize; BIG], _>([0isize; BIG]);
+        crate::ptr::tests::test_unoptimized_ptrs::<[isize; BIG], _>([0isize; BIG]);
     }
 }

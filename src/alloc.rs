@@ -2,6 +2,8 @@
 
 use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
 use core::alloc::Layout;
+#[cfg(feature = "std")]
+use std::alloc::System;
 
 // Correct because Pessimize operations do nothing
 unsafe impl PessimizeCast for Layout {
@@ -30,9 +32,36 @@ impl BorrowPessimize for Layout {
     }
 }
 
-// NOTE: Not implementing Pessimize for std::alloc::System since 1/it is not
-//       easily available to no_std crates and 2/as a zero-sized type, it does
-//       not optimize out nicely anyway.
+// Trivially correct since System is a ZST
+#[cfg(feature = "std")]
+#[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
+unsafe impl PessimizeCast for System {
+    type Pessimized = ();
+
+    #[inline(always)]
+    fn into_pessimize(self) -> () {
+        ()
+    }
+
+    #[inline(always)]
+    unsafe fn from_pessimize((): ()) -> Self {
+        Self
+    }
+}
+//
+#[cfg(feature = "std")]
+#[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
+impl BorrowPessimize for System {
+    #[inline(always)]
+    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+        impl_with_pessimize(self, f)
+    }
+
+    #[inline(always)]
+    fn assume_accessed_impl(&mut self) {
+        impl_assume_accessed(self, |r| *r)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -52,4 +81,6 @@ mod tests {
     fn layout_optim() {
         test_unoptimized_value(Layout::from_size_align(0, 1).unwrap());
     }
+
+    // FIXME: Can't test the System impl since System doesn't implement the right traits
 }

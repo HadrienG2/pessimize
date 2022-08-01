@@ -29,12 +29,14 @@ function cross_build_base() {
 #        and targets are installed
 function cross_build() {
     cross_build_base "$1" "$2" '--no-default-features' ''
+    cross_build_base "$1" "$2" '--no-default-features --features=alloc' ''
     cross_build_base "$1" "$2" '' ''
     cross_build_base "$1" "$2" '--features=safe_arch' ''
 }
 #
 function cross_nightly_build() {
     cross_build_base "$1" "$2" '--no-default-features --features=nightly' '+nightly'
+    cross_build_base "$1" "$2" '--no-default-features --features=nightly,alloc' '+nightly'
     cross_build_base "$1" "$2" '--features=nightly' '+nightly'
     cross_build_base "$1" "$2" '--features=nightly,safe_arch' '+nightly'
 }
@@ -89,8 +91,11 @@ for rustflags in '' \
         done
     done
     for config in '' '--release -- --include-ignored'; do
-        for op in 'test --no-default-features' 'test' \
+        for op in 'test --no-default-features' \
+                  'test --no-default-features --features=alloc' \
+                  'test' \
                   '+nightly test --no-default-features --features=nightly' \
+                  '+nightly test --no-default-features --features=nightly,alloc' \
                   '+nightly test --features=nightly' \
                   '+nightly test --features=default_impl'; do
             cargo_echo "$rustflags" "$op $config"
