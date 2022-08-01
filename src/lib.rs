@@ -62,7 +62,7 @@ mod alloc;
 pub mod arch;
 #[cfg(any(feature = "alloc", test))]
 mod boxed;
-// TODO: mod cell
+mod cell;
 // TODO: mod ffi
 // TODO: mod fmt (for fmt::Error)
 // TODO: mod fs (for File, at least)

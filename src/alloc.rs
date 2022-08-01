@@ -1,4 +1,4 @@
-//! Pessimize implementations for the alloc module
+//! Pessimize implementations for core::alloc
 
 use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
 use core::alloc::Layout;
@@ -35,7 +35,7 @@ impl BorrowPessimize for Layout {
 //       not optimize out anyway.
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::*;
     use crate::tests::{test_unoptimized_value, test_value};
 
