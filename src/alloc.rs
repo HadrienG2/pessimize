@@ -32,7 +32,7 @@ impl BorrowPessimize for Layout {
 
 // NOTE: Not implementing Pessimize for std::alloc::System since 1/it is not
 //       easily available to no_std crates and 2/as a zero-sized type, it does
-//       not optimize out anyway.
+//       not optimize out nicely anyway.
 
 #[cfg(test)]
 mod tests {

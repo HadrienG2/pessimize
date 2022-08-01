@@ -89,7 +89,7 @@ pub mod arch;
 #[cfg(any(feature = "alloc", test))]
 mod boxed;
 mod cell;
-// TODO: mod cmp (Reverse)
+mod cmp;
 // TODO: mod ffi (OsStr, OsString)
 // TODO: mod fmt (fmt::Error)
 // TODO: mod fs (File, at least)
