@@ -63,25 +63,27 @@ pub mod arch;
 #[cfg(any(feature = "alloc", test))]
 mod boxed;
 mod cell;
-// TODO: mod ffi
-// TODO: mod fmt (for fmt::Error)
-// TODO: mod fs (for File, at least)
-// TODO: mod io (for Error, at least)
+// TODO: mod cmp (Reverse)
+// TODO: mod ffi (OsStr, OsString)
+// TODO: mod fmt (fmt::Error)
+// TODO: mod fs (File, at least)
+// TODO: mod io (Error, at least)
 // TODO: mod marker (PhantomData and PhantomPinned)
 // TODO: mod mem (ManuallyDrop)
 // TODO: mod net (IpvNAddr, SocketAddrVN)
 // TODO: mod num (NonZeroXyz, Wrapping)
 // TODO: mod ops (RangeXyz)
-// TODO: mod path
-// TODO: mod pin
+// TODO: mod panic (AssertUnwindSafe)
+// TODO: mod path (Path, PathBuf)
+// TODO: mod pin (Pin)
 mod primitive;
-// TODO: mod process (ExistStatus with ExitStatusExt)
+// TODO: mod process (ExitStatus with ExitStatusExt, Output)
 mod ptr;
-// TODO: mod string
-// TODO: mod sync (at least atomics)
-// TODO: mod task
-// TODO: mod time
-// TODO: mod vec
+// TODO: mod string (String, take from lib.rs and add tests)
+// TODO: mod sync (atomic, reuse cell tests)
+// TODO: mod task (Context, RawWaker, RawWakerVTable, Waker)
+// TODO: mod time (Duration)
+// TODO: mod vec (Vec, take from lib.rs and add tests)
 
 /// Optimization barriers provided by this crate
 ///
@@ -121,6 +123,13 @@ pub unsafe trait Pessimize {
 /// If you want to re-do the exact same computation in a loop, you can pass
 /// its inputs through this barrier to prevent the compiler from optimizing
 /// out the redundant computations.
+///
+/// Although `Pessimize` is implemented for zero-sized types, `hide()` will not
+/// act as an optimization barrier on those types, because there is only one
+/// possible return value so the compiler knows that the output value is the
+/// same as the input value. Since zero-sized types may only hold state through
+/// global and thread-local variables, an `assume_xyz` barrier will be effective
+/// at assuming that the state has been read or modified.
 ///
 /// If you need a `hide` alternative for a variable `x` that does not
 /// implement `Pessimize`, you can use `*hide(&x)`, at the cost of forcing
