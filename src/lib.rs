@@ -60,7 +60,8 @@ extern crate alloc as std_alloc;
 
 mod alloc;
 pub mod arch;
-// TODO: mod boxed
+#[cfg(any(feature = "alloc", test))]
+mod boxed;
 // TODO: mod cell
 // TODO: mod ffi
 // TODO: mod fmt (for fmt::Error)
@@ -520,51 +521,7 @@ macro_rules! pessimize_portable_simd {
 mod alloc_feature {
     use super::*;
     use core::mem::ManuallyDrop;
-    use std_alloc::{boxed::Box, string::String, vec::Vec};
-
-    // Box<T> is effectively a NonNull<T> with RAII, so if the NonNull impl is
-    // correct, this impl is correct.
-    // FIXME: Migrate to crate::boxed, along with associated tests
-    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
-    unsafe impl<T: ?Sized> PessimizeCast for Box<T>
-    where
-        *const T: Pessimize,
-    {
-        type Pessimized = *const T;
-
-        #[inline(always)]
-        fn into_pessimize(self) -> *const T {
-            Box::into_raw(self) as *const T
-        }
-
-        #[inline(always)]
-        unsafe fn from_pessimize(x: *const T) -> Self {
-            Box::from_raw(x as *mut T)
-        }
-    }
-    //
-    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
-    impl<T: ?Sized> BorrowPessimize for Box<T>
-    where
-        *const T: Pessimize,
-    {
-        #[inline(always)]
-        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-            let inner: &T = self.as_ref();
-            f(&(inner as *const T))
-        }
-
-        #[inline(always)]
-        fn assume_accessed_impl(&mut self) {
-            // This reborrow would allow us to mutate, which is needed for
-            // `assume_accessed` to reliably work.
-            let inner: &mut T = self.as_mut();
-            let mut inner_ptr = inner as *const T;
-            assume_accessed(&mut inner_ptr);
-            // Safe because we avoid drop and the pointer effectively wasn't modified
-            unsafe { (self as *mut Self).write(Self::from_pessimize(inner_ptr)) }
-        }
-    }
+    use std_alloc::{string::String, vec::Vec};
 
     // Vec<T> is basically a thin NonNull<T>, a length and a capacity
     // FIXME: Migrate to crate::vec, along with associated tests
@@ -651,7 +608,6 @@ mod alloc_feature {
 // TODO: Set up CI in the spirit of test-everything.sh
 
 // FIXME: Test new types: str (nightly), trait objects (nightly),
-//        Box<T> where *const T: Pessimize (alloc),
 //        Vec<T> (alloc), String (alloc) and internally mutable types with no
 //        internal state (remember to check assume_accessed_imut for those)
 #[cfg(test)]
@@ -830,7 +786,7 @@ pub(crate) mod tests {
 
     // What is considered too big (in units of isize)
     // 2 is enough as we don't currently pessimize larger arrays
-    const BIG: usize = 2;
+    pub const BIG: usize = 2;
 
     // Should be run on both debug and release builds
     #[test]
@@ -852,42 +808,4 @@ pub(crate) mod tests {
         #[cfg(not(feature = "default_impl"))]
         test_unoptimized_ptrs::<[isize; BIG], _>([0isize; BIG]);
     }
-
-    // --- Fat pointer types ---
-
-    #[cfg(feature = "nightly")]
-    mod dst {
-        use super::*;
-
-        fn make_boxed_slice(value: isize) -> Box<[isize]> {
-            vec![value; BIG].into()
-        }
-
-        // Should be run on both debug and release builds
-        #[test]
-        fn boxed_slice() {
-            // Test boxed slices as owned values
-            test_value_type::<Box<[isize]>>(
-                make_boxed_slice(isize::MIN),
-                make_boxed_slice(isize::MAX),
-            );
-
-            // Test slice pointers, using boxed slices as owned storage
-            for inner in [isize::MIN, 0, isize::MAX] {
-                test_all_pointers::<[isize], _>(make_boxed_slice(inner))
-            }
-        }
-
-        // Should only be run on release builds
-        #[test]
-        #[ignore]
-        fn boxed_slice_optim() {
-            test_unoptimized_value(make_boxed_slice(0));
-            test_unoptimized_ptrs::<[isize], _>(make_boxed_slice(0));
-        }
-
-        // TODO: Do the same with str and dyn Trait
-    }
-
-    // TODO: Test thin Box and Vec
 }

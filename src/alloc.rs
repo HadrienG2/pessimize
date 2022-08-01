@@ -43,7 +43,8 @@ pub(crate) mod tests {
     fn layout() {
         test_value(Layout::from_size_align(0, 1).unwrap());
         let last_usize_pow2 = usize::MAX - (usize::MAX >> 1);
-        test_value(Layout::from_size_align(last_usize_pow2, last_usize_pow2).unwrap());
+        let prev_usize_pow2 = last_usize_pow2 >> 1;
+        test_value(Layout::from_size_align(prev_usize_pow2, prev_usize_pow2).unwrap());
     }
 
     #[test]
