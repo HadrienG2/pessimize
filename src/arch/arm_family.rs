@@ -63,14 +63,13 @@ pessimize_tuple_structs!(
 //       (+ portable_simd support and associated tests)
 
 // Support portable_simd if enabled
+#[allow(unused)]
 #[cfg(feature = "nightly")]
 mod portable_simd {
-    #[allow(unused)]
-    use crate::{arm::*, pessimize_into_from};
-    #[allow(unused)]
+    use crate::{arch::arm_family::*, pessimize_into_from};
     use core::simd::Simd;
 
-    #[cfg(target_arch = "aarch64", all(any(target_feature = "neon", doc)))]
+    #[cfg(target_arch = "aarch64", any(target_feature = "neon", doc))]
     pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "neon")))
         {
@@ -80,11 +79,10 @@ mod portable_simd {
     );
 }
 
+#[allow(unused)]
 #[cfg(test)]
 mod tests {
-    #[allow(unused)]
     use super::*;
-    #[allow(unused)]
     use crate::{
         pessimize_newtypes,
         tests::{test_simd, test_unoptimized_value_type},
