@@ -547,6 +547,11 @@ macro_rules! pessimize_portable_simd {
     };
 }
 
+// TODO: Once done with std, go through the crate looking for patterns in impls
+//       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
+//       Current candidates: T(pub U) newtype, empty struct. May also want to
+//       review impl_with_pessimize and impl_assume_accessed.
+
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
 // there is a way to build a collection back from all the raw parts
