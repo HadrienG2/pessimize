@@ -19,7 +19,7 @@ pessimize_values!(allow(missing_docs) { reg: (f32) });
 // Same idea for f64 with respect to the D feature set
 #[cfg(any(target_feature = "d", doc))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "d")))
+    doc(cfg(target_feature = "d"))
     { freg: (f64) }
 );
 #[cfg(all(target_arch = "riscv64", not(target_feature = "d"), not(doc)))]

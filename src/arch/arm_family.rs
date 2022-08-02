@@ -17,7 +17,7 @@ pessimize_values!(allow(missing_docs) { reg: (i8, u8, i16, u16, i32, u32, isize,
 pessimize_values!(allow(missing_docs) { reg: (i64, u64) });
 #[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "vfp2")))
+    doc(cfg(target_feature = "vfp2"))
     { dreg: (i64, u64) }
 );
 
@@ -32,7 +32,7 @@ pessimize_values!(allow(missing_docs) { reg: (f32, f64) });
 pessimize_values!(allow(missing_docs) { sreg: (f32) });
 #[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "vfp2")))
+    doc(cfg(target_feature = "vfp2"))
     { dreg: (f64) }
 );
 // On 32-bit ARM without VFP2, f32 is passed via GP registers
@@ -42,13 +42,13 @@ pessimize_values!(allow(missing_docs) { reg: (f32) });
 // SIMD types
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "neon")))
+    doc(cfg(target_feature = "neon"))
     { vreg: (float64x1_t, float64x2_t) }
 );
 //
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
 pessimize_tuple_structs!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "neon")))
+    doc(cfg(target_feature = "neon"))
     {
         float64x1x2_t { a: float64x1_t, b: float64x1_t },
         float64x1x3_t { a: float64x1_t, b: float64x1_t, c: float64x1_t },

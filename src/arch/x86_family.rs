@@ -32,7 +32,7 @@ pessimize_values!(allow(missing_docs) { reg: (i64, u64) });
 //
 #[cfg(all(target_arch = "x86", any(target_feature = "sse2", doc)))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "sse2")))
+    doc(cfg(target_feature = "sse2"))
     {
         xmm_reg: (i64, u64)
     }
@@ -60,7 +60,7 @@ pessimize_values!(
 // Ditto for double precision, but we need SSE2 for that
 #[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(
-    cfg_attr(all(feature = "nightly", target_arch = "x86"), doc(cfg(target_feature = "sse2")))
+    cfg_attr(target_arch = "x86", doc(cfg(target_feature = "sse2")))
     {
         xmm_reg: (f64)
     }
@@ -69,7 +69,7 @@ pessimize_values!(
 // Then come SIMD registers
 #[cfg(any(target_feature = "sse", doc))]
 pessimize_values!(
-    cfg_attr(all(feature = "nightly", target_arch = "x86"), doc(cfg(target_feature = "sse")))
+    cfg_attr(target_arch = "x86", doc(cfg(target_feature = "sse")))
     {
         xmm_reg: (__m128)
     }
@@ -77,7 +77,7 @@ pessimize_values!(
 //
 #[cfg(any(target_feature = "sse2", doc))]
 pessimize_values!(
-    cfg_attr(all(feature = "nightly", target_arch = "x86"), doc(cfg(target_feature = "sse2")))
+    cfg_attr(target_arch = "x86", doc(cfg(target_feature = "sse2")))
     {
         xmm_reg: (__m128d, __m128i)
     }
@@ -85,7 +85,7 @@ pessimize_values!(
 //
 #[cfg(any(target_feature = "avx", doc))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx")))
+    doc(cfg(target_feature = "avx"))
     {
         ymm_reg: (__m256, __m256d)
     }
@@ -93,7 +93,7 @@ pessimize_values!(
 //
 #[cfg(any(target_feature = "avx2", doc))]
 pessimize_values!(
-    cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx2")))
+    doc(cfg(target_feature = "avx2"))
     {
         ymm_reg: (__m256i)
     }
@@ -209,19 +209,13 @@ mod safe_arch_types {
 
     #[cfg(any(target_feature = "sse", doc))]
     pessimize_newtypes!(
-        cfg_attr(
-            feature = "nightly",
-            doc(cfg(all(feature = "safe_arch", target_feature = "sse")))
-        )
+        doc(cfg(all(feature = "safe_arch", target_feature = "sse")))
         { m128(__m128) }
     );
 
     #[cfg(any(target_feature = "sse2", doc))]
     pessimize_newtypes!(
-        cfg_attr(
-            feature = "nightly",
-            doc(cfg(all(feature = "safe_arch", target_feature = "sse2")))
-        )
+        doc(cfg(all(feature = "safe_arch", target_feature = "sse2")))
         {
             m128d(__m128d),
             m128i(__m128i)
@@ -230,10 +224,7 @@ mod safe_arch_types {
 
     #[cfg(any(target_feature = "avx", doc))]
     pessimize_newtypes!(
-        cfg_attr(
-            feature = "nightly",
-            doc(cfg(all(feature = "safe_arch", target_feature = "avx")))
-        )
+        doc(cfg(all(feature = "safe_arch", target_feature = "avx")))
         {
             m256(__m256),
             m256d(__m256d)
@@ -242,10 +233,7 @@ mod safe_arch_types {
 
     #[cfg(any(target_feature = "avx2", doc))]
     pessimize_newtypes!(
-        cfg_attr(
-            feature = "nightly",
-            doc(cfg(all(feature = "safe_arch", target_feature = "avx2")))
-        )
+        doc(cfg(all(feature = "safe_arch", target_feature = "avx2")))
         { m256i(__m256i) }
     );
 }
@@ -255,10 +243,7 @@ mod safe_arch_types {
 #[cfg(feature = "nightly")]
 mod portable_simd {
     use super::*;
-    use crate::{
-        consume, hide, impl_assume_accessed, impl_with_pessimize, pessimize_into_from,
-        BorrowPessimize, PessimizeCast,
-    };
+    use crate::{pessimize_into_from, pessimize_into_from_custom};
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
     use target_arch::{__m512, __m512d, __m512i};
@@ -377,35 +362,17 @@ mod portable_simd {
             $doc_cfg:meta
             { $($mask_type:ty),* }
         ) => {
-            $(
-                #[$doc_cfg]
-                unsafe impl PessimizeCast for $mask_type {
-                    type Pessimized = avx512::Mask<<Self as ToBitMask>::BitMask>;
-
-                    #[inline(always)]
-                    fn into_pessimize(self) -> Self::Pessimized {
-                        avx512::Mask(self.to_bitmask())
-                    }
-
-                    #[inline(always)]
-                    unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-                        Self::from_bitmask(x.0)
-                    }
+            pessimize_into_from_custom!(
+                $doc_cfg:meta
+                {
+                    $(
+                        avx512::Mask<<Self as ToBitMask>::BitMask>: (
+                            |self_| avx512::Mask(self_.to_bitmask()),
+                            |x| Self::from_bitmask(x.0)
+                        )
+                    ),
                 }
-                //
-                #[$doc_cfg]
-                impl BorrowPessimize for $mask_type {
-                    #[inline(always)]
-                    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                        impl_with_pessimize(self, f)
-                    }
-
-                    #[inline(always)]
-                    fn assume_accessed_impl(&mut self) {
-                        impl_assume_accessed(self, core::mem::take)
-                    }
-                }
-            )*
+            );
         };
     }
 
