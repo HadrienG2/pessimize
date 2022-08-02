@@ -95,7 +95,8 @@ mod ffi;
 mod fmt;
 #[cfg(any(feature = "std", test))]
 mod fs;
-// TODO: mod io (Cursor, Empty, Repeat, Sink, Take)
+#[cfg(any(feature = "std", test))]
+mod io;
 // TODO: mod marker (PhantomData, PhantomPinned)
 // TODO: mod mem (ManuallyDrop)
 // TODO: mod net (IpvNAddr, SocketAddrVN, TcpListener, TcpStream, UdpSocket)
@@ -547,9 +548,42 @@ macro_rules! pessimize_portable_simd {
     };
 }
 
+// Trivially correct for any stateless zero-sized type
+#[doc(hidden)]
+#[macro_export]
+macro_rules! pessimize_zst {
+    ($name:ty, $make:expr, $doc_cfg:meta) => {
+        #[cfg_attr(feature = "nightly", $doc_cfg)]
+        unsafe impl $crate::PessimizeCast for $name {
+            type Pessimized = ();
+
+            #[inline(always)]
+            fn into_pessimize(self) {}
+
+            #[inline(always)]
+            unsafe fn from_pessimize((): ()) -> Self {
+                $make
+            }
+        }
+        //
+        #[cfg_attr(feature = "nightly", $doc_cfg)]
+        impl $crate::BorrowPessimize for $name {
+            #[inline(always)]
+            fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+                $crate::impl_with_pessimize(self, f)
+            }
+
+            #[inline(always)]
+            fn assume_accessed_impl(&mut self) {
+                $crate::impl_assume_accessed(self, |r| *r)
+            }
+        }
+    };
+}
+
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
-//       Current candidates: T(pub U) newtype, empty struct. May also want to
+//       Current candidates: T(pub U) newtype. May also want to
 //       review impl_with_pessimize and impl_assume_accessed.
 
 // Although all Rust collections are basically pointers with extra metadata, we

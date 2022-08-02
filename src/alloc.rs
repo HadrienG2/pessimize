@@ -1,6 +1,8 @@
 //! Pessimize implementations for core::alloc
 
-use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
+use crate::{
+    impl_assume_accessed, impl_with_pessimize, pessimize_zst, BorrowPessimize, PessimizeCast,
+};
 use core::alloc::Layout;
 #[cfg(feature = "std")]
 use std::alloc::System;
@@ -34,32 +36,7 @@ impl BorrowPessimize for Layout {
 
 // Trivially correct since System is a ZST
 #[cfg(feature = "std")]
-#[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
-unsafe impl PessimizeCast for System {
-    type Pessimized = ();
-
-    #[inline(always)]
-    fn into_pessimize(self) {}
-
-    #[inline(always)]
-    unsafe fn from_pessimize((): ()) -> Self {
-        Self
-    }
-}
-//
-#[cfg(feature = "std")]
-#[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
-impl BorrowPessimize for System {
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        impl_with_pessimize(self, f)
-    }
-
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, |r| *r)
-    }
-}
+pessimize_zst!(System, System, doc(cfg(feature = "std")));
 
 #[cfg(test)]
 mod tests {
