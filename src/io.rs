@@ -1,6 +1,6 @@
 //! Pessimize implementations for std::io
 
-use crate::{assume_accessed, assume_accessed_imut, consume, hide, pessimize_zsts, Pessimize};
+use crate::{pessimize_once_like, pessimize_zsts};
 use std::io::{Empty, Read, Repeat, Sink};
 
 // Some wrappers use u64 and require u64: Pessimize
@@ -8,6 +8,7 @@ use std::io::{Empty, Read, Repeat, Sink};
 mod u64_is_pessimize {
     use super::*;
     use crate::assume_read;
+    use crate::{assume_accessed, assume_accessed_imut, consume, hide, Pessimize};
     use std::io::{Cursor, Take};
 
     macro_rules! pessimize_wrapper {
@@ -65,34 +66,19 @@ pessimize_zsts!(
     }
 );
 
-// Go through the inner byte if possible (need at least &mut self)
-#[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
-unsafe impl Pessimize for Repeat {
-    #[inline(always)]
-    fn hide(mut self) -> Self {
-        let mut buf = [0u8; 1];
-        self.read_exact(&mut buf[..]).unwrap();
-        let byte = hide(buf[0]);
-        std::io::repeat(byte)
+// std::io::repeat behaves like std::iter::once
+pessimize_once_like!(
+    doc(cfg(feature = "std"))
+    {
+        Repeat: (
+            |self_: &mut Self| {
+                let mut buf = [0u8; 1];
+                self_.read_exact(&mut buf[..]).unwrap();
+                buf[0]
+            },
+            std::io::repeat
+        )
     }
-
-    #[inline(always)]
-    fn assume_read(&self) {
-        consume::<&Repeat>(self);
-    }
-
-    #[inline(always)]
-    fn assume_accessed(&mut self) {
-        let mut buf = [0u8; 1];
-        self.read_exact(&mut buf[..]).unwrap();
-        assume_accessed::<u8>(&mut buf[0]);
-        *self = std::io::repeat(buf[0])
-    }
-
-    #[inline(always)]
-    fn assume_accessed_imut(&self) {
-        assume_accessed_imut::<&Repeat>(&self);
-    }
-}
+);
 
 // FIXME: Can't test because the io types don't implement the right traits

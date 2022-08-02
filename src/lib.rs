@@ -655,6 +655,47 @@ macro_rules! pessimize_newtypes {
     };
 }
 
+/// Pessimize a type that behaves like core::iter::Once
+#[doc(hidden)]
+#[macro_export]
+macro_rules! pessimize_once_like {
+    (
+        $doc_cfg:meta
+        {
+            $name:ident$(<$param:ident>)?: (
+                $extract:expr,
+                $make:expr
+            )
+        }
+    ) => {
+        #[cfg_attr(feature = "nightly", $doc_cfg)]
+        unsafe impl $(<$param: Pessimize>)? $crate::Pessimize for $name $(<$param>)? {
+            #[inline(always)]
+            fn hide(mut self) -> Self {
+                let value = $extract(&mut self);
+                $make($crate::hide(value))
+            }
+
+            #[inline(always)]
+            fn assume_read(&self) {
+                $crate::consume::<&Self>(self);
+            }
+
+            #[inline(always)]
+            fn assume_accessed(&mut self) {
+                let mut value = $extract(self);
+                $crate::assume_accessed(&mut value);
+                *self = $make(value)
+            }
+
+            #[inline(always)]
+            fn assume_accessed_imut(&self) {
+                $crate::assume_accessed_imut::<&Self>(&self);
+            }
+        }
+    };
+}
+
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
 //       Current candidates are...
@@ -662,7 +703,6 @@ macro_rules! pessimize_newtypes {
 //       - Cells
 //       - "Generic newtypes" like Generic<T>(pub T)
 //       - as_pessimized(&self) -> Self::Pessimized
-//       - repeat() and once()
 //       May also want to review impl_with_pessimize and impl_assume_accessed.
 
 // Although all Rust collections are basically pointers with extra metadata, we
