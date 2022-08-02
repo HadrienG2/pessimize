@@ -96,7 +96,7 @@ mod fmt;
 #[cfg(any(feature = "std", test))]
 mod fs;
 // TODO: mod io (Cursor, Empty, Repeat, Sink, Take)
-// TODO: mod marker (PhantomData and PhantomPinned)
+// TODO: mod marker (PhantomData, PhantomPinned)
 // TODO: mod mem (ManuallyDrop)
 // TODO: mod net (IpvNAddr, SocketAddrVN, TcpListener, TcpStream, UdpSocket)
 // TODO: mod num (NonZeroXyz, Wrapping)
