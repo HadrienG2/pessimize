@@ -61,35 +61,38 @@ pessimize_file!(RawFd, as_raw_fd, into_raw_fd, from_raw_fd);
 pessimize_file!(RawHandle, as_raw_handle, into_raw_handle, from_raw_handle);
 
 #[cfg(unix)]
-#[cfg_attr(feature = "nightly", doc(cfg(all(feature = "std", unix))))]
-unsafe impl PessimizeCast for Permissions {
-    type Pessimized = u32;
+mod unix {
+    use super::*;
 
-    #[inline(always)]
-    fn into_pessimize(self) -> u32 {
-        self.mode()
-    }
+    #[cfg_attr(feature = "nightly", doc(cfg(all(feature = "std", unix))))]
+    unsafe impl PessimizeCast for Permissions {
+        type Pessimized = u32;
 
-    #[inline(always)]
-    unsafe fn from_pessimize(x: u32) -> Self {
-        Self::from_mode(x)
-    }
-}
-//
-#[cfg(unix)]
-#[cfg_attr(feature = "nightly", doc(cfg(all(feature = "std", unix))))]
-impl BorrowPessimize for Permissions {
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        let mode = self.mode();
-        f(&mode)
-    }
+        #[inline(always)]
+        fn into_pessimize(self) -> u32 {
+            self.mode()
+        }
 
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        let mut mode = self.mode();
-        assume_accessed::<u32>(&mut mode);
-        self.set_mode(mode);
+        #[inline(always)]
+        unsafe fn from_pessimize(x: u32) -> Self {
+            Self::from_mode(x)
+        }
+    }
+    //
+    #[cfg_attr(feature = "nightly", doc(cfg(all(feature = "std", unix))))]
+    impl BorrowPessimize for Permissions {
+        #[inline(always)]
+        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+            let mode = self.mode();
+            f(&mode)
+        }
+
+        #[inline(always)]
+        fn assume_accessed_impl(&mut self) {
+            let mut mode = self.mode();
+            assume_accessed::<u32>(&mut mode);
+            self.set_mode(mode);
+        }
     }
 }
 

@@ -39,9 +39,7 @@ unsafe impl PessimizeCast for System {
     type Pessimized = ();
 
     #[inline(always)]
-    fn into_pessimize(self) -> () {
-        ()
-    }
+    fn into_pessimize(self) {}
 
     #[inline(always)]
     unsafe fn from_pessimize((): ()) -> Self {

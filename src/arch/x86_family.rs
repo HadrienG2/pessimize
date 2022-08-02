@@ -557,13 +557,13 @@ impl BorrowPessimize for CpuidResult {
 #[allow(unused)]
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[cfg(feature = "nightly")]
     use crate::tests::test_portable_simd;
     use crate::{
         tests::{test_simd, test_unoptimized_value, test_unoptimized_value_type, test_value},
         Pessimize,
     };
-    use core::arch::x86_64::CpuidResult;
     #[cfg(feature = "nightly")]
     use std::{
         fmt::Debug,
