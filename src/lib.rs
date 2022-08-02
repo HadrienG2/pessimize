@@ -665,7 +665,7 @@ macro_rules! pessimize_once_like {
         $doc_cfg:meta
         {
             $(
-                $( | $param:ident $( : $trait:ident )? | )? $name:ty : (
+                $( | $param:ident $( : $trait:path )? | )? $name:ty : (
                     $extract:expr,
                     $make:expr
                 )
