@@ -1,8 +1,8 @@
 //! Implementations of Pessimize for arm and aarch64
 
-use crate::pessimize_values;
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
+use crate::pessimize_tuple_structs;
+use crate::pessimize_values;
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
 use core::arch::aarch64::{
     float64x1_t, float64x1x2_t, float64x1x3_t, float64x1x4_t, float64x2_t, float64x2x2_t,
@@ -47,51 +47,7 @@ pessimize_values!(
 );
 //
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-macro_rules! pessimize_float64xNxM {
-    (
-        $doc_cfg:meta
-        {
-            $(
-                $outer:ident { $( $name:ident: $inner:ty ),* }
-            ),*
-        }
-    ) => {
-        $(
-            #[$doc_cfg]
-            unsafe impl PessimizeCast for $outer {
-                type Pessimized = ( $( $inner ),* );
-
-                #[inline(always)]
-                fn into_pessimize(self) -> Self::Pessimized {
-                    let Self( $($name),* ) = self;
-                    ( $($name),* )
-                }
-
-                #[inline(always)]
-                unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-                    let ( $($name),* ) = x;
-                    Self( $($name),* )
-                }
-            }
-            //
-            #[$doc_cfg]
-            impl BorrowPessimize for $outer {
-                #[inline(always)]
-                fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                    impl_with_pessimize(self, f)
-                }
-
-                #[inline(always)]
-                fn assume_accessed_impl(&mut self) {
-                    impl_assume_accessed(self, |r| *r)
-                }
-            }
-        )*
-    };
-}
-//
-#[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-pessimize_float64xNxM!(
+pessimize_tuple_structs!(
     cfg_attr(feature = "nightly", doc(cfg(target_feature = "neon")))
     {
         float64x1x2_t { a: float64x1_t, b: float64x1_t },
@@ -110,12 +66,12 @@ pessimize_float64xNxM!(
 #[cfg(feature = "nightly")]
 mod portable_simd {
     #[allow(unused)]
-    use crate::{arm::*, pessimize_portable_simd};
+    use crate::{arm::*, pessimize_into_from};
     #[allow(unused)]
     use core::simd::Simd;
 
     #[cfg(target_arch = "aarch64", all(any(target_feature = "neon", doc)))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "neon")))
         {
             float64x1_t: (Simd<f64, 1>),
@@ -130,9 +86,8 @@ mod tests {
     use super::*;
     #[allow(unused)]
     use crate::{
-        impl_assume_accessed, impl_with_pessimize,
+        pessimize_newtypes,
         tests::{test_simd, test_unoptimized_value_type},
-        BorrowPessimize, PessimizeCast,
     };
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
@@ -165,15 +120,18 @@ mod tests {
 
         // Minimal NEON abstraction layer to be able to reuse main tests
         macro_rules! abstract_float64xN_t {
-            ($name:ident, $inner:ty, $lanes:expr, $load:ident, $store:ident) => {
+            ($name:ident, $inner:ident, $lanes:expr, $load:ident, $store:ident) => {
                 #[derive(Clone, Copy, Debug)]
+                #[repr(transparent)]
                 struct $name($inner);
 
                 impl From<[f64; $lanes]> for $name {
                     fn from(x: [f64; $lanes]) -> Self {
                         // Round trip to $inner ensures SIMD alignment
-                        let mut output: $inner = core::mem::transmute(x);
-                        Self(unsafe { aarch64::$load((&x) as *const f64) })
+                        unsafe {
+                            let x: $inner = core::mem::transmute(x);
+                            Self(aarch64::$load((&x) as *const $inner as *const f64))
+                        }
                     }
                 }
 
@@ -190,9 +148,9 @@ mod tests {
                             let mut result = Self::from([0.0; $lanes]);
                             unsafe {
                                 aarch64::$store(
-                                    (&mut result) as *mut f64,
+                                    (&mut result) as *mut Self as *mut f64,
                                     x.0,
-                                )
+                                );
                                 core::mem::transmute(result)
                             }
                         };
@@ -200,31 +158,7 @@ mod tests {
                     }
                 }
 
-                unsafe impl PessimizeCast for $name {
-                    type Pessimized = $inner;
-
-                    #[inline(always)]
-                    fn into_pessimize(self) -> $inner {
-                        self.0
-                    }
-
-                    #[inline(always)]
-                    unsafe fn from_pessimize(x: $inner) -> Self {
-                        Self(x)
-                    }
-                }
-                //
-                impl BorrowPessimize for $name {
-                    #[inline(always)]
-                    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                        impl_with_pessimize(self, f)
-                    }
-
-                    #[inline(always)]
-                    fn assume_accessed_impl(&mut self) {
-                        impl_assume_accessed(self, core::mem::take)
-                    }
-                }
+                pessimize_newtypes!( allow(missing_docs) { $name($inner) } );
             };
         }
         abstract_float64xN_t!(F64x1, float64x1_t, 1, vld1_f64, vst1_f64);

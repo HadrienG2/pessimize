@@ -59,7 +59,7 @@ unsafe impl Pessimize for Repeat {
     #[inline(always)]
     fn hide(mut self) -> Self {
         let mut buf = [0u8; 1];
-        self.read(&mut buf[..]).unwrap();
+        self.read_exact(&mut buf[..]).unwrap();
         let byte = hide(buf[0]);
         std::io::repeat(byte)
     }
@@ -72,7 +72,7 @@ unsafe impl Pessimize for Repeat {
     #[inline(always)]
     fn assume_accessed(&mut self) {
         let mut buf = [0u8; 1];
-        self.read(&mut buf[..]).unwrap();
+        self.read_exact(&mut buf[..]).unwrap();
         assume_accessed::<u8>(&mut buf[0]);
         *self = std::io::repeat(buf[0])
     }

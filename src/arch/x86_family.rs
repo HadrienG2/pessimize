@@ -197,9 +197,7 @@ pub mod avx512 {
 #[cfg(any(feature = "safe_arch", test))]
 mod safe_arch_types {
     use super::*;
-    use crate::{
-        consume, hide, impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast,
-    };
+    use crate::pessimize_newtypes;
     #[cfg(any(target_feature = "sse", doc))]
     use safe_arch::m128;
     #[cfg(any(target_feature = "avx2", doc))]
@@ -209,84 +207,46 @@ mod safe_arch_types {
     #[cfg(any(target_feature = "avx", doc))]
     use safe_arch::{m256, m256d};
 
-    #[allow(unused)]
-    macro_rules! pessimize_safe_arch {
-        (
-            $doc_cfg:meta
-            { $( $inner:ty: $safe_arch_type:ty ),* }
-        ) => {
-            $(
-                #[$doc_cfg]
-                unsafe impl PessimizeCast for $safe_arch_type {
-                    type Pessimized = $inner;
-
-                    #[inline(always)]
-                    fn into_pessimize(self) -> $inner {
-                        self.0
-                    }
-
-                    #[inline(always)]
-                    unsafe fn from_pessimize(x: $inner) -> Self {
-                        Self(x)
-                    }
-                }
-                //
-                #[$doc_cfg]
-                impl BorrowPessimize for $safe_arch_type {
-                    #[inline(always)]
-                    fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                        impl_with_pessimize(self, f)
-                    }
-
-                    #[inline(always)]
-                    fn assume_accessed_impl(&mut self) {
-                        impl_assume_accessed(self, core::mem::take)
-                    }
-                }
-            )*
-        };
-    }
-
     #[cfg(any(target_feature = "sse", doc))]
-    pessimize_safe_arch!(
+    pessimize_newtypes!(
         cfg_attr(
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "sse")))
         )
-        { __m128: m128 }
+        { m128(__m128) }
     );
 
     #[cfg(any(target_feature = "sse2", doc))]
-    pessimize_safe_arch!(
+    pessimize_newtypes!(
         cfg_attr(
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "sse2")))
         )
         {
-            __m128d: m128d,
-            __m128i: m128i
+            m128d(__m128d),
+            m128i(__m128i)
         }
     );
 
     #[cfg(any(target_feature = "avx", doc))]
-    pessimize_safe_arch!(
+    pessimize_newtypes!(
         cfg_attr(
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "avx")))
         )
         {
-            __m256: m256,
-            __m256d: m256d
+            m256(__m256),
+            m256d(__m256d)
         }
     );
 
     #[cfg(any(target_feature = "avx2", doc))]
-    pessimize_safe_arch!(
+    pessimize_newtypes!(
         cfg_attr(
             feature = "nightly",
             doc(cfg(all(feature = "safe_arch", target_feature = "avx2")))
         )
-        { __m256i: m256i }
+        { m256i(__m256i) }
     );
 }
 
@@ -296,7 +256,7 @@ mod safe_arch_types {
 mod portable_simd {
     use super::*;
     use crate::{
-        consume, hide, impl_assume_accessed, impl_with_pessimize, pessimize_portable_simd,
+        consume, hide, impl_assume_accessed, impl_with_pessimize, pessimize_into_from,
         BorrowPessimize, PessimizeCast,
     };
     use core::simd::{Mask, Simd, ToBitMask};
@@ -304,13 +264,13 @@ mod portable_simd {
     use target_arch::{__m512, __m512d, __m512i};
 
     #[cfg(any(target_feature = "sse", doc))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "sse")))
         { __m128: (Simd<f32, 4>) }
     );
 
     #[cfg(any(target_feature = "sse2", doc))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "sse2")))
         {
             __m128d: (Simd<f64, 2>),
@@ -329,25 +289,25 @@ mod portable_simd {
     );
     //
     #[cfg(all(target_arch = "x86", any(target_feature = "sse2", doc)))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "sse2")))
         { __m128i: (Simd<isize, 4>, Simd<usize, 4>) }
     );
     //
     #[cfg(all(target_arch = "x86_64", any(target_feature = "sse2", doc)))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "sse2")))
         { __m128i: (Simd<isize, 2>, Simd<usize, 2>) }
     );
 
     #[cfg(any(target_feature = "avx", doc))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "avx")))
         { __m256: (Simd<f32, 8>), __m256d: (Simd<f64, 4>) }
     );
 
     #[cfg(any(target_feature = "avx2", doc))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "avx2")))
         {
             __m256i:
@@ -365,19 +325,19 @@ mod portable_simd {
     );
     //
     #[cfg(all(target_arch = "x86", any(target_feature = "avx2", doc)))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "avx2")))
         { __m256i: (Simd<isize, 8>, Simd<usize, 8>) }
     );
     //
     #[cfg(all(target_arch = "x86_64", any(target_feature = "avx2", doc)))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "avx2")))
         { __m256i: (Simd<isize, 4>, Simd<usize, 4>) }
     );
 
     #[cfg(any(target_feature = "avx512f", doc))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "avx512f")))
         {
             __m512: (Simd<f32, 16>),
@@ -387,13 +347,13 @@ mod portable_simd {
     );
     //
     #[cfg(all(target_arch = "x86", any(target_feature = "avx512f", doc)))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "avx512f")))
         { __m512i: (Simd<isize, 16>, Simd<usize, 16>) }
     );
     //
     #[cfg(all(target_arch = "x86_64", any(target_feature = "avx512f", doc)))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(
             feature = "nightly",
             target_feature = "avx512f"
@@ -402,7 +362,7 @@ mod portable_simd {
     );
 
     #[cfg(any(all(target_feature = "avx512f", target_feature = "avx512bw"), doc))]
-    pessimize_portable_simd!(
+    pessimize_into_from!(
         doc(cfg(all(
             feature = "nightly",
             target_feature = "avx512bw"

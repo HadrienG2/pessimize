@@ -1,8 +1,6 @@
 //! Pessimize implementations for core::alloc
 
-use crate::{
-    impl_assume_accessed, impl_with_pessimize, pessimize_zst, BorrowPessimize, PessimizeCast,
-};
+use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
 use core::alloc::Layout;
 #[cfg(feature = "std")]
 use std::alloc::System;
@@ -36,7 +34,7 @@ impl BorrowPessimize for Layout {
 
 // Trivially correct since System is a ZST
 #[cfg(feature = "std")]
-pessimize_zst!(System, System, doc(cfg(feature = "std")));
+crate::pessimize_zst!(System, System, doc(cfg(feature = "std")));
 
 #[cfg(test)]
 mod tests {
