@@ -97,7 +97,7 @@ mod fmt;
 mod fs;
 #[cfg(any(feature = "std", test))]
 mod io;
-// TODO: mod iter (Empty, Once, Repeat)
+mod iter;
 // TODO: mod marker (PhantomData, PhantomPinned)
 // TODO: mod mem (ManuallyDrop)
 // TODO: mod net (IpvNAddr, SocketAddrVN, TcpListener, TcpStream, UdpSocket)
@@ -662,37 +662,41 @@ macro_rules! pessimize_once_like {
     (
         $doc_cfg:meta
         {
-            $name:ident$(<$param:ident>)?: (
-                $extract:expr,
-                $make:expr
-            )
+            $(
+                $name:ident $( <$param:ident $( : $trait:ident )? > )? : (
+                    $extract:expr,
+                    $make:expr
+                )
+            ),*
         }
     ) => {
-        #[cfg_attr(feature = "nightly", $doc_cfg)]
-        unsafe impl $(<$param: Pessimize>)? $crate::Pessimize for $name $(<$param>)? {
-            #[inline(always)]
-            fn hide(mut self) -> Self {
-                let value = $extract(&mut self);
-                $make($crate::hide(value))
-            }
+        $(
+            #[cfg_attr(feature = "nightly", $doc_cfg)]
+            unsafe impl $(<$param : $crate::Pessimize $( + $trait )? >)? $crate::Pessimize for $name $(<$param>)? {
+                #[inline(always)]
+                fn hide(mut self) -> Self {
+                    let value = $extract(&mut self);
+                    $make($crate::hide(value))
+                }
 
-            #[inline(always)]
-            fn assume_read(&self) {
-                $crate::consume::<&Self>(self);
-            }
+                #[inline(always)]
+                fn assume_read(&self) {
+                    $crate::consume::<&Self>(self);
+                }
 
-            #[inline(always)]
-            fn assume_accessed(&mut self) {
-                let mut value = $extract(self);
-                $crate::assume_accessed(&mut value);
-                *self = $make(value)
-            }
+                #[inline(always)]
+                fn assume_accessed(&mut self) {
+                    let mut value = $extract(self);
+                    $crate::assume_accessed(&mut value);
+                    *self = $make(value)
+                }
 
-            #[inline(always)]
-            fn assume_accessed_imut(&self) {
-                $crate::assume_accessed_imut::<&Self>(&self);
+                #[inline(always)]
+                fn assume_accessed_imut(&self) {
+                    $crate::assume_accessed_imut::<&Self>(&self);
+                }
             }
-        }
+        )*
     };
 }
 
