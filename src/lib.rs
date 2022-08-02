@@ -503,6 +503,7 @@ macro_rules! pessimize_values {
 }
 
 /// Implementation of Pessimize for Simd types from portable_simd
+// FIXME: Actually valid for any Copy type with an Into/From pair, should generalize
 #[allow(unused)]
 #[cfg(feature = "nightly")]
 #[doc(hidden)]
@@ -548,7 +549,7 @@ macro_rules! pessimize_portable_simd {
     };
 }
 
-// Trivially correct for any stateless zero-sized type
+// Implementation of Pessimize for any stateless zero-sized type
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_zst {
