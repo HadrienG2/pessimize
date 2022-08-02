@@ -656,6 +656,8 @@ macro_rules! pessimize_newtypes {
 }
 
 /// Pessimize a type that behaves like core::iter::Once
+// FIXME: Merge into main macro hierarchy. This will, among other things,
+//        require finidng a better syntax for generic impls.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_once_like {
@@ -663,7 +665,7 @@ macro_rules! pessimize_once_like {
         $doc_cfg:meta
         {
             $(
-                $name:ident $( <$param:ident $( : $trait:ident )? > )? : (
+                $( | $param:ident $( : $trait:ident )? | )? $name:ty : (
                     $extract:expr,
                     $make:expr
                 )
@@ -672,7 +674,7 @@ macro_rules! pessimize_once_like {
     ) => {
         $(
             #[cfg_attr(feature = "nightly", $doc_cfg)]
-            unsafe impl $(<$param : $crate::Pessimize $( + $trait )? >)? $crate::Pessimize for $name $(<$param>)? {
+            unsafe impl $(<$param : $crate::Pessimize $( + $trait )? >)? $crate::Pessimize for $name {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
                     let value = $extract(&mut self);

@@ -7,7 +7,7 @@ use core::iter::{Empty, Once, Repeat};
 unsafe impl<T> Pessimize for Empty<T> {
     #[inline(always)]
     fn hide(self) -> Self {
-        self
+        core::iter::empty()
     }
 
     #[inline(always)]
@@ -31,11 +31,11 @@ unsafe impl<T> Pessimize for Empty<T> {
 pessimize_once_like!(
     allow(missing_docs)
     {
-        Once<T>: (
+        |T| Once<T>: (
             |self_: &mut Self| self_.next().unwrap(),
             core::iter::once
         ),
-        Repeat<T: Clone>: (
+        |T: Clone| Repeat<T>: (
             |self_: &mut Self| self_.next().unwrap(),
             core::iter::repeat
         )
