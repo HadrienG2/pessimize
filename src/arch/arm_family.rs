@@ -171,8 +171,9 @@ mod tests {
 
                 impl From<[f64; $lanes]> for $name {
                     fn from(x: [f64; $lanes]) -> Self {
-                        // FIXME: Check alignment requirements, not sure if this is right
-                        Self(unsafe { aarch64::$load((&x) as *const [f64; $lanes] as *const f64) })
+                        // Round trip to $inner ensures SIMD alignment
+                        let mut output: $inner = core::mem::transmute(x);
+                        Self(unsafe { aarch64::$load((&x) as *const f64) })
                     }
                 }
 
@@ -185,15 +186,15 @@ mod tests {
                 impl PartialEq for $name {
                     fn eq(&self, other: &Self) -> bool {
                         let value = |x: &Self| -> [f64; $lanes] {
-                            let mut result = [0.0; $lanes];
+                            // Round trip to $inner ensures SIMD alignment
+                            let mut result = Self::from([0.0; $lanes]);
                             unsafe {
-                                // FIXME: Check alignment requirements, not sure if this is right
                                 aarch64::$store(
-                                    (&mut result) as *mut [f64; $lanes] as *mut f64,
+                                    (&mut result) as *mut f64,
                                     x.0,
                                 )
+                                core::mem::transmute(result)
                             }
-                            result
                         };
                         value(self) == value(other)
                     }
@@ -229,7 +230,6 @@ mod tests {
         abstract_float64xN_t!(F64x1, float64x1_t, 1, vld1_f64, vst1_f64);
         abstract_float64xN_t!(F64x2, float64x2_t, 2, vld1q_f64, vst1q_f64);
 
-        // TODO: Once convinced that above strategy is right, use a variant of
-        //       the same idea to test float64xNxM
+        // TODO: Use a variant of the same idea to test float64xNxM
     }
 }
