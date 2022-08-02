@@ -67,12 +67,12 @@
 //! - It needs a lot of tricky unsafe code.
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-#![cfg_attr(feature = "default_impl", allow(incomplete_features))]
-#![cfg_attr(feature = "default_impl", feature(specialization))]
 #![cfg_attr(
     feature = "nightly",
     feature(doc_cfg, stdsimd, portable_simd, ptr_metadata)
 )]
+#![cfg_attr(feature = "default_impl", allow(incomplete_features))]
+#![cfg_attr(feature = "default_impl", feature(specialization))]
 #![deny(missing_docs)]
 
 // TODO: Once allocator_api is stable, support collections with custom
