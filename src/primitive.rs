@@ -3,65 +3,31 @@
 //! Integers, floats and SIMD types are taken care of by the arch module, since
 //! the CPU register in which they should end up is arch-specific.
 
+#![allow(clippy::transmute_int_to_bool)]
+
 use crate::{
-    assume_accessed, assume_accessed_imut, assume_read, hide, impl_assume_accessed,
-    impl_with_pessimize, BorrowPessimize, Pessimize, PessimizeCast,
+    assume_accessed, assume_accessed_imut, assume_read, hide, pessimize_into_from_custom,
+    BorrowPessimize, Pessimize, PessimizeCast,
 };
 
-// Implementation of Pessimize for bool based on that for u8
-unsafe impl PessimizeCast for bool {
-    type Pessimized = u8;
-
-    #[inline(always)]
-    fn into_pessimize(self) -> u8 {
-        self.into()
+pessimize_into_from_custom!(
+    allow(missing_docs)
+    {
+        u8: (
+            bool: (
+                Self::into,
+                // Safe because the inner u8 is not modified by Pessimize ops
+                core::mem::transmute
+            )
+        ),
+        u32: (
+            char: (
+                Self::into,
+                char::from_u32_unchecked
+            )
+        )
     }
-
-    #[allow(clippy::transmute_int_to_bool)]
-    #[inline(always)]
-    unsafe fn from_pessimize(x: u8) -> Self {
-        core::mem::transmute(x)
-    }
-}
-//
-impl BorrowPessimize for bool {
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        impl_with_pessimize(self, f)
-    }
-
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, core::mem::take)
-    }
-}
-
-// Implementation of Pessimize for char based on that for u32
-unsafe impl PessimizeCast for char {
-    type Pessimized = u32;
-
-    #[inline(always)]
-    fn into_pessimize(self) -> u32 {
-        self.into()
-    }
-
-    #[inline(always)]
-    unsafe fn from_pessimize(x: u32) -> Self {
-        char::from_u32_unchecked(x)
-    }
-}
-//
-impl BorrowPessimize for char {
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        impl_with_pessimize(self, f)
-    }
-
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, core::mem::take)
-    }
-}
+);
 
 // Implementation of Pessimize for unit & small tuples of Pessimize values
 //

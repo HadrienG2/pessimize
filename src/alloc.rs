@@ -1,36 +1,21 @@
 //! Pessimize implementations for core::alloc
 
-use crate::{impl_assume_accessed, impl_with_pessimize, BorrowPessimize, PessimizeCast};
+use crate::pessimize_into_from_custom;
 use core::alloc::Layout;
 #[cfg(feature = "std")]
 use std::alloc::System;
 
-// Correct because Pessimize operations do nothing
-unsafe impl PessimizeCast for Layout {
-    type Pessimized = (usize, usize);
-
-    #[inline(always)]
-    fn into_pessimize(self) -> (usize, usize) {
-        (self.size(), self.align())
+pessimize_into_from_custom!(
+    allow(missing_docs)
+    {
+        (usize, usize): (
+            Layout: (
+                |self_: Layout| (self_.size(), self_.align()),
+                |(size, align)| Self::from_size_align_unchecked(size, align)
+            )
+        )
     }
-
-    #[inline(always)]
-    unsafe fn from_pessimize((size, align): (usize, usize)) -> Self {
-        Self::from_size_align_unchecked(size, align)
-    }
-}
-//
-impl BorrowPessimize for Layout {
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        impl_with_pessimize(self, f)
-    }
-
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, |r| *r)
-    }
-}
+);
 
 // Trivially correct since System is a ZST
 #[cfg(feature = "std")]
