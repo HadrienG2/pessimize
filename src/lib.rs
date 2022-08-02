@@ -466,7 +466,7 @@ macro_rules! pessimize_asm_values {
         $doc_cfg:meta
         {
             $(
-                $reg:ident: ( $($value_type:ty),* )
+                $reg:ident : ( $($value_type:ty),* )
             ),*
         }
     ) => {
@@ -614,7 +614,9 @@ macro_rules! pessimize_tuple_structs {
         $doc_cfg:meta
         {
             $(
-                $outer:ty { $( $name:ident: $inner:ty ),* }
+                $outer:ty {
+                    $( $name:ident: $inner:ty ),*
+                }
             ),*
         }
     ) => {
@@ -665,7 +667,10 @@ macro_rules! pessimize_once_like {
         $doc_cfg:meta
         {
             $(
-                $( | $param:ident $( : $trait:path )? | )? $name:ty : (
+                $(
+                    | $param:ident $( : $trait:path )? |
+                )?
+                $name:ty : (
                     $extract:expr,
                     $make:expr
                 )
