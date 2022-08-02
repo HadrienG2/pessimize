@@ -368,6 +368,7 @@ pub trait BorrowPessimize: PessimizeCast {
 
 /// Implementation of `BorrowPessimize::with_pessimize` for `Copy` types
 // TODO: Use specializable BorrowPessimize impl once available on stable
+// FIXME: Also allow T::Pessimized: Copy + AsPessimize (&T -> T::Pessimized) operation
 #[inline(always)]
 pub fn impl_with_pessimize<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
     let pessimize = T::into_pessimize(*self_);
