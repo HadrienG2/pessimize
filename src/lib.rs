@@ -657,6 +657,12 @@ macro_rules! pessimize_newtypes {
 
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
+//       Current candidates are...
+//       - Pointers other than *const T and collections
+//       - Cells
+//       - "Generic newtypes" like Generic<T>(pub T)
+//       - as_pessimized(&self) -> Self::Pessimized
+//       - repeat() and once()
 //       May also want to review impl_with_pessimize and impl_assume_accessed.
 
 // Although all Rust collections are basically pointers with extra metadata, we
