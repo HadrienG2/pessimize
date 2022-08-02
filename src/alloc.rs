@@ -34,7 +34,7 @@ impl BorrowPessimize for Layout {
 
 // Trivially correct since System is a ZST
 #[cfg(feature = "std")]
-crate::pessimize_zst!(System, System, doc(cfg(feature = "std")));
+crate::pessimize_zsts!(doc(cfg(feature = "std")) { System: System });
 
 #[cfg(test)]
 mod tests {

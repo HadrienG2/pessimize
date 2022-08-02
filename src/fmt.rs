@@ -1,10 +1,10 @@
 //! Pessimize implementations for core::fmt
 
-use crate::pessimize_zst;
+use crate::pessimize_zsts;
 use core::fmt::Error;
 
 // Trivially correct since Error is a ZST
-pessimize_zst!(Error, Error, allow(missing_docs));
+pessimize_zsts!(allow(missing_docs) { Error: Error });
 
 #[cfg(test)]
 mod tests {

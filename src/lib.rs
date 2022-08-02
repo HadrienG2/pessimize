@@ -454,14 +454,14 @@ mod default_impl {
     }
 }
 
-/// Implementation of Pessimize for values without pointer semantics
+/// Implementation of Pessimize for asm inputs/outputs without pointer semantics
 ///
 /// To be used by arch-specific modules to implement Pessimize for primitive and
 /// arch-specific SIMD types.
 ///
 #[doc(hidden)]
 #[macro_export]
-macro_rules! pessimize_values {
+macro_rules! pessimize_asm_values {
     (
         $doc_cfg:meta
         {
@@ -503,7 +503,7 @@ macro_rules! pessimize_values {
     };
 }
 
-/// Implementation of Pessimize for types with a round trip conversion function
+/// Implementation of Pessimize for types with round trip conversion functions
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_into_from_custom {
@@ -551,7 +551,7 @@ macro_rules! pessimize_into_from_custom {
     };
 }
 
-/// Implementation of Pessimize for types with an Into/From round trip
+/// Implementation of Pessimize for types with a standard Into/From round trip
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_into_from {
@@ -563,7 +563,7 @@ macro_rules! pessimize_into_from {
             ),*
         }
     ) => {
-        pessimize_into_from_custom!(
+        $crate::pessimize_into_from_custom!(
             $doc_cfg
             {
                 $(
@@ -581,33 +581,28 @@ macro_rules! pessimize_into_from {
 /// Implementation of Pessimize for any stateless zero-sized type
 #[doc(hidden)]
 #[macro_export]
-macro_rules! pessimize_zst {
-    ($name:ty, $make:expr, $doc_cfg:meta) => {
-        #[cfg_attr(feature = "nightly", $doc_cfg)]
-        unsafe impl $crate::PessimizeCast for $name {
-            type Pessimized = ();
-
-            #[inline(always)]
-            fn into_pessimize(self) {}
-
-            #[inline(always)]
-            unsafe fn from_pessimize((): ()) -> Self {
-                $make
-            }
+macro_rules! pessimize_zsts {
+    (
+        $doc_cfg:meta
+        {
+            $(
+                $name:ty: $make:expr
+            ),*
         }
-        //
-        #[cfg_attr(feature = "nightly", $doc_cfg)]
-        impl $crate::BorrowPessimize for $name {
-            #[inline(always)]
-            fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                $crate::impl_with_pessimize(self, f)
+    ) => {
+        $crate::pessimize_into_from_custom!(
+            $doc_cfg
+            {
+                (): (
+                    $(
+                        $name: (
+                            |_self| (),
+                            |()| $make
+                        )
+                    ),*
+                )
             }
-
-            #[inline(always)]
-            fn assume_accessed_impl(&mut self) {
-                $crate::impl_assume_accessed(self, |r| *r)
-            }
-        }
+        );
     };
 }
 
@@ -619,42 +614,23 @@ macro_rules! pessimize_tuple_structs {
         $doc_cfg:meta
         {
             $(
-                $outer:ident { $( $name:ident: $inner:ty ),* }
+                $outer:ty { $( $name:ident: $inner:ty ),* }
             ),*
         }
     ) => {
-        $(
-            #[allow(unused_parens)]
-            #[cfg_attr(feature = "nightly", $doc_cfg)]
-            unsafe impl $crate::PessimizeCast for $outer {
-                type Pessimized = ( $( $inner ),* );
-
-                #[inline(always)]
-                fn into_pessimize(self) -> Self::Pessimized {
-                    let Self( $($name),* ) = self;
-                    ( $($name),* )
-                }
-
-                #[inline(always)]
-                unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-                    let ( $($name),* ) = x;
-                    Self( $($name),* )
-                }
+        $crate::pessimize_into_from_custom!(
+            $doc_cfg
+            {
+                $(
+                    ( $($inner,)* ): (
+                        $outer: (
+                            |Self( $($name),* )| ( $($name,)* ),
+                            |( $($name,)* )| Self( $($name),* )
+                        )
+                    )
+                ),*
             }
-            //
-            #[cfg_attr(feature = "nightly", $doc_cfg)]
-            impl $crate::BorrowPessimize for $outer {
-                #[inline(always)]
-                fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-                    $crate::impl_with_pessimize(self, f)
-                }
-
-                #[inline(always)]
-                fn assume_accessed_impl(&mut self) {
-                    $crate::impl_assume_accessed(self, |r| *r)
-                }
-            }
-        )*
+        );
     };
 }
 

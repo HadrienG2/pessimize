@@ -1,8 +1,6 @@
 //! Implementations of Pessimize for x86 and x86_64
 
-use crate::{
-    impl_assume_accessed, impl_with_pessimize, pessimize_values, BorrowPessimize, PessimizeCast,
-};
+use crate::{pessimize_asm_values, pessimize_into_from_custom};
 #[allow(unused)]
 #[cfg(target_arch = "x86")]
 use core::arch::x86 as target_arch;
@@ -23,15 +21,15 @@ use target_arch::{__m128d, __m128i};
 #[cfg(any(target_feature = "avx", doc))]
 use target_arch::{__m256, __m256d};
 
-pessimize_values!(allow(missing_docs) { reg_byte: (i8, u8), reg: (i16, u16, i32, u32, isize, usize) });
+pessimize_asm_values!(allow(missing_docs) { reg_byte: (i8, u8), reg: (i16, u16, i32, u32, isize, usize) });
 
 // 64-bit values normally go to GP registers on x86_64, but since 32-bit has
 // no 64-bit GP registers, we try to use XMM registers instead if available
 #[cfg(target_arch = "x86_64")]
-pessimize_values!(allow(missing_docs) { reg: (i64, u64) });
+pessimize_asm_values!(allow(missing_docs) { reg: (i64, u64) });
 //
 #[cfg(all(target_arch = "x86", any(target_feature = "sse2", doc)))]
-pessimize_values!(
+pessimize_asm_values!(
     doc(cfg(target_feature = "sse2"))
     {
         xmm_reg: (i64, u64)
@@ -42,7 +40,7 @@ pessimize_values!(
 // to use SSE whenever at all possible, we assume that float data should go
 // to SSE registers if possible and to GP registers otherwise (on old 32-bit).
 #[cfg(any(target_feature = "sse", doc))]
-pessimize_values!(
+pessimize_asm_values!(
     allow(missing_docs)
     {
         xmm_reg: (f32)
@@ -50,7 +48,7 @@ pessimize_values!(
 );
 //
 #[cfg(all(not(target_feature = "sse"), not(doc)))]
-pessimize_values!(
+pessimize_asm_values!(
     allow(missing_docs)
     {
         reg: (f32)
@@ -59,7 +57,7 @@ pessimize_values!(
 
 // Ditto for double precision, but we need SSE2 for that
 #[cfg(any(target_feature = "sse2", doc))]
-pessimize_values!(
+pessimize_asm_values!(
     cfg_attr(target_arch = "x86", doc(cfg(target_feature = "sse2")))
     {
         xmm_reg: (f64)
@@ -68,7 +66,7 @@ pessimize_values!(
 
 // Then come SIMD registers
 #[cfg(any(target_feature = "sse", doc))]
-pessimize_values!(
+pessimize_asm_values!(
     cfg_attr(target_arch = "x86", doc(cfg(target_feature = "sse")))
     {
         xmm_reg: (__m128)
@@ -76,7 +74,7 @@ pessimize_values!(
 );
 //
 #[cfg(any(target_feature = "sse2", doc))]
-pessimize_values!(
+pessimize_asm_values!(
     cfg_attr(target_arch = "x86", doc(cfg(target_feature = "sse2")))
     {
         xmm_reg: (__m128d, __m128i)
@@ -84,7 +82,7 @@ pessimize_values!(
 );
 //
 #[cfg(any(target_feature = "avx", doc))]
-pessimize_values!(
+pessimize_asm_values!(
     doc(cfg(target_feature = "avx"))
     {
         ymm_reg: (__m256, __m256d)
@@ -92,7 +90,7 @@ pessimize_values!(
 );
 //
 #[cfg(any(target_feature = "avx2", doc))]
-pessimize_values!(
+pessimize_asm_values!(
     doc(cfg(target_feature = "avx2"))
     {
         ymm_reg: (__m256i)
@@ -114,7 +112,7 @@ pub mod avx512 {
     use target_arch::{__m512, __m512d, __m512i};
 
     // Basic register type support
-    pessimize_values!(
+    pessimize_asm_values!(
         doc(cfg(target_feature = "avx512f"))
         {
             zmm_reg: (__m512, __m512d, __m512i)
@@ -122,7 +120,7 @@ pub mod avx512 {
     );
     //
     #[cfg(any(target_feature = "avx512bf16", doc))]
-    pessimize_values!(
+    pessimize_asm_values!(
         doc(cfg(target_feature = "avx512bf16"))
         {
             zmm_reg: (__m512bh)
@@ -130,7 +128,7 @@ pub mod avx512 {
     );
     //
     #[cfg(any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc))]
-    pessimize_values!(
+    pessimize_asm_values!(
         doc(cfg(all(
             target_feature = "avx512vl",
             target_feature = "avx512bf16"
@@ -363,14 +361,16 @@ mod portable_simd {
             { $($mask_type:ty),* }
         ) => {
             pessimize_into_from_custom!(
-                $doc_cfg:meta
+                $doc_cfg
                 {
                     $(
                         avx512::Mask<<Self as ToBitMask>::BitMask>: (
-                            |self_| avx512::Mask(self_.to_bitmask()),
-                            |x| Self::from_bitmask(x.0)
+                            $mask_type: (
+                                |self_: $mask_type| avx512::Mask(self_.to_bitmask()),
+                                |x: Self::Pessimized| Self::from_bitmask(x.0)
+                            )
                         )
-                    ),
+                    ),*
                 }
             );
         };
@@ -453,33 +453,17 @@ mod portable_simd {
 }
 
 // Trivially correct if the u32 Pessimize impl is correct
-unsafe impl PessimizeCast for CpuidResult {
-    type Pessimized = (u32, u32, u32, u32);
-
-    #[inline(always)]
-    fn into_pessimize(self) -> Self::Pessimized {
-        let Self { eax, ebx, ecx, edx } = self;
-        (eax, ebx, ecx, edx)
+pessimize_into_from_custom!(
+    allow(missing_docs)
+    {
+        (u32, u32, u32, u32): (
+            CpuidResult : (
+                |Self { eax, ebx, ecx, edx }| (eax, ebx, ecx, edx),
+                |(eax, ebx, ecx, edx)| Self { eax, ebx, ecx, edx }
+            )
+        )
     }
-
-    #[inline(always)]
-    unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-        let (eax, ebx, ecx, edx) = x;
-        Self { eax, ebx, ecx, edx }
-    }
-}
-//
-impl BorrowPessimize for CpuidResult {
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-        impl_with_pessimize(self, f)
-    }
-
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, |r| *r)
-    }
-}
+);
 
 #[allow(unused)]
 #[cfg(test)]

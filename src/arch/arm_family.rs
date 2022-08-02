@@ -1,47 +1,47 @@
 //! Implementations of Pessimize for arm and aarch64
 
+use crate::pessimize_asm_values;
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
 use crate::pessimize_tuple_structs;
-use crate::pessimize_values;
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
 use core::arch::aarch64::{
     float64x1_t, float64x1x2_t, float64x1x3_t, float64x1x4_t, float64x2_t, float64x2x2_t,
     float64x2x3_t, float64x2x4_t,
 };
 
-pessimize_values!(allow(missing_docs) { reg: (i8, u8, i16, u16, i32, u32, isize, usize) });
+pessimize_asm_values!(allow(missing_docs) { reg: (i8, u8, i16, u16, i32, u32, isize, usize) });
 
 // 64-bit values normally go to GP registers on aarch64, but since 32-bit has
 // no 64-bit GP registers, we try to use dreg instead if available
 #[cfg(target_arch = "aarch64")]
-pessimize_values!(allow(missing_docs) { reg: (i64, u64) });
+pessimize_asm_values!(allow(missing_docs) { reg: (i64, u64) });
 #[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
-pessimize_values!(
+pessimize_asm_values!(
     doc(cfg(target_feature = "vfp2"))
     { dreg: (i64, u64) }
 );
 
 // On AArch64 with NEON, using NEON registers for f32 and f64 is standard
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-pessimize_values!(allow(missing_docs) { vreg: (f32, f64) });
+pessimize_asm_values!(allow(missing_docs) { vreg: (f32, f64) });
 // On AArch64 without NEON, f32 and f64 are passed via GP registers instead
 #[cfg(all(target_arch = "aarch64", not(target_feature = "neon"), not(doc)))]
-pessimize_values!(allow(missing_docs) { reg: (f32, f64) });
+pessimize_asm_values!(allow(missing_docs) { reg: (f32, f64) });
 // On 32-bit ARM with VFP2, using sregs and dregs for f32 and f64 is standard
 #[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
-pessimize_values!(allow(missing_docs) { sreg: (f32) });
+pessimize_asm_values!(allow(missing_docs) { sreg: (f32) });
 #[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
-pessimize_values!(
+pessimize_asm_values!(
     doc(cfg(target_feature = "vfp2"))
     { dreg: (f64) }
 );
 // On 32-bit ARM without VFP2, f32 is passed via GP registers
 #[cfg(all(target_arch = "arm", not(target_feature = "vfp2"), not(doc)))]
-pessimize_values!(allow(missing_docs) { reg: (f32) });
+pessimize_asm_values!(allow(missing_docs) { reg: (f32) });
 
 // SIMD types
 #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
-pessimize_values!(
+pessimize_asm_values!(
     doc(cfg(target_feature = "neon"))
     { vreg: (float64x1_t, float64x2_t) }
 );

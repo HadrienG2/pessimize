@@ -1,57 +1,69 @@
 //! Pessimize implementations for std::io
 
-use crate::{
-    assume_accessed, assume_accessed_imut, assume_read, consume, hide, pessimize_zst, Pessimize,
-};
-use std::io::{Cursor, Empty, Read, Repeat, Sink, Take};
+use crate::{assume_accessed, assume_accessed_imut, consume, hide, pessimize_zsts, Pessimize};
+use std::io::{Empty, Read, Repeat, Sink};
 
-macro_rules! pessimize_wrapper {
-    ($name:ident, $get_metadata:ident, $set_metadata:ident, $from_inner_metadata:expr) => {
-        #[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
-        unsafe impl<T: Pessimize + Read> Pessimize for $name<T>
-        where
-            u64: Pessimize,
-        {
-            #[inline(always)]
-            fn hide(self) -> Self {
-                let metadata = self.$get_metadata();
-                let (inner, metadata) = hide((self.into_inner(), metadata));
-                $from_inner_metadata(inner, metadata)
-            }
+// Some wrappers use u64 and require u64: Pessimize
+#[cfg(target_pointer_width = "64")]
+mod u64_is_pessimize {
+    use super::*;
+    use crate::assume_read;
+    use std::io::{Cursor, Take};
 
-            #[inline(always)]
-            fn assume_read(&self) {
-                assume_read::<T>(self.get_ref());
-                consume(self.$get_metadata());
-            }
+    macro_rules! pessimize_wrapper {
+        ($name:ident, $get_metadata:ident, $set_metadata:ident, $from_inner_metadata:expr) => {
+            #[cfg_attr(
+                feature = "nightly",
+                doc(cfg(all(feature = "std", target_pointer_width = "64")))
+            )]
+            unsafe impl<T: Pessimize + Read> Pessimize for $name<T> {
+                #[inline(always)]
+                fn hide(self) -> Self {
+                    let metadata = self.$get_metadata();
+                    let (inner, metadata) = hide((self.into_inner(), metadata));
+                    $from_inner_metadata(inner, metadata)
+                }
 
-            #[inline(always)]
-            fn assume_accessed(&mut self) {
-                assume_accessed::<T>(self.get_mut());
-                let mut position = self.$get_metadata();
-                assume_accessed(&mut position);
-                self.$set_metadata(position);
-            }
+                #[inline(always)]
+                fn assume_read(&self) {
+                    assume_read::<T>(self.get_ref());
+                    consume(self.$get_metadata());
+                }
 
-            #[inline(always)]
-            fn assume_accessed_imut(&self) {
-                assume_accessed_imut::<T>(self.get_ref());
-                consume(self.$get_metadata());
+                #[inline(always)]
+                fn assume_accessed(&mut self) {
+                    assume_accessed::<T>(self.get_mut());
+                    let mut position = self.$get_metadata();
+                    assume_accessed(&mut position);
+                    self.$set_metadata(position);
+                }
+
+                #[inline(always)]
+                fn assume_accessed_imut(&self) {
+                    assume_accessed_imut::<T>(self.get_ref());
+                    consume(self.$get_metadata());
+                }
             }
-        }
-    };
+        };
+    }
+    //
+    pessimize_wrapper!(Cursor, position, set_position, |inner, position| {
+        let mut result = Cursor::new(inner);
+        result.set_position(position);
+        result
+    });
+    //
+    pessimize_wrapper!(Take, limit, set_limit, |inner: T, limit| inner.take(limit));
 }
-//
-pessimize_wrapper!(Cursor, position, set_position, |inner, position| {
-    let mut result = Cursor::new(inner);
-    result.set_position(position);
-    result
-});
-//
-pessimize_wrapper!(Take, limit, set_limit, |inner: T, limit| inner.take(limit));
 
-pessimize_zst!(Empty, std::io::empty(), doc(cfg(feature = "std")));
-pessimize_zst!(Sink, std::io::sink(), doc(cfg(feature = "std")));
+// As zero-sized types, Empty and Sink are trivially pessimizable
+pessimize_zsts!(
+    doc(cfg(feature = "std"))
+    {
+        Empty: std::io::empty(),
+        Sink: std::io::sink()
+    }
+);
 
 // Go through the inner byte if possible (need at least &mut self)
 #[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
@@ -66,7 +78,7 @@ unsafe impl Pessimize for Repeat {
 
     #[inline(always)]
     fn assume_read(&self) {
-        assume_read::<&Repeat>(&self);
+        consume::<&Repeat>(self);
     }
 
     #[inline(always)]
