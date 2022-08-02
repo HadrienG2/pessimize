@@ -3,8 +3,9 @@ set -euo pipefail
 
 ### CROSS-COMPILED PLATFORMS ###
 # TODO: Introduce three tiers:
-#       1. clippy + build crate (can be done even on a -none target, should be
-#          done on unsupported FP configurations like x86 without SSE)
+#       1. clippy + build crate with --no-default-features only (can be done
+#          even on a -none target, should be done on unsupported FP
+#          configurations like x86 without SSE)
 #       2. clippy + build crate & tests (can be done on a cross -linux target))
 #       3. clippy + build crate + run tests (native target)
 # TODO: Try to run tests via qemu
