@@ -13,6 +13,9 @@ mod u64_is_pessimize {
 
     macro_rules! pessimize_wrapper {
         ($name:ident, $get_metadata:ident, $set_metadata:ident, $from_inner_metadata:expr) => {
+            // NOTE: Can't use PessimizeCast/BorrowPessimize skeleton here
+            //       because we need to call assume_read/assume_accessed_imut
+            //       for two different types, T and u64.
             #[cfg_attr(
                 feature = "nightly",
                 doc(cfg(all(feature = "std", target_pointer_width = "64")))

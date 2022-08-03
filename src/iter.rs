@@ -1,29 +1,35 @@
 //! Pessimize implementations for core::iter
 
-use crate::{assume_accessed, assume_accessed_imut, consume, pessimize_once_like, Pessimize};
+use crate::{
+    impl_assume_accessed_via_extract_pessimized, pessimize_once_like, BorrowPessimize, Pessimize,
+    PessimizeCast,
+};
 use core::iter::{Empty, Once, Repeat};
 
 // As a zero-sized type, Empty is trivially pessimizable
-unsafe impl<T> Pessimize for Empty<T> {
+unsafe impl<T> PessimizeCast for Empty<T> {
+    type Pessimized = ();
+
     #[inline(always)]
-    fn hide(self) -> Self {
+    fn into_pessimize(self) {}
+
+    #[inline(always)]
+    unsafe fn from_pessimize((): ()) -> Self {
         core::iter::empty()
     }
+}
+//
+impl<T> BorrowPessimize for Empty<T> {
+    type BorrowedPessimize = *const Self;
 
     #[inline(always)]
-    fn assume_read(&self) {
-        consume::<&Self>(self);
+    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
+        f(&(self as *const Self))
     }
 
     #[inline(always)]
-    fn assume_accessed(mut self: &mut Self) {
-        assume_accessed::<&mut Self>(&mut self);
-        *self = core::iter::empty()
-    }
-
-    #[inline(always)]
-    fn assume_accessed_imut(&self) {
-        assume_accessed_imut::<&Self>(&self);
+    fn assume_accessed_impl(&mut self) {
+        impl_assume_accessed_via_extract_pessimized(self, |_self| ())
     }
 }
 
