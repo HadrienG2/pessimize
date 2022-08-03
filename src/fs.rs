@@ -1,6 +1,6 @@
 //! Pessimize implementations for std::fs
 
-use crate::{impl_assume_accessed_via_extract_pessimized, BorrowPessimize, PessimizeCast};
+use crate::pessimize_extractible;
 #[cfg(any(unix, windows))]
 use std::fs::File;
 #[cfg(unix)]
@@ -14,86 +14,46 @@ use std::os::unix::{
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
 
 macro_rules! pessimize_file {
-    ($fd:ty, $as_fd:ident, $into_fd:ident, $from_fd:ident) => {
-        #[cfg_attr(
-            feature = "nightly",
+    ($fd:ty, $as_fd:path, $into_fd:path, $from_fd:path) => {
+        pessimize_extractible!(
             doc(cfg(all(feature = "std", any(unix, windows))))
-        )]
-        unsafe impl PessimizeCast for File {
-            type Pessimized = $fd;
-
-            #[inline(always)]
-            fn into_pessimize(self) -> RawFd {
-                self.$into_fd()
+            {
+                $fd : (
+                    File : ($into_fd, $from_fd, $as_fd)
+                )
             }
-
-            #[inline(always)]
-            unsafe fn from_pessimize(x: RawFd) -> Self {
-                Self::$from_fd(x)
-            }
-        }
-        //
-        #[cfg_attr(
-            feature = "nightly",
-            doc(cfg(all(feature = "std", any(unix, windows))))
-        )]
-        impl BorrowPessimize for File {
-            type BorrowedPessimize = $fd;
-
-            #[inline(always)]
-            fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
-                let fd = self.$as_fd();
-                f(&fd)
-            }
-
-            #[inline(always)]
-            fn assume_accessed_impl(&mut self) {
-                impl_assume_accessed_via_extract_pessimized(self, |self_| self_.$as_fd())
-            }
-        }
+        );
     };
 }
 //
 #[cfg(unix)]
-pessimize_file!(RawFd, as_raw_fd, into_raw_fd, from_raw_fd);
+pessimize_file!(
+    RawFd,
+    AsRawFd::as_raw_fd,
+    IntoRawFd::into_raw_fd,
+    FromRawFd::from_raw_fd
+);
 //
 #[cfg(windows)]
-pessimize_file!(RawHandle, as_raw_handle, into_raw_handle, from_raw_handle);
+pessimize_file!(
+    RawHandle,
+    AsRawHandle::as_raw_handle,
+    IntoRawHandle::into_raw_handle,
+    FromRawHandle::from_raw_handle
+);
 
 #[cfg(unix)]
 mod unix {
     use super::*;
 
-    #[cfg_attr(feature = "nightly", doc(cfg(all(feature = "std", unix))))]
-    unsafe impl PessimizeCast for Permissions {
-        type Pessimized = u32;
-
-        #[inline(always)]
-        fn into_pessimize(self) -> u32 {
-            self.mode()
+    pessimize_extractible!(
+        doc(cfg(all(feature = "std", unix)))
+        {
+            u32 : (
+                Permissions : (|self_: Self| self_.mode(), PermissionsExt::from_mode, PermissionsExt::mode)
+            )
         }
-
-        #[inline(always)]
-        unsafe fn from_pessimize(x: u32) -> Self {
-            Self::from_mode(x)
-        }
-    }
-    //
-    #[cfg_attr(feature = "nightly", doc(cfg(all(feature = "std", unix))))]
-    impl BorrowPessimize for Permissions {
-        type BorrowedPessimize = u32;
-
-        #[inline(always)]
-        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
-            let mode = self.mode();
-            f(&mode)
-        }
-
-        #[inline(always)]
-        fn assume_accessed_impl(&mut self) {
-            impl_assume_accessed_via_extract_pessimized(self, |self_| self_.mode())
-        }
-    }
+    );
 }
 
 #[cfg(test)]

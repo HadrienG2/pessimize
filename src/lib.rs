@@ -533,20 +533,21 @@ macro_rules! pessimize_asm_values {
     };
 }
 
-/// Implementation of Pessimize for Copy types with round trip conversion functions
+/// Implementation of Pessimize for types from which a Pessimize impl can be
+/// extracted given nothing but an &self
 #[doc(hidden)]
 #[macro_export]
-macro_rules! pessimize_copy {
+macro_rules! pessimize_extractible {
     (
         $doc_cfg:meta
         {
             $(
-                $inner:ty: (
+                $inner:ty : (
                     $(
                         $(
                             | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
                         )?
-                        $outer:ty : ($into:expr, $from:expr)
+                        $outer:ty : ($into:expr, $from:expr, $extract:expr)
                     ),*
                 )
             ),*
@@ -574,15 +575,52 @@ macro_rules! pessimize_copy {
 
                 #[inline(always)]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                    $crate::impl_with_pessimize_via_copy(self, f)
+                    f(&$extract(self))
                 }
 
                 #[inline(always)]
                 fn assume_accessed_impl(&mut self) {
-                    $crate::impl_assume_accessed_via_extract_self(self, |r| *r)
+                    $crate::impl_assume_accessed_via_extract_pessimized(self, |self_: &mut Self| $extract(self_))
                 }
             }
         )*)*
+    };
+}
+
+/// Implementation of Pessimize for Copy types with round trip conversion functions
+#[doc(hidden)]
+#[macro_export]
+macro_rules! pessimize_copy {
+    (
+        $doc_cfg:meta
+        {
+            $(
+                $inner:ty : (
+                    $(
+                        $(
+                            | $param:ident $( : $traits:tt )? |
+                        )?
+                        $outer:ty : ($into:expr, $from:expr)
+                    ),*
+                )
+            ),*
+        }
+    ) => {
+        $crate::pessimize_extractible!(
+            $doc_cfg
+            {
+                $(
+                    $inner : (
+                        $(
+                            $(
+                                | $param $( : $traits )? |
+                            )?
+                            $outer : ($into, $from, |self_: &Self| $into(*self_))
+                        ),*
+                    )
+                ),*
+            }
+        );
     };
 }
 
@@ -595,7 +633,7 @@ macro_rules! pessimize_into_from {
         {
             $(
                 $( | $param:ident $( : $traits:tt )? | )?
-                $inner:ty: (
+                $inner:ty : (
                     $(
                         $outer:ty
                     ),*
@@ -607,7 +645,7 @@ macro_rules! pessimize_into_from {
             $doc_cfg
             {
                 $(
-                    $inner: (
+                    $inner : (
                         $(
                             $( | $param $( : $traits )? | )?
                             $outer : (Self::into, Self::from)
@@ -628,19 +666,20 @@ macro_rules! pessimize_zsts {
         {
             $(
                 $( | $param:ident $( : $traits:tt )? | )?
-                $name:ty: $make:expr
+                $name:ty : $make:expr
             ),*
         }
     ) => {
-        $crate::pessimize_copy!(
+        $crate::pessimize_extractible!(
             $doc_cfg
             {
-                (): (
+                () : (
                     $(
                         $( | $param $( : $traits )? | )?
-                        $name: (
+                        $name : (
                             |_self| (),
-                            |()| $make
+                            |()| $make,
+                            |_self| ()
                         )
                     ),*
                 )
@@ -659,7 +698,7 @@ macro_rules! pessimize_tuple_structs {
             $(
                 $( | $param:ident $( : $traits:tt )? | )?
                 $outer:ty {
-                    $( $name:ident: $inner:ty ),*
+                    $( $name:ident : $inner:ty ),*
                 }
             ),*
         }
@@ -668,9 +707,9 @@ macro_rules! pessimize_tuple_structs {
             $doc_cfg
             {
                 $(
-                    ( $($inner,)* ): (
+                    ( $($inner,)* ) : (
                         $( | $param $( : $traits )? | )?
-                        $outer: (
+                        $outer : (
                             |Self( $($name),* )| ( $($name,)* ),
                             |( $($name,)* )| Self( $($name),* )
                         )
@@ -767,7 +806,6 @@ macro_rules! pessimize_once_like {
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
 //       Current candidates are...
-//       - impl_assume_accessed_via_extract_pessimize (needed by iter::Empty<T> and fs::*)
 //       - BorrowedPessimize is not Pessimized (needed by Vec, String, ffi::OsString)
 //       - where bounds (needed by ptr::*)
 //       - Newtype with !Copy content (needed by cmp::Reverse<T>, primitive::[T; 1] is close)
