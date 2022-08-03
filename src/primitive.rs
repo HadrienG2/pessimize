@@ -36,7 +36,8 @@ pessimize_into_from_custom!(
 //
 macro_rules! pessimize_tuple {
     ($($args:ident),*) => {
-        // This is safe because a tuple is just the sum of its parts
+        // NOTE: Can't use PessimizeCast/BorrowPessimize here because need to
+        //       apply optimization barrier to multiple inner types.
         #[allow(non_snake_case)]
         unsafe impl<$($args: Pessimize),*> Pessimize for ($($args,)*) {
             #[allow(clippy::unused_unit)]

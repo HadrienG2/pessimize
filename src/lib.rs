@@ -454,6 +454,8 @@ unsafe impl<T: BorrowPessimize> Pessimize for T {
 mod default_impl {
     use super::*;
 
+    // NOTE: Can't use PessimizeCast/BorrowPessimize here because need to use
+    //       `assume_accessed` in `hide` impl.
     #[doc(cfg(all(feature = "nightly", feature = "default_impl")))]
     unsafe impl<T> Pessimize for T {
         #[inline(always)]
@@ -497,6 +499,8 @@ macro_rules! pessimize_asm_values {
         }
     ) => {
         $($(
+            // NOTE: This is one of the primitive Pessimize impls on which the
+            //       PessimizeCast/BorrowPessimize stack is built
             #[allow(asm_sub_register)]
             #[cfg_attr(feature = "nightly", $doc_cfg)]
             unsafe impl $crate::Pessimize for $value_type {

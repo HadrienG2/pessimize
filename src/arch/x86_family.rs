@@ -150,6 +150,8 @@ pub mod avx512 {
             { $($mask_impl:ty),* }
         ) => {
             $(
+                // NOTE: This is one of the primitive Pessimize impls on which
+                //       the PessimizeCast/BorrowPessimize stack is built
                 #[$doc_cfg]
                 unsafe impl Pessimize for Mask<$mask_impl> {
                     #[inline(always)]

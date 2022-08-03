@@ -39,6 +39,8 @@ mod thin_pointers {
     use super::*;
 
     // Safe because the functions above are implemented as expected
+    // NOTE: This is one of the primitive Pessimize impls on which the
+    //       PessimizeCast/BorrowPessimize stack is built
     unsafe impl<T: Sized> Pessimize for *const T {
         #[inline(always)]
         fn hide(self) -> Self {
@@ -65,10 +67,13 @@ mod thin_pointers {
 #[cfg(feature = "nightly")]
 mod all_pointers {
     use super::*;
-    use crate::{consume, hide};
+    use crate::{assume_accessed_imut, consume, hide};
     use core::ptr::{self, DynMetadata, Pointee};
 
-    // DynMetadata is a pointer to a type vtable, which is read only data
+    // DynMetadata is a pointer to a trait object's vtable
+    // NOTE: Can't use PessimizeCast/BorrowPessimize because this is one of the
+    //       building blocks on which the `*const ()`, which we would want to
+    //       delegate to, is built.
     #[doc(cfg(feature = "nightly"))]
     unsafe impl<T: ?Sized> Pessimize for DynMetadata<T> {
         #[inline(always)]
@@ -102,6 +107,8 @@ mod all_pointers {
     }
 
     // Safe if the toplevel functions & DynMetadata impl operate as expected
+    // NOTE: This is one of the primitive Pessimize impls on which the
+    //       PessimizeCast/BorrowPessimize stack is built
     #[doc(cfg(feature = "nightly"))]
     unsafe impl<T: Pointee + ?Sized> Pessimize for *const T
     where
@@ -216,28 +223,32 @@ where
 // are just a special kind of read-only pointer.
 macro_rules! pessimize_fn {
     ($res:ident $( , $args:ident )* ) => {
-        unsafe impl< $res $( , $args )* > Pessimize for fn( $($args),* ) -> $res {
+
+        unsafe impl< $res $( , $args )* > PessimizeCast for fn( $($args),* ) -> $res {
+            type Pessimized = *const ();
+
             #[inline(always)]
-            fn hide(self) -> Self {
-                // Safe because hide is the identity function
-                unsafe { core::mem::transmute(
-                    hide_thin_ptr(self as *const ())
-                ) }
+            fn into_pessimize(self) -> *const () {
+                self as *const ()
             }
 
             #[inline(always)]
-            fn assume_read(&self) {
-                assume_read_thin_ptr((*self) as *const ())
+            unsafe fn from_pessimize(x: *const ()) -> Self {
+                core::mem::transmute(x)
+            }
+        }
+        //
+        impl< $res $( , $args )* > BorrowPessimize for fn( $($args),* ) -> $res {
+            type BorrowedPessimize = *const ();
+
+            #[inline(always)]
+            fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
+                impl_with_pessimize_via_copy(self, f)
             }
 
             #[inline(always)]
-            fn assume_accessed(&mut self) {
-                Self::assume_read(self)
-            }
-
-            #[inline(always)]
-            fn assume_accessed_imut(&self) {
-                Self::assume_read(self)
+            fn assume_accessed_impl(&mut self) {
+                impl_assume_accessed_via_extract_self(self, |r| *r)
             }
         }
     }
