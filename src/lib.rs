@@ -534,7 +534,7 @@ macro_rules! pessimize_asm_values {
 }
 
 /// Implementation of Pessimize for types from which a Pessimize impl can be
-/// extracted given nothing but an &self
+/// extracted given nothing but an &self, having round trip conversion functions
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_extractible {
