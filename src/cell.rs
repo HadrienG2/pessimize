@@ -1,6 +1,8 @@
 //! Pessimize implementations for core::cell
 
-use crate::{assume_accessed, assume_accessed_imut, consume, hide, Pessimize};
+use crate::{
+    assume_accessed, assume_accessed_imut, consume, hide, BorrowPessimize, Pessimize, PessimizeCast,
+};
 use core::cell::{Cell, UnsafeCell};
 
 // TODO: Once specialization is available, provide a default implementation for
@@ -29,29 +31,31 @@ unsafe impl<T: Copy + Pessimize> Pessimize for Cell<T> {
     }
 }
 
-unsafe impl<T: Pessimize> Pessimize for UnsafeCell<T> {
+unsafe impl<T: Pessimize> PessimizeCast for UnsafeCell<T> {
+    type Pessimized = T;
+
     #[inline(always)]
-    fn hide(self) -> Self {
-        UnsafeCell::new(hide(self.into_inner()))
+    fn into_pessimize(self) -> T {
+        self.into_inner()
     }
 
     #[inline(always)]
-    fn assume_read(&self) {
-        // Will force a spill to memory, but there is no way to safely read a T
-        // or get an &T from &UnsafeCell<T> without knowing the usage protocol
-        consume::<*mut T>(self.get())
+    unsafe fn from_pessimize(x: T) -> Self {
+        Self::new(x)
+    }
+}
+//
+impl<T: Pessimize> BorrowPessimize for UnsafeCell<T> {
+    type BorrowedPessimize = *mut T;
+
+    #[inline(always)]
+    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
+        f(&self.get());
     }
 
     #[inline(always)]
-    fn assume_accessed(&mut self) {
+    fn assume_accessed_impl(&mut self) {
         assume_accessed::<T>(self.get_mut())
-    }
-
-    #[inline(always)]
-    fn assume_accessed_imut(&self) {
-        // Will force a spill to memory and invalidation, but there is no way to
-        // safely get an &T from &UnsafeCell<T> without knowing the usage protocol
-        assume_accessed_imut::<*mut T>(&self.get());
     }
 }
 

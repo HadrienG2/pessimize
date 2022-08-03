@@ -714,7 +714,8 @@ macro_rules! pessimize_once_like {
                 $(
                     | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
                 )?
-                $name:ty : (
+                $outer:ty : (
+                    $inner:ty,
                     $extract:expr,
                     $make:expr
                 )
@@ -723,28 +724,36 @@ macro_rules! pessimize_once_like {
     ) => {
         $(
             #[cfg_attr(feature = "nightly", $doc_cfg)]
-            unsafe impl $(<$param $( : $trait1 $( + $traitN )* )? >)? $crate::Pessimize for $name {
+            unsafe impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::PessimizeCast for $outer {
+                type Pessimized = $inner;
+
                 #[inline(always)]
-                fn hide(mut self) -> Self {
-                    let value = $extract(&mut self);
-                    $make($crate::hide(value))
+                fn into_pessimize(mut self) -> $inner {
+                    $extract(&mut self)
                 }
 
                 #[inline(always)]
-                fn assume_read(&self) {
-                    $crate::consume::<&Self>(self);
+                unsafe fn from_pessimize(inner: $inner) -> Self {
+                    $make(inner)
+                }
+            }
+            //
+            #[cfg_attr(feature = "nightly", $doc_cfg)]
+            impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
+                type BorrowedPessimize = Self;
+
+                #[inline(always)]
+                fn with_pessimize(&self, f: impl FnOnce(&Self)) {
+                    // Need at least an &mut Self to access the inner value, so
+                    // must use by-reference optimization barrier with &Self
+                    f(&self)
                 }
 
                 #[inline(always)]
-                fn assume_accessed(&mut self) {
+                fn assume_accessed_impl(&mut self) {
                     let mut value = $extract(self);
                     $crate::assume_accessed(&mut value);
                     *self = $make(value)
-                }
-
-                #[inline(always)]
-                fn assume_accessed_imut(&self) {
-                    $crate::assume_accessed_imut::<&Self>(&self);
                 }
             }
         )*

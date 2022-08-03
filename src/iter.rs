@@ -32,10 +32,12 @@ pessimize_once_like!(
     allow(missing_docs)
     {
         |T: (Pessimize)| Once<T>: (
+            T,
             |self_: &mut Self| self_.next().unwrap(),
             core::iter::once
         ),
         |T: (Clone, Pessimize)| Repeat<T>: (
+            T,
             |self_: &mut Self| self_.next().unwrap(),
             core::iter::repeat
         )

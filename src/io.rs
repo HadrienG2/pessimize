@@ -71,6 +71,7 @@ pessimize_once_like!(
     doc(cfg(feature = "std"))
     {
         Repeat: (
+            u8,
             |self_: &mut Self| {
                 let mut buf = [0u8; 1];
                 self_.read_exact(&mut buf[..]).unwrap();
