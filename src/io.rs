@@ -34,9 +34,9 @@ mod u64_is_pessimize {
                 #[inline(always)]
                 fn assume_accessed(&mut self) {
                     assume_accessed::<T>(self.get_mut());
-                    let mut position = self.$get_metadata();
-                    assume_accessed(&mut position);
-                    self.$set_metadata(position);
+                    let mut metadata = self.$get_metadata();
+                    assume_accessed(&mut metadata);
+                    self.$set_metadata(metadata);
                 }
 
                 #[inline(always)]
