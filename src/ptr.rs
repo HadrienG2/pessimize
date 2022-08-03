@@ -88,12 +88,16 @@ mod all_pointers {
 
         #[inline(always)]
         fn assume_accessed(&mut self) {
-            Self::assume_read(self)
+            // Need to use `assume_accessed` barrier because someone with access
+            // to this vtable could call a method that mutates global state
+            assume_accessed_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
         }
 
         #[inline(always)]
         fn assume_accessed_imut(&self) {
-            Self::assume_read(self)
+            // Need to use `assume_accessed` barrier because someone with access
+            // to this vtable could call a method that mutates global state
+            assume_accessed_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
         }
     }
 
@@ -118,17 +122,18 @@ mod all_pointers {
 
         #[inline(always)]
         fn assume_accessed(&mut self) {
-            let (thin, metadata) = self.to_raw_parts();
+            let (thin, mut metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
+            assume_accessed(&mut metadata);
             // Correct because hide is identity and assume_accessed doesn't modify
-            *self = ptr::from_raw_parts(thin, hide(metadata))
+            *self = ptr::from_raw_parts(thin, metadata)
         }
 
         #[inline(always)]
         fn assume_accessed_imut(&self) {
             let (thin, metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
-            consume(metadata);
+            assume_accessed_imut(&metadata);
         }
     }
 }
