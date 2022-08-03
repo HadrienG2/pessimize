@@ -357,7 +357,7 @@ pub trait BorrowPessimize: PessimizeCast {
     /// on it.
     ///
     /// In the common case where `Self: Copy`, you can implement this by calling
-    /// `pessimize::impl_with_pessimize`.
+    /// `pessimize::impl_with_pessimize_via_copy`.
     ///
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize));
 
@@ -373,9 +373,11 @@ pub trait BorrowPessimize: PessimizeCast {
 
 /// Implementation of `BorrowPessimize::with_pessimize` for `Copy` types
 // TODO: Use specializable BorrowPessimize impl once available on stable
-// FIXME: Also allow T::Pessimized: Copy + AsPessimize (&T -> T::Pessimized) operation
 #[inline(always)]
-pub fn impl_with_pessimize<T: Copy + PessimizeCast>(self_: &T, f: impl FnOnce(&T::Pessimized)) {
+pub fn impl_with_pessimize_via_copy<T: Copy + PessimizeCast>(
+    self_: &T,
+    f: impl FnOnce(&T::Pessimized),
+) {
     let pessimize = T::into_pessimize(*self_);
     f(&pessimize)
 }
@@ -547,7 +549,7 @@ macro_rules! pessimize_into_from_custom {
 
                 #[inline(always)]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
-                    $crate::impl_with_pessimize(self, f)
+                    $crate::impl_with_pessimize_via_copy(self, f)
                 }
 
                 #[inline(always)]
@@ -735,7 +737,7 @@ macro_rules! pessimize_once_like {
 //       - Cells
 //       - "Generic newtypes" like Generic<T>(pub T)
 //       - as_pessimized(&self) -> Self::Pessimized
-//       May also want to review impl_with_pessimize and impl_assume_accessed.
+//       May also want to review impl_assume_accessed.
 
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and

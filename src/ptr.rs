@@ -2,8 +2,8 @@
 //! *const T, *mut T, NonNull<T>, &T, &mut T and fn(Args...) -> Res
 
 use crate::{
-    assume_accessed, impl_assume_accessed, impl_with_pessimize, BorrowPessimize, Pessimize,
-    PessimizeCast,
+    assume_accessed, impl_assume_accessed, impl_with_pessimize_via_copy, BorrowPessimize,
+    Pessimize, PessimizeCast,
 };
 use core::ptr::NonNull;
 
@@ -160,7 +160,7 @@ where
 
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
-        impl_with_pessimize(self, f)
+        impl_with_pessimize_via_copy(self, f)
     }
 
     #[inline(always)]
@@ -198,7 +198,7 @@ where
 
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
-        impl_with_pessimize(self, f)
+        impl_with_pessimize_via_copy(self, f)
     }
 
     #[inline(always)]
