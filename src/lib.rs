@@ -385,8 +385,8 @@ pub fn impl_with_pessimize_via_copy<T: Copy + PessimizeCast>(
 /// Implementation of `BorrowPessimize::assume_accessed_impl` for types where
 /// there is a way to get a `T::Pessimized` from an `&mut T`
 ///
-/// The Drop impl of `self_` will not be called at the end, so make sure that
-/// the state left by `extract_pessimized` can tolerate that.
+/// The `Drop` impl of the value left in `self_` by `extract_pessimized` will
+/// not be called, make sure that this does not result in a resource leak.
 ///
 #[inline(always)]
 pub fn impl_assume_accessed_via_extract_pessimized<T: PessimizeCast>(
@@ -406,8 +406,8 @@ pub fn impl_assume_accessed_via_extract_pessimized<T: PessimizeCast>(
 /// default value is truly trivial and guaranteed to be optimized out (like
 /// `Vec`), this is `core::mem::take`.
 ///
-/// In either case, the Drop impl of `self_` will not be called at the end, so
-/// make sure that the state left by `extract_self` can tolerate that.
+/// The `Drop` impl of the value left in `self_` by `extract_self` will not be
+/// called, make sure that this does not result in a resource leak.
 ///
 #[inline(always)]
 pub fn impl_assume_accessed_via_extract_self<T: PessimizeCast>(

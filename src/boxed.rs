@@ -40,11 +40,11 @@ where
     fn assume_accessed_impl(&mut self) {
         // This reborrow would allow us to mutate, which is needed for
         // `assume_accessed` to reliably work.
-        let inner: &mut T = self.as_mut();
-        let mut inner_ptr = inner as *mut T;
-        assume_accessed(&mut inner_ptr);
+        let mut inner: &mut T = self.as_mut();
+        assume_accessed::<&mut T>(&mut inner);
         // Safe because we avoid drop and the pointer effectively wasn't modified
-        unsafe { (self as *mut Self).write(Self::from_pessimize(inner_ptr)) }
+        let inner_ptr = inner as *mut T;
+        unsafe { (self as *mut Self).write(Box::from_raw(inner_ptr)) }
     }
 }
 
