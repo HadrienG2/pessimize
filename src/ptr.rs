@@ -2,8 +2,8 @@
 //! *const T, *mut T, NonNull<T>, &T, &mut T and fn(Args...) -> Res
 
 use crate::{
-    assume_accessed, impl_assume_accessed, impl_with_pessimize_via_copy, BorrowPessimize,
-    Pessimize, PessimizeCast,
+    assume_accessed, impl_assume_accessed_via_extract_self, impl_with_pessimize_via_copy,
+    BorrowPessimize, Pessimize, PessimizeCast,
 };
 use core::ptr::NonNull;
 
@@ -165,7 +165,7 @@ where
 
     #[inline(always)]
     fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, |p: &mut *mut T| *p)
+        impl_assume_accessed_via_extract_self(self, |p: &mut *mut T| *p)
     }
 }
 
@@ -203,7 +203,7 @@ where
 
     #[inline(always)]
     fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, |nn: &mut NonNull<T>| *nn)
+        impl_assume_accessed_via_extract_self(self, |nn: &mut NonNull<T>| *nn)
     }
 }
 

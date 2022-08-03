@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::ffi
 
-use crate::{impl_assume_accessed, BorrowPessimize, PessimizeCast};
+use crate::{impl_assume_accessed_via_extract_self, BorrowPessimize, PessimizeCast};
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -49,7 +49,7 @@ impl BorrowPessimize for OsString {
 
     #[inline(always)]
     fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed(self, core::mem::take)
+        impl_assume_accessed_via_extract_self(self, core::mem::take)
     }
 }
 

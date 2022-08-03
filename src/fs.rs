@@ -1,6 +1,6 @@
 //! Pessimize implementations for std::fs
 
-use crate::{assume_accessed, BorrowPessimize, PessimizeCast};
+use crate::{impl_assume_accessed_via_extract_pessimized, BorrowPessimize, PessimizeCast};
 #[cfg(any(unix, windows))]
 use std::fs::File;
 #[cfg(unix)]
@@ -48,9 +48,7 @@ macro_rules! pessimize_file {
 
             #[inline(always)]
             fn assume_accessed_impl(&mut self) {
-                let mut fd = self.$as_fd();
-                assume_accessed::<$fd>(&mut fd);
-                unsafe { (self as *mut Self).write(Self::from_pessimize(fd)) }
+                impl_assume_accessed_via_extract_pessimized(self, |self_| self_.$as_fd())
             }
         }
     };
@@ -93,9 +91,7 @@ mod unix {
 
         #[inline(always)]
         fn assume_accessed_impl(&mut self) {
-            let mut mode = self.mode();
-            assume_accessed::<u32>(&mut mode);
-            self.set_mode(mode);
+            impl_assume_accessed_via_extract_pessimized(self, |self_| self_.mode())
         }
     }
 }
