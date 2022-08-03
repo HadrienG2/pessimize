@@ -767,12 +767,12 @@ macro_rules! pessimize_once_like {
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
 //       Current candidates are...
-//       - Newtype with !Copy content (needed by cmp::Reverse<T>, primitive::[T; 1] is close)
 //       - impl_assume_accessed_via_extract_pessimize (needed by iter::Empty<T> and fs::*)
-//       - assume_accessed needs fancy borrows (needed by boxed::Box<T> and ptr::&[mut] T)
-//       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
 //       - BorrowedPessimize is not Pessimized (needed by Vec, String, ffi::OsString)
 //       - where bounds (needed by ptr::*)
+//       - Newtype with !Copy content (needed by cmp::Reverse<T>, primitive::[T; 1] is close)
+//       - assume_accessed needs fancy borrows (needed by boxed::Box<T> and ptr::&[mut] T)
+//       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
 //       - Multiple generic args (needed by ptr::fn())
 
 // Although all Rust collections are basically pointers with extra metadata, we
