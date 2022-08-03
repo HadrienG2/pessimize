@@ -156,8 +156,10 @@ impl<T: ?Sized> BorrowPessimize for *mut T
 where
     *const T: Pessimize,
 {
+    type BorrowedPessimize = *const T;
+
     #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         impl_with_pessimize(self, f)
     }
 
@@ -192,8 +194,10 @@ impl<T: ?Sized> BorrowPessimize for NonNull<T>
 where
     *mut T: Pessimize,
 {
+    type BorrowedPessimize = *mut T;
+
     #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         impl_with_pessimize(self, f)
     }
 
@@ -282,8 +286,10 @@ macro_rules! pessimize_references {
             impl<'a, T: ?Sized> BorrowPessimize for $ref_t
                 where NonNull<T>: Pessimize
             {
+                type BorrowedPessimize = NonNull<T>;
+
                 #[inline(always)]
-                fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+                fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
                     let target: &T = &**self;
                     let target_nn: NonNull<T> = NonNull::from(target);
                     f(&target_nn);

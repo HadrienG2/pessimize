@@ -17,16 +17,16 @@ use std::os::wasi::ffi::{OsStrExt, OsStringExt};
     doc(cfg(all(feature = "std", any(unix, target_os = "wasi"))))
 )]
 unsafe impl PessimizeCast for OsString {
-    type Pessimized = (*const u8, usize, usize);
+    type Pessimized = Vec<u8>;
 
     #[inline(always)]
     fn into_pessimize(self) -> Self::Pessimized {
-        self.into_vec().into_pessimize()
+        self.into_vec()
     }
 
     #[inline(always)]
     unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-        Self::from_vec(Vec::<u8>::from_pessimize(x))
+        Self::from_vec(x)
     }
 }
 //
@@ -35,8 +35,10 @@ unsafe impl PessimizeCast for OsString {
     doc(cfg(all(feature = "std", any(unix, target_os = "wasi"))))
 )]
 impl BorrowPessimize for OsString {
+    type BorrowedPessimize = (*const u8, usize, usize);
+
     #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         let pessimized = (
             self.as_bytes() as *const [u8] as *const u8,
             self.as_bytes().len(),

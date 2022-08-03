@@ -38,8 +38,10 @@ macro_rules! pessimize_file {
             doc(cfg(all(feature = "std", any(unix, windows))))
         )]
         impl BorrowPessimize for File {
+            type BorrowedPessimize = $fd;
+
             #[inline(always)]
-            fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+            fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
                 let fd = self.$as_fd();
                 f(&fd)
             }
@@ -81,6 +83,8 @@ mod unix {
     //
     #[cfg_attr(feature = "nightly", doc(cfg(all(feature = "std", unix))))]
     impl BorrowPessimize for Permissions {
+        type BorrowedPessimize = u32;
+
         #[inline(always)]
         fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
             let mode = self.mode();

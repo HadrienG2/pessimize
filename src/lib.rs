@@ -300,7 +300,7 @@ pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
 /// trait can be automatically implemented on top of it
 ///
 pub unsafe trait PessimizeCast {
-    /// Associated Pessimize type
+    /// Pessimize type that can be converted to and from a Self value
     type Pessimized: Pessimize;
 
     /// Convert Self to Pessimized
@@ -348,15 +348,18 @@ pub unsafe trait PessimizeCast {
     unsafe fn from_pessimize(x: Self::Pessimized) -> Self;
 }
 
-/// Go from `&[mut] Self` to `&[mut] Self::Pessimized` (`Pessimize` impl helper)
+/// Extract references to `Pessimize` values from references to `Self` (`Pessimize` impl helper)
 pub trait BorrowPessimize: PessimizeCast {
+    /// Pessimize type to which a reference can be extracted from &self
+    type BorrowedPessimize: Pessimize;
+
     /// Extract an `&Pessimized` from `&self` and all the provided operation
     /// on it.
     ///
     /// In the common case where `Self: Copy`, you can implement this by calling
     /// `pessimize::impl_with_pessimize`.
     ///
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized));
+    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize));
 
     /// Extract an `&mut Pessimized` from `&mut self`, call `assume_accessed`
     /// on it, and propagate any "changes" back to the original `&mut self`.
@@ -540,6 +543,8 @@ macro_rules! pessimize_into_from_custom {
             //
             #[cfg_attr(feature = "nightly", $doc_cfg)]
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
+                type BorrowedPessimize = $inner;
+
                 #[inline(always)]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
                     $crate::impl_with_pessimize(self, f)
@@ -745,24 +750,26 @@ mod alloc_feature {
     // FIXME: Migrate to crate::vec, along with associated tests
     #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     unsafe impl<T> PessimizeCast for Vec<T> {
-        type Pessimized = (*const T, usize, usize);
+        type Pessimized = (*mut T, usize, usize);
 
         #[inline(always)]
         fn into_pessimize(self) -> Self::Pessimized {
             let mut v = ManuallyDrop::new(self);
-            (v.as_mut_ptr() as *const T, v.len(), v.capacity())
+            (v.as_mut_ptr(), v.len(), v.capacity())
         }
 
         #[inline(always)]
         unsafe fn from_pessimize((ptr, length, capacity): Self::Pessimized) -> Self {
-            Vec::from_raw_parts(ptr as *mut T, length, capacity)
+            Vec::from_raw_parts(ptr, length, capacity)
         }
     }
     //
     #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     impl<T> BorrowPessimize for Vec<T> {
+        type BorrowedPessimize = (*const T, usize, usize);
+
         #[inline(always)]
-        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+        fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
             let pessimized = (self.as_ptr(), self.len(), self.capacity());
             f(&pessimized)
         }
@@ -777,23 +784,25 @@ mod alloc_feature {
     // FIXME: Migrate to crate::string, along with associated tests
     #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     unsafe impl PessimizeCast for String {
-        type Pessimized = (*const u8, usize, usize);
+        type Pessimized = Vec<u8>;
 
         #[inline(always)]
         fn into_pessimize(self) -> Self::Pessimized {
-            self.into_bytes().into_pessimize()
+            self.into_bytes()
         }
 
         #[inline(always)]
         unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-            String::from_utf8_unchecked(Vec::<u8>::from_pessimize(x))
+            String::from_utf8_unchecked(x)
         }
     }
     //
     #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
     impl BorrowPessimize for String {
+        type BorrowedPessimize = (*const u8, usize, usize);
+
         #[inline(always)]
-        fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+        fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
             let pessimized = (self.as_ptr(), self.len(), self.capacity());
             f(&pessimized)
         }

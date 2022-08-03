@@ -99,6 +99,8 @@ unsafe impl<T: Pessimize> PessimizeCast for [T; 1] {
 }
 //
 impl<T: Pessimize> BorrowPessimize for [T; 1] {
+    type BorrowedPessimize = T;
+
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&T)) {
         let [ref x] = self;

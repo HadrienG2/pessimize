@@ -19,6 +19,8 @@ unsafe impl<T: Pessimize> PessimizeCast for Reverse<T> {
 }
 //
 impl<T: Pessimize> BorrowPessimize for Reverse<T> {
+    type BorrowedPessimize = T;
+
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&T)) {
         f(&self.0)

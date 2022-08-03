@@ -8,18 +8,18 @@ use std_alloc::boxed::Box;
 #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
 unsafe impl<T: ?Sized> PessimizeCast for Box<T>
 where
-    *const T: Pessimize,
+    *mut T: Pessimize,
 {
-    type Pessimized = *const T;
+    type Pessimized = *mut T;
 
     #[inline(always)]
-    fn into_pessimize(self) -> *const T {
-        Box::into_raw(self) as *const T
+    fn into_pessimize(self) -> *mut T {
+        Box::into_raw(self)
     }
 
     #[inline(always)]
-    unsafe fn from_pessimize(x: *const T) -> Self {
-        Box::from_raw(x as *mut T)
+    unsafe fn from_pessimize(x: *mut T) -> Self {
+        Box::from_raw(x)
     }
 }
 //
@@ -28,8 +28,10 @@ impl<T: ?Sized> BorrowPessimize for Box<T>
 where
     *const T: Pessimize,
 {
+    type BorrowedPessimize = *const T;
+
     #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::Pessimized)) {
+    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         let inner: &T = self.as_ref();
         f(&(inner as *const T))
     }
@@ -39,7 +41,7 @@ where
         // This reborrow would allow us to mutate, which is needed for
         // `assume_accessed` to reliably work.
         let inner: &mut T = self.as_mut();
-        let mut inner_ptr = inner as *const T;
+        let mut inner_ptr = inner as *mut T;
         assume_accessed(&mut inner_ptr);
         // Safe because we avoid drop and the pointer effectively wasn't modified
         unsafe { (self as *mut Self).write(Self::from_pessimize(inner_ptr)) }
