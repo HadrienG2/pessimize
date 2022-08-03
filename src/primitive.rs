@@ -67,15 +67,18 @@ macro_rules! pessimize_tuple {
         }
     };
 }
-pessimize_tuple!();
-pessimize_tuple!(A1);
-pessimize_tuple!(A1, A2);
-pessimize_tuple!(A1, A2, A3);
-pessimize_tuple!(A1, A2, A3, A4);
-pessimize_tuple!(A1, A2, A3, A4, A5);
-pessimize_tuple!(A1, A2, A3, A4, A5, A6);
-pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7);
-pessimize_tuple!(A1, A2, A3, A4, A5, A6, A7, A8);
+//
+macro_rules! pessimize_tuples_up_to {
+    () => {
+        pessimize_tuple!();
+    };
+    ($arg:ident $(, $other_args:ident)*) => {
+        pessimize_tuple!($arg $(, $other_args)*);
+        pessimize_tuples_up_to!($($other_args),*);
+    }
+}
+//
+pessimize_tuples_up_to!(A1, A2, A3, A4, A5, A6, A7, A8);
 
 // Although the logic used above for tuples could, in principle, be used to
 // implement Pessimize for small arrays, we do not do so because the proper

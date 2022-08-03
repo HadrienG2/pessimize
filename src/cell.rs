@@ -52,6 +52,7 @@ impl<T: Pessimize> BorrowPessimize for UnsafeCell<T> {
 
     #[inline(always)]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
+        // Can't safely get an &T out of an &UnsafeCell<T>, must use by-ptr barrier
         f(&self.get());
     }
 

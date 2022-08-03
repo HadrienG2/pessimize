@@ -223,7 +223,6 @@ where
 // are just a special kind of read-only pointer.
 macro_rules! pessimize_fn {
     ($res:ident $( , $args:ident )* ) => {
-
         unsafe impl< $res $( , $args )* > PessimizeCast for fn( $($args),* ) -> $res {
             type Pessimized = *const ();
 
@@ -253,15 +252,18 @@ macro_rules! pessimize_fn {
         }
     }
 }
-pessimize_fn!(R);
-pessimize_fn!(R, A1);
-pessimize_fn!(R, A1, A2);
-pessimize_fn!(R, A1, A2, A3);
-pessimize_fn!(R, A1, A2, A3, A4);
-pessimize_fn!(R, A1, A2, A3, A4, A5);
-pessimize_fn!(R, A1, A2, A3, A4, A5, A6);
-pessimize_fn!(R, A1, A2, A3, A4, A5, A6, A7);
-pessimize_fn!(R, A1, A2, A3, A4, A5, A6, A7, A8);
+//
+macro_rules! pessimize_fn_up_to {
+    ($res:ident) => {
+        pessimize_fn!($res);
+    };
+    ($res:ident, $arg1:ident $(, $other_args:ident)*) => {
+        pessimize_fn!($res, $arg1 $(, $other_args)*);
+        pessimize_fn_up_to!($res $(, $other_args)*);
+    }
+}
+//
+pessimize_fn_up_to!(R, A1, A2, A3, A4, A5, A6, A7, A8);
 
 // References are basically NonNull with a safe dereference and a shared XOR
 // unique invariant. We can handle their Pessimize impl using homogeneous logic,

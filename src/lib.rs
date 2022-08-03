@@ -744,13 +744,13 @@ macro_rules! pessimize_once_like {
             //
             #[cfg_attr(feature = "nightly", $doc_cfg)]
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
-                type BorrowedPessimize = Self;
+                type BorrowedPessimize = *const Self;
 
                 #[inline(always)]
-                fn with_pessimize(&self, f: impl FnOnce(&Self)) {
+                fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
                     // Need at least an &mut Self to access the inner value, so
                     // must use by-reference optimization barrier with &Self
-                    f(&self)
+                    f(&(self as *const Self))
                 }
 
                 #[inline(always)]
@@ -767,11 +767,13 @@ macro_rules! pessimize_once_like {
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
 //       Current candidates are...
-//       - Pointers other than *const T and collections
-//       - Cells
-//       - "Generic newtypes" like Generic<T>(pub T)
-//       - as_pessimized(&self) -> Self::Pessimized
-//       May also want to review impl_assume_accessed.
+//       - Newtype with !Copy content (needed by cmp::Reverse<T>, primitive::[T; 1] is close)
+//       - impl_assume_accessed_via_extract_pessimize (needed by iter::Empty<T> and fs::*)
+//       - assume_accessed needs fancy borrows (needed by boxed::Box<T> and ptr::&[mut] T)
+//       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
+//       - BorrowedPessimize is not Pessimized (needed by Vec, String, ffi::OsString)
+//       - where bounds (needed by ptr::*)
+//       - Multiple generic args (needed by ptr::fn())
 
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
