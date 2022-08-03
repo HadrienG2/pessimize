@@ -409,6 +409,7 @@ pub fn impl_assume_accessed_via_extract_pessimized<T: PessimizeCast>(
 /// The `Drop` impl of the value left in `self_` by `extract_self` will not be
 /// called, make sure that this does not result in a resource leak.
 ///
+// TODO: Remove once collections and pointers are migrated to macros
 #[inline(always)]
 pub fn impl_assume_accessed_via_extract_self<T: PessimizeCast>(
     self_: &mut T,
@@ -807,7 +808,7 @@ macro_rules! pessimize_once_like {
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
 //       Current candidates are...
 //       - BorrowedPessimize is not Pessimized + extraction via core::mem::take (needed by Vec, String, ffi::OsString)
-//       - where bounds (needed by ptr::*)
+//       - where bounds (needed by ptr::* and boxed::Box<T>)
 //       - Newtype with !Copy content (needed by cmp::Reverse<T>, primitive::[T; 1] is close)
 //       - assume_accessed needs fancy borrows (needed by boxed::Box<T> and ptr::&[mut] T)
 //       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
