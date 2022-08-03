@@ -1,11 +1,11 @@
 //! Pessimize implementations for core::alloc
 
-use crate::pessimize_into_from_custom;
+use crate::pessimize_copy;
 use core::alloc::Layout;
 #[cfg(feature = "std")]
 use std::alloc::System;
 
-pessimize_into_from_custom!(
+pessimize_copy!(
     allow(missing_docs)
     {
         (usize, usize): (

@@ -6,11 +6,11 @@
 #![allow(clippy::transmute_int_to_bool)]
 
 use crate::{
-    assume_accessed, assume_accessed_imut, assume_read, hide, pessimize_into_from_custom,
-    BorrowPessimize, Pessimize, PessimizeCast,
+    assume_accessed, assume_accessed_imut, assume_read, hide, pessimize_copy, BorrowPessimize,
+    Pessimize, PessimizeCast,
 };
 
-pessimize_into_from_custom!(
+pessimize_copy!(
     allow(missing_docs)
     {
         u8: (

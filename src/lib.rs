@@ -533,10 +533,10 @@ macro_rules! pessimize_asm_values {
     };
 }
 
-/// Implementation of Pessimize for types with round trip conversion functions
+/// Implementation of Pessimize for Copy types with round trip conversion functions
 #[doc(hidden)]
 #[macro_export]
-macro_rules! pessimize_into_from_custom {
+macro_rules! pessimize_copy {
     (
         $doc_cfg:meta
         {
@@ -586,7 +586,7 @@ macro_rules! pessimize_into_from_custom {
     };
 }
 
-/// Implementation of Pessimize for types with a standard Into/From round trip
+/// Like pessimize_copy, but using a standard Into/From pair for PessimizeCast
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_into_from {
@@ -603,7 +603,7 @@ macro_rules! pessimize_into_from {
             ),*
         }
     ) => {
-        $crate::pessimize_into_from_custom!(
+        $crate::pessimize_copy!(
             $doc_cfg
             {
                 $(
@@ -632,7 +632,7 @@ macro_rules! pessimize_zsts {
             ),*
         }
     ) => {
-        $crate::pessimize_into_from_custom!(
+        $crate::pessimize_copy!(
             $doc_cfg
             {
                 (): (
@@ -664,7 +664,7 @@ macro_rules! pessimize_tuple_structs {
             ),*
         }
     ) => {
-        $crate::pessimize_into_from_custom!(
+        $crate::pessimize_copy!(
             $doc_cfg
             {
                 $(

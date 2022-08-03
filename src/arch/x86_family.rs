@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for x86 and x86_64
 
-use crate::{pessimize_asm_values, pessimize_into_from_custom};
+use crate::{pessimize_asm_values, pessimize_copy};
 #[allow(unused)]
 #[cfg(target_arch = "x86")]
 use core::arch::x86 as target_arch;
@@ -243,7 +243,7 @@ mod safe_arch_types {
 #[cfg(feature = "nightly")]
 mod portable_simd {
     use super::*;
-    use crate::{pessimize_into_from, pessimize_into_from_custom};
+    use crate::{pessimize_copy, pessimize_into_from};
     use core::simd::{Mask, Simd, ToBitMask};
     #[cfg(any(target_feature = "avx512f", doc))]
     use target_arch::{__m512, __m512d, __m512i};
@@ -362,7 +362,7 @@ mod portable_simd {
             $doc_cfg:meta
             { $($mask_type:ty),* }
         ) => {
-            pessimize_into_from_custom!(
+            pessimize_copy!(
                 $doc_cfg
                 {
                     $(
@@ -455,7 +455,7 @@ mod portable_simd {
 }
 
 // Trivially correct if the u32 Pessimize impl is correct
-pessimize_into_from_custom!(
+pessimize_copy!(
     allow(missing_docs)
     {
         (u32, u32, u32, u32): (
