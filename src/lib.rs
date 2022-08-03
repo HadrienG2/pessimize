@@ -513,6 +513,9 @@ macro_rules! pessimize_into_from_custom {
             $(
                 $inner:ty: (
                     $(
+                        $(
+                            | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
+                        )?
                         $outer:ty : ($into:expr, $from:expr)
                     ),*
                 )
@@ -521,7 +524,7 @@ macro_rules! pessimize_into_from_custom {
     ) => {
         $($(
             #[cfg_attr(feature = "nightly", $doc_cfg)]
-            unsafe impl $crate::PessimizeCast for $outer {
+            unsafe impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::PessimizeCast for $outer {
                 type Pessimized = $inner;
 
                 #[inline(always)]
@@ -536,7 +539,7 @@ macro_rules! pessimize_into_from_custom {
             }
             //
             #[cfg_attr(feature = "nightly", $doc_cfg)]
-            impl $crate::BorrowPessimize for $outer {
+            impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 #[inline(always)]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
                     $crate::impl_with_pessimize(self, f)
@@ -559,7 +562,12 @@ macro_rules! pessimize_into_from {
         $doc_cfg:meta
         {
             $(
-                $inner:ty: ( $($outer:ty),* )
+                $( | $param:ident $( : $traits:tt )? | )?
+                $inner:ty: (
+                    $(
+                        $outer:ty
+                    ),*
+                )
             ),*
         }
     ) => {
@@ -569,6 +577,7 @@ macro_rules! pessimize_into_from {
                 $(
                     $inner: (
                         $(
+                            $( | $param $( : $traits )? | )?
                             $outer : (Self::into, Self::from)
                         ),*
                     )
@@ -586,6 +595,7 @@ macro_rules! pessimize_zsts {
         $doc_cfg:meta
         {
             $(
+                $( | $param:ident $( : $traits:tt )? | )?
                 $name:ty: $make:expr
             ),*
         }
@@ -595,6 +605,7 @@ macro_rules! pessimize_zsts {
             {
                 (): (
                     $(
+                        $( | $param $( : $traits )? | )?
                         $name: (
                             |_self| (),
                             |()| $make
@@ -614,6 +625,7 @@ macro_rules! pessimize_tuple_structs {
         $doc_cfg:meta
         {
             $(
+                $( | $param:ident $( : $traits:tt )? | )?
                 $outer:ty {
                     $( $name:ident: $inner:ty ),*
                 }
@@ -625,6 +637,7 @@ macro_rules! pessimize_tuple_structs {
             {
                 $(
                     ( $($inner,)* ): (
+                        $( | $param $( : $traits )? | )?
                         $outer: (
                             |Self( $($name),* )| ( $($name,)* ),
                             |( $($name,)* )| Self( $($name),* )
@@ -644,6 +657,7 @@ macro_rules! pessimize_newtypes {
         $doc_cfg:meta
         {
             $(
+                $( | $param:ident $( : $traits:tt )? | )?
                 $outer:ident ( $inner:ident )
             ),*
         }
@@ -651,15 +665,17 @@ macro_rules! pessimize_newtypes {
         $crate::pessimize_tuple_structs!(
             $doc_cfg
             {
-                $( $outer { $inner : $inner } ),*
+                $(
+                    $( | $param $( : $traits )? | )?
+                    $outer { $inner : $inner }
+                ),*
             }
         );
     };
 }
 
 /// Pessimize a type that behaves like core::iter::Once
-// FIXME: Merge into main macro hierarchy. This will, among other things,
-//        require finidng a better syntax for generic impls.
+// FIXME: Merge into main macro hierarchy.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_once_like {
@@ -668,7 +684,7 @@ macro_rules! pessimize_once_like {
         {
             $(
                 $(
-                    | $param:ident $( : $trait:path )? |
+                    | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
                 )?
                 $name:ty : (
                     $extract:expr,
@@ -679,7 +695,7 @@ macro_rules! pessimize_once_like {
     ) => {
         $(
             #[cfg_attr(feature = "nightly", $doc_cfg)]
-            unsafe impl $(<$param : $crate::Pessimize $( + $trait )? >)? $crate::Pessimize for $name {
+            unsafe impl $(<$param $( : $trait1 $( + $traitN )* )? >)? $crate::Pessimize for $name {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
                     let value = $extract(&mut self);

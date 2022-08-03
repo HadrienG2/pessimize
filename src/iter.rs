@@ -31,11 +31,11 @@ unsafe impl<T> Pessimize for Empty<T> {
 pessimize_once_like!(
     allow(missing_docs)
     {
-        |T| Once<T>: (
+        |T: (Pessimize)| Once<T>: (
             |self_: &mut Self| self_.next().unwrap(),
             core::iter::once
         ),
-        |T: Clone| Repeat<T>: (
+        |T: (Clone, Pessimize)| Repeat<T>: (
             |self_: &mut Self| self_.next().unwrap(),
             core::iter::repeat
         )
