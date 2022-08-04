@@ -9,12 +9,16 @@ pessimize_zsts!(allow(missing_docs) { Error: Error });
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::test_value;
+    use crate::tests::{test_unoptimized_zst, test_value};
 
     #[test]
     fn error() {
         test_value(Error);
     }
 
-    // NOTE: hide() does not act as an optimization barrier for ZSTs like Error
+    #[test]
+    #[ignore]
+    fn error_optim() {
+        test_unoptimized_zst::<Error>();
+    }
 }

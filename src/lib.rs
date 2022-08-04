@@ -98,7 +98,7 @@ mod fs;
 #[cfg(any(feature = "std", test))]
 mod io;
 mod iter;
-// TODO: mod marker (PhantomData, PhantomPinned)
+mod marker;
 // TODO: mod mem (ManuallyDrop)
 // TODO: mod net (IpvNAddr, SocketAddrVN, TcpListener, TcpStream, UdpSocket)
 // TODO: mod num (NonZeroXyz, Wrapping)
@@ -1052,7 +1052,7 @@ pub(crate) mod tests {
         opt.take().unwrap()
     }
 
-    // --- Tests for values with native Pessimize support ---
+    // --- Tests for normal values with native Pessimize support ---
 
     pub fn test_unoptimized_value<T: Clone + PartialEq + Pessimize>(x: T) {
         let old_x = x.clone();
@@ -1065,6 +1065,17 @@ pub(crate) mod tests {
     //
     pub fn test_unoptimized_value_type<T: Clone + Default + PartialEq + Pessimize>() {
         test_unoptimized_value(T::default());
+    }
+
+    // --- Tests for ZSTs ---
+
+    pub fn test_unoptimized_zst<T: Default + PartialEq + Pessimize>() {
+        let old_x = T::default();
+        assert_unoptimized(T::default(), |mut x| {
+            assume_accessed(&mut x);
+            consume(x == old_x);
+            x
+        });
     }
 
     // === Tests for types implemented here ===
