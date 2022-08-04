@@ -102,7 +102,7 @@ mod marker;
 mod mem;
 #[cfg(any(feature = "std", test))]
 mod net;
-// TODO: mod num (NonZeroXyz, Wrapping)
+mod num;
 // TODO: mod ops (RangeXyz)
 // TODO: mod panic (AssertUnwindSafe)
 // TODO: mod path (Path, PathBuf)
