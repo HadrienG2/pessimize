@@ -100,7 +100,8 @@ mod io;
 mod iter;
 mod marker;
 mod mem;
-// TODO: mod net (IpvNAddr, SocketAddrVN, TcpListener, TcpStream, UdpSocket)
+#[cfg(any(feature = "std", test))]
+mod net;
 // TODO: mod num (NonZeroXyz, Wrapping)
 // TODO: mod ops (RangeXyz)
 // TODO: mod panic (AssertUnwindSafe)
