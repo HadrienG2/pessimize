@@ -104,7 +104,7 @@ mod mem;
 mod net;
 mod num;
 mod ops;
-// TODO: mod panic (AssertUnwindSafe)
+mod panic;
 // TODO: mod path (Path, PathBuf)
 // TODO: mod pin (Pin)
 mod primitive;
