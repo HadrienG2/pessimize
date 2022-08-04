@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::num
 
-use crate::{pessimize_copy, Pessimize};
+use crate::{pessimize_copy, pessimize_newtypes, Pessimize};
 use core::num::{
     NonZeroI16, NonZeroI32, NonZeroI8, NonZeroIsize, NonZeroU16, NonZeroU32, NonZeroU8,
     NonZeroUsize, Wrapping,
@@ -50,14 +50,10 @@ pessimize_nonzero!(
     u64 => NonZeroU64
 );
 
-pessimize_copy!(
+pessimize_newtypes!(
     allow(missing_docs)
     {
-        T: (
-            // It's okay to demand a Copy bound here since all current Ts for
-            // which Wrapping<T> is useful implement Copy
-            |T: (Copy, Pessimize)| Wrapping<T>: (|Self(inner)| inner, Self)
-        )
+        |T: (Pessimize)| Wrapping<T>{ T }
     }
 );
 

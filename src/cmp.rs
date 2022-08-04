@@ -1,36 +1,14 @@
 //! Pessimize implementations for core::cmp
 
-use crate::{assume_accessed, BorrowPessimize, Pessimize, PessimizeCast};
+use crate::{pessimize_newtypes, Pessimize};
 use core::cmp::Reverse;
 
-// Trivially correct
-unsafe impl<T: Pessimize> PessimizeCast for Reverse<T> {
-    type Pessimized = T;
-
-    #[inline(always)]
-    fn into_pessimize(self) -> T {
-        self.0
+pessimize_newtypes!(
+    allow(missing_docs)
+    {
+        |T: (Pessimize)| Reverse<T>{ T }
     }
-
-    #[inline(always)]
-    unsafe fn from_pessimize(x: T) -> Self {
-        Self(x)
-    }
-}
-//
-impl<T: Pessimize> BorrowPessimize for Reverse<T> {
-    type BorrowedPessimize = T;
-
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&T)) {
-        f(&self.0)
-    }
-
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        assume_accessed::<T>(&mut self.0)
-    }
-}
+);
 
 #[cfg(test)]
 pub(crate) mod tests {

@@ -156,7 +156,7 @@ mod tests {
                     }
                 }
 
-                pessimize_newtypes!( allow(missing_docs) { $name($inner) } );
+                pessimize_newtypes!( allow(missing_docs) { $name{ $inner } } );
             };
         }
         abstract_float64xN_t!(F64x1, float64x1_t, 1, vld1_f64, vst1_f64);

@@ -210,15 +210,15 @@ mod safe_arch_types {
     #[cfg(any(target_feature = "sse", doc))]
     pessimize_newtypes!(
         doc(cfg(all(feature = "safe_arch", target_feature = "sse")))
-        { m128(__m128) }
+        { m128{ __m128 } }
     );
 
     #[cfg(any(target_feature = "sse2", doc))]
     pessimize_newtypes!(
         doc(cfg(all(feature = "safe_arch", target_feature = "sse2")))
         {
-            m128d(__m128d),
-            m128i(__m128i)
+            m128d{ __m128d },
+            m128i{ __m128i }
         }
     );
 
@@ -226,15 +226,15 @@ mod safe_arch_types {
     pessimize_newtypes!(
         doc(cfg(all(feature = "safe_arch", target_feature = "avx")))
         {
-            m256(__m256),
-            m256d(__m256d)
+            m256{ __m256 },
+            m256d{ __m256d }
         }
     );
 
     #[cfg(any(target_feature = "avx2", doc))]
     pessimize_newtypes!(
         doc(cfg(all(feature = "safe_arch", target_feature = "avx2")))
-        { m256i(__m256i) }
+        { m256i{ __m256i } }
     );
 }
 

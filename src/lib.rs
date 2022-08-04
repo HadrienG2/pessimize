@@ -770,20 +770,46 @@ macro_rules! pessimize_newtypes {
         $doc_cfg:meta
         {
             $(
-                $( | $param:ident $( : $traits:tt )? | )?
-                $outer:ident ( $inner:ident )
+                $(
+                    | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
+                )?
+                $outer:ty { $inner:ident }
             ),*
         }
     ) => {
-        $crate::pessimize_tuple_structs!(
+        $crate::pessimize_cast!(
             $doc_cfg
             {
                 $(
-                    $( | $param $( : $traits )? | )?
-                    $outer { $inner : $inner }
+                    $inner : (
+                        $(
+                            | $param $( : ( $trait1 $(, $traitN)* ) )? |
+                        )?
+                        $outer : (
+                            |Self(inner)| inner,
+                            |inner| Self(inner)
+                        )
+                    )
                 ),*
             }
         );
+        //
+        $(
+            #[cfg_attr(feature = "nightly", $doc_cfg)]
+            impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
+                type BorrowedPessimize = $inner;
+
+                #[inline(always)]
+                fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
+                    f(&self.0)
+                }
+
+                #[inline(always)]
+                fn assume_accessed_impl(&mut self) {
+                    $crate::assume_accessed(&mut self.0)
+                }
+            }
+        )*
     };
 }
 
@@ -852,7 +878,6 @@ macro_rules! pessimize_once_like {
 //       Current candidates are...
 //       - BorrowedPessimize is not Pessimized + extraction via core::mem::take (needed by Vec, String, ffi::OsString)
 //       - where bounds (needed by ptr::* and boxed::Box<T>)
-//       - Newtype with !Copy content (needed by cmp::Reverse<T>, primitive::[T; 1] is close)
 //       - assume_accessed needs fancy borrows (needed by boxed::Box<T> and ptr::&[mut] T)
 //       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
 //       - Multiple generic args (needed by ptr::fn())
