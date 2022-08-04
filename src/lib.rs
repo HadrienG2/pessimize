@@ -103,7 +103,7 @@ mod mem;
 #[cfg(any(feature = "std", test))]
 mod net;
 mod num;
-// TODO: mod ops (RangeXyz)
+mod ops;
 // TODO: mod panic (AssertUnwindSafe)
 // TODO: mod path (Path, PathBuf)
 // TODO: mod pin (Pin)
