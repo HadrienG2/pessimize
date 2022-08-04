@@ -535,11 +535,11 @@ macro_rules! pessimize_asm_values {
     };
 }
 
-/// Implementation of Pessimize for types from which a Pessimize impl can be
-/// extracted given nothing but an &self, having round trip conversion functions
+/// Implementation of PessimizeCast for types that can be converted to and from
+/// a Pessimized impl at low cost
 #[doc(hidden)]
 #[macro_export]
-macro_rules! pessimize_extractible {
+macro_rules! pessimize_cast {
     (
         $doc_cfg:meta
         {
@@ -549,7 +549,7 @@ macro_rules! pessimize_extractible {
                         $(
                             | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
                         )?
-                        $outer:ty : ($into:expr, $from:expr, $extract:expr)
+                        $outer:ty : ($into:expr, $from:expr)
                     ),*
                 )
             ),*
@@ -570,7 +570,47 @@ macro_rules! pessimize_extractible {
                     $from(inner)
                 }
             }
-            //
+        )*)*
+    };
+}
+
+/// Implementation of Pessimize for types from which a Pessimize impl can be
+/// extracted given nothing but an &self, having round trip conversion functions
+#[doc(hidden)]
+#[macro_export]
+macro_rules! pessimize_extractible {
+    (
+        $doc_cfg:meta
+        {
+            $(
+                $inner:ty : (
+                    $(
+                        $(
+                            | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
+                        )?
+                        $outer:ty : ($into:expr, $from:expr, $extract:expr)
+                    ),*
+                )
+            ),*
+        }
+    ) => {
+        $crate::pessimize_cast!(
+            $doc_cfg
+            {
+                $(
+                    $inner : (
+                        $(
+                            $(
+                                | $param $( : ( $trait1 $(, $traitN)* ) )? |
+                            )?
+                            $outer : ($into, $from)
+                        ),*
+                    )
+                ),*
+            }
+        );
+        //
+        $($(
             #[cfg_attr(feature = "nightly", $doc_cfg)]
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = $inner;
@@ -767,22 +807,21 @@ macro_rules! pessimize_once_like {
             ),*
         }
     ) => {
-        $(
-            #[cfg_attr(feature = "nightly", $doc_cfg)]
-            unsafe impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::PessimizeCast for $outer {
-                type Pessimized = $inner;
-
-                #[inline(always)]
-                fn into_pessimize(mut self) -> $inner {
-                    $extract(&mut self)
-                }
-
-                #[inline(always)]
-                unsafe fn from_pessimize(inner: $inner) -> Self {
-                    $make(inner)
-                }
+        $crate::pessimize_cast!(
+            $doc_cfg
+            {
+                $(
+                    $inner : (
+                        $(
+                            | $param $( : ( $trait1 $(, $traitN)* ) )? |
+                        )?
+                        $outer : (|mut self_| $extract(&mut self_), $make)
+                    )
+                ),*
             }
-            //
+        );
+        //
+        $(
             #[cfg_attr(feature = "nightly", $doc_cfg)]
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = *const Self;
