@@ -27,10 +27,9 @@ fn assume_read_thin_ptr<T: Sized>(x: *const T) {
 //
 #[allow(asm_sub_register)]
 #[inline(always)]
-fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) -> *mut T {
+fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
     // Safe because it just captures a value and does nothing with it
     unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack)) }
-    x
 }
 
 // Implementation of Pessimize for thin *const T

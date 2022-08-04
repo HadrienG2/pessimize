@@ -99,7 +99,7 @@ mod fs;
 mod io;
 mod iter;
 mod marker;
-// TODO: mod mem (ManuallyDrop)
+mod mem;
 // TODO: mod net (IpvNAddr, SocketAddrVN, TcpListener, TcpStream, UdpSocket)
 // TODO: mod num (NonZeroXyz, Wrapping)
 // TODO: mod ops (RangeXyz)
@@ -633,9 +633,9 @@ macro_rules! pessimize_into_from {
         $doc_cfg:meta
         {
             $(
-                $( | $param:ident $( : $traits:tt )? | )?
                 $inner:ty : (
                     $(
+                        $( | $param:ident $( : $traits:tt )? | )?
                         $outer:ty
                     ),*
                 )
@@ -806,6 +806,9 @@ macro_rules! pessimize_once_like {
 
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
+//
+//       Consider splitting PessimizeCast and BorrowPessimize macros
+//
 //       Current candidates are...
 //       - BorrowedPessimize is not Pessimized + extraction via core::mem::take (needed by Vec, String, ffi::OsString)
 //       - where bounds (needed by ptr::* and boxed::Box<T>)
@@ -814,6 +817,7 @@ macro_rules! pessimize_once_like {
 //       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
 //       - Multiple generic args (needed by ptr::fn())
 //       - Making pessimize_once_like implementable atop the main macros
+//       - into_inner, new, Deref and DerefMut (mem::ManuallyDrop<T>)
 
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
@@ -1069,11 +1073,21 @@ pub(crate) mod tests {
 
     // --- Tests for ZSTs ---
 
-    pub fn test_unoptimized_zst<T: Default + PartialEq + Pessimize>() {
-        let old_x = T::default();
+    pub fn test_unoptimized_zst<T: Default + Pessimize>() {
+        use core::cell::Cell;
+
+        // ZSTs don't have inner state to pessimize, but they can provide access
+        // to global and thread-local state.
+        thread_local! {
+            static STATE: Cell<isize> = Cell::new(-42);
+        }
+
+        let old_state = -42isize;
         assert_unoptimized(T::default(), |mut x| {
             assume_accessed(&mut x);
-            consume(x == old_x);
+            STATE.with(|state| {
+                consume(state.get() == old_state);
+            });
             x
         });
     }
