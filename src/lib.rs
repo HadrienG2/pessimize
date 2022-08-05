@@ -112,7 +112,8 @@ mod primitive;
 #[cfg(all(any(feature = "std", test), unix))]
 mod process;
 mod ptr;
-// TODO: mod string (String, take from lib.rs and add tests)
+#[cfg(any(feature = "alloc", test))]
+mod string;
 // TODO: mod sync (atomic, reuse cell tests)
 // TODO: mod task (Context, RawWaker, RawWakerVTable, Waker)
 // TODO: mod time (Duration)
@@ -948,7 +949,7 @@ macro_rules! pessimize_collections {
 mod alloc_feature {
     use super::*;
     use core::mem::ManuallyDrop;
-    use std_alloc::{string::String, vec::Vec};
+    use std_alloc::vec::Vec;
 
     pessimize_collections!(
         doc(cfg(feature = "alloc"))
@@ -964,18 +965,6 @@ mod alloc_feature {
                     |(ptr, length, capacity)| {
                         Self::from_raw_parts(ptr, length, capacity)
                     },
-                    |self_: &Self| {
-                        (self_.as_ptr(), self_.len(), self_.capacity())
-                    }
-                )
-            ),
-
-            // String is basically a Vec<u8> with an UTF-8 validity invariant
-            // FIXME: Migrate to crate::string, along with associated tests
-            (Vec<u8>, (*const u8, usize, usize)) : (
-                String : (
-                    Self::into_bytes,
-                    Self::from_utf8_unchecked,
                     |self_: &Self| {
                         (self_.as_ptr(), self_.len(), self_.capacity())
                     }
