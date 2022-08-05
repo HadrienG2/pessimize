@@ -105,7 +105,8 @@ mod net;
 mod num;
 mod ops;
 mod panic;
-// TODO: mod path (Path, PathBuf)
+#[cfg(all(any(feature = "std", test), any(unix, target_os = "wasi")))]
+mod path;
 // TODO: mod pin (Pin)
 mod primitive;
 // TODO: mod process (ExitStatus with ExitStatusExt, Output)
@@ -873,7 +874,7 @@ macro_rules! pessimize_once_like {
 /// Pessimize a type that behaves like a collection (cheap Default impl, owned
 /// state differs from borrowed state)#[doc(hidden)]
 #[macro_export]
-macro_rules! pessimize_collection {
+macro_rules! pessimize_collections {
     (
         $doc_cfg:meta
         {
@@ -946,7 +947,7 @@ mod alloc_feature {
     use core::mem::ManuallyDrop;
     use std_alloc::{string::String, vec::Vec};
 
-    pessimize_collection!(
+    pessimize_collections!(
         doc(cfg(feature = "alloc"))
         {
             // Vec<T> is basically a thin NonNull<T>, a length and a capacity
@@ -970,8 +971,8 @@ mod alloc_feature {
             // FIXME: Migrate to crate::string, along with associated tests
             (Vec<u8>, (*const u8, usize, usize)) : (
                 String : (
-                    |self_: Self| self_.into_bytes(),
-                    |v| Self::from_utf8_unchecked(v),
+                    Self::into_bytes,
+                    Self::from_utf8_unchecked,
                     |self_: &Self| {
                         (self_.as_ptr(), self_.len(), self_.capacity())
                     }

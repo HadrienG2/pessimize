@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::ffi
 
-use crate::pessimize_collection;
+use crate::pessimize_collections;
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -12,13 +12,13 @@ use std::os::wasi::ffi::{OsStrExt, OsStringExt};
 //       2/We already have an impl of Pessimize for all references
 
 // On Unix and WASI, OsString is a glorified Vec<u8>
-pessimize_collection!(
+pessimize_collections!(
     doc(cfg(all(feature = "std", any(unix, target_os = "wasi"))))
     {
         (Vec<u8>, (*const u8, usize, usize)) : (
             OsString : (
-                |self_: Self| self_.into_vec(),
-                |v| Self::from_vec(v),
+                Self::into_vec,
+                Self::from_vec,
                 |self_: &Self| (
                     self_.as_bytes() as *const [u8] as *const u8,
                     self_.as_bytes().len(),
