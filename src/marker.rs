@@ -14,7 +14,7 @@ pessimize_zsts!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{test_unoptimized_zst, test_value};
+    use crate::tests::{test_pinned_value, test_unoptimized_zst, test_value};
 
     #[test]
     fn phantom_data() {
@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn phantom_pinned() {
-        test_value(PhantomPinned);
+        test_pinned_value(PhantomPinned);
     }
 
     #[test]

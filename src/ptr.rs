@@ -375,11 +375,16 @@ pessimize_references!((&'a T, as_ref, reborrow), (&'a mut T, as_mut, reborrow_mu
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::{assume_accessed, assume_accessed_imut, consume, hide};
-    use crate::{assume_read, tests::assert_unoptimized};
+    use crate::{
+        assume_accessed, assume_accessed_imut, assume_read, consume, hide,
+        tests::assert_unoptimized,
+    };
     use std::{
         borrow::{Borrow, BorrowMut},
         fmt::Debug,
+        marker::Unpin,
+        ops::Deref,
+        pin::Pin,
     };
 
     // === Tests asserting that the barriers don't modify anything ===
@@ -405,7 +410,7 @@ pub(crate) mod tests {
     }
 
     // Given some owned data, test all pointer types
-    pub fn test_all_pointers<
+    pub fn test_all_pinned_pointers<
         T: Debug + PartialEq + ?Sized,
         OwnedT: Clone + Borrow<T> + BorrowMut<T>,
     >(
@@ -416,12 +421,41 @@ pub(crate) mod tests {
         let old_x = x.clone();
         let old_x = old_x.borrow();
         unsafe {
-            test_pointer(x.borrow() as *const T, old_x);
-            test_pointer(x.borrow_mut() as *mut T, old_x);
             test_pointer(x.borrow(), old_x);
             test_pointer(x.borrow_mut(), old_x);
+            test_pointer(x.borrow() as *const T, old_x);
+            test_pointer(x.borrow_mut() as *mut T, old_x);
             test_pointer(NonNull::<T>::from(x.borrow_mut()), old_x);
         }
+    }
+
+    // Given some owned data, test all pointer types
+    pub fn test_unpinned_pointers<
+        T: Debug + PartialEq + ?Sized + Unpin,
+        OwnedT: Clone + Borrow<T> + BorrowMut<T>,
+    >(
+        mut x: OwnedT,
+    ) where
+        *const T: Pessimize,
+    {
+        let old_x = x.clone();
+        let old_x = old_x.borrow();
+        unsafe {
+            test_pointer(Pin::new(x.borrow_mut()), old_x);
+        }
+    }
+
+    // Given some owned data, test all pointer types
+    pub fn test_all_pointers<
+        T: Debug + PartialEq + ?Sized + Unpin,
+        OwnedT: Clone + Borrow<T> + BorrowMut<T>,
+    >(
+        x: OwnedT,
+    ) where
+        *const T: Pessimize,
+    {
+        test_unpinned_pointers(x.clone());
+        test_all_pinned_pointers(x);
     }
 
     // === Tests asserting that the barriers prevent optimization ===
@@ -732,6 +766,21 @@ pub(crate) mod tests {
 
         unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
             Self::new_unchecked(ptr as *mut Self::Target)
+        }
+    }
+    //
+    impl<'a, T: ?Sized + Unpin> PtrLike for Pin<&'a mut T>
+    where
+        *const T: Pessimize,
+    {
+        type Target = T;
+
+        fn as_const_ptr(&self) -> *const Self::Target {
+            self.deref().as_const_ptr()
+        }
+
+        unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
+            Self::new(<&'a mut T>::from_const_ptr(ptr))
         }
     }
 }

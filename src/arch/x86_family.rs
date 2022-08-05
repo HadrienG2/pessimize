@@ -484,7 +484,7 @@ mod tests {
     };
 
     #[cfg(feature = "nightly")]
-    fn test_portable_simd_mask<T: Debug + MaskElement + PartialEq, const LANES: usize>()
+    fn test_portable_simd_mask<T: Debug + MaskElement + PartialEq + Unpin, const LANES: usize>()
     where
         LaneCount<LANES>: SupportedLaneCount,
         Mask<T, LANES>: Pessimize,

@@ -107,7 +107,7 @@ mod ops;
 mod panic;
 #[cfg(all(any(feature = "std", test), any(unix, target_os = "wasi")))]
 mod path;
-// TODO: mod pin (Pin)
+mod pin;
 mod primitive;
 // TODO: mod process (ExitStatus with ExitStatusExt, Output)
 mod ptr;
@@ -990,11 +990,12 @@ mod alloc_feature {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::ptr::tests::test_all_pointers;
+    use crate::ptr::tests::{test_all_pinned_pointers, test_all_pointers, test_unpinned_pointers};
     #[cfg(feature = "nightly")]
     use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
     use std::{
         fmt::Debug,
+        marker::Unpin,
         time::{Duration, Instant},
     };
 
@@ -1002,17 +1003,26 @@ pub(crate) mod tests {
     // ===    (should be run on both debug and release builds)     ===
 
     // Test that, for a given value, Pessimize seems to work
-    pub fn test_value<T: Clone + Debug + PartialEq + Pessimize>(x: T) {
+    pub fn test_pinned_value<T: Clone + Debug + PartialEq + Pessimize>(x: T) {
         let old_x = x.clone();
         assume_read(&x);
         assert_eq!(x, old_x);
         assert_eq!(hide(x.clone()), old_x);
-        test_all_pointers::<T, _>(x.clone());
+        test_all_pinned_pointers::<T, _>(x.clone());
         consume(x);
     }
 
+    // Test that, for a given value, Pessimize seems to work
+    pub fn test_value<T: Clone + Debug + PartialEq + Pessimize + Unpin>(x: T) {
+        test_unpinned_pointers(x.clone());
+        test_pinned_value(x);
+    }
+
     // Run test_value on the minimal, default and maximal value of a type
-    pub fn test_value_type<T: Clone + Debug + Default + PartialEq + Pessimize>(min: T, max: T) {
+    pub fn test_value_type<T: Clone + Debug + Default + PartialEq + Pessimize + Unpin>(
+        min: T,
+        max: T,
+    ) {
         test_value(min);
         test_value(T::default());
         test_value(max);
@@ -1023,7 +1033,7 @@ pub(crate) mod tests {
     pub fn test_simd<
         Scalar: Copy + Default,
         const LANES: usize,
-        T: Copy + Debug + Default + From<[Scalar; LANES]> + PartialEq + Pessimize,
+        T: Copy + Debug + Default + From<[Scalar; LANES]> + PartialEq + Pessimize + Unpin,
     >(
         min: Scalar,
         max: Scalar,
@@ -1035,7 +1045,7 @@ pub(crate) mod tests {
     #[allow(unused)]
     #[cfg(feature = "nightly")]
     pub fn test_portable_simd<
-        Scalar: Debug + Default + PartialEq + SimdElement,
+        Scalar: Debug + Default + PartialEq + SimdElement + Unpin,
         const LANES: usize,
     >(
         min: Scalar,
