@@ -873,7 +873,8 @@ macro_rules! pessimize_once_like {
 }
 
 /// Pessimize a type that behaves like a collection (cheap Default impl, owned
-/// state differs from borrowed state)#[doc(hidden)]
+/// state differs from borrowed state)
+#[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_collections {
     (
