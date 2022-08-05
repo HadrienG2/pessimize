@@ -938,6 +938,7 @@ macro_rules! pessimize_collections {
 //       - Multiple generic args (needed by ptr::fn())
 //       - Making pessimize_once_like implementable atop the main macros
 //       - into_inner, new, Deref and DerefMut (mem::ManuallyDrop<T>)
+//       - Structs with all-pub members, work like tuple structs (arch::x86::CpuidResult, process::Output)
 
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
