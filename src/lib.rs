@@ -941,6 +941,10 @@ macro_rules! pessimize_collections {
 //       - Making pessimize_once_like implementable atop the main macros
 //       - into_inner, new, Deref and DerefMut (mem::ManuallyDrop<T>)
 //       - Structs with all-pub members, work like tuple structs (arch::x86::CpuidResult, process::Output)
+//
+//       Consider exposing the "extract a Pessimized from &Self" functionality
+//       as a trait so that e.g. Vec<T> wrappers can reuse the work done for
+//       Vec<T> if they expose an &Vec<T>.
 
 // Although all Rust collections are basically pointers with extra metadata, we
 // may only implement Pessimize for them when all the metadata is exposed and
