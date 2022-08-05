@@ -3,7 +3,6 @@
 use crate::{pessimize_once_like, pessimize_zsts, Pessimize};
 use core::iter::{Empty, Once, Repeat};
 
-// As a zero-sized type, Empty is trivially pessimizable
 pessimize_zsts!(
     allow(missing_docs)
     {
@@ -11,7 +10,6 @@ pessimize_zsts!(
     }
 );
 
-// std::io::repeat behaves like std::iter::once
 pessimize_once_like!(
     allow(missing_docs)
     {

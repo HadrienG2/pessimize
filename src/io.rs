@@ -60,7 +60,6 @@ mod u64_is_pessimize {
     pessimize_wrapper!(Take, limit, set_limit, |inner: T, limit| inner.take(limit));
 }
 
-// As zero-sized types, Empty and Sink are trivially pessimizable
 pessimize_zsts!(
     doc(cfg(feature = "std"))
     {
@@ -69,7 +68,6 @@ pessimize_zsts!(
     }
 );
 
-// std::io::repeat behaves like std::iter::once
 pessimize_once_like!(
     doc(cfg(feature = "std"))
     {

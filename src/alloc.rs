@@ -17,7 +17,6 @@ pessimize_copy!(
     }
 );
 
-// Trivially correct since System is a ZST
 #[cfg(feature = "std")]
 crate::pessimize_zsts!(doc(cfg(feature = "std")) { System: System });
 
