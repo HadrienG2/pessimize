@@ -410,7 +410,7 @@ pub fn impl_assume_accessed_via_extract_pessimized<T: PessimizeCast>(
 /// The `Drop` impl of the value left in `self_` by `extract_self` will not be
 /// called, make sure that this does not result in a resource leak.
 ///
-// TODO: Remove once collections and pointers are migrated to macros
+// TODO: Remove once pointers are migrated to macros
 #[inline(always)]
 pub fn impl_assume_accessed_via_extract_self<T: PessimizeCast>(
     self_: &mut T,
@@ -870,13 +870,66 @@ macro_rules! pessimize_once_like {
     };
 }
 
+/// Pessimize a type that behaves like a collection (cheap Default impl, owned
+/// state differs from borrowed state)#[doc(hidden)]
+#[macro_export]
+macro_rules! pessimize_collection {
+    (
+        $doc_cfg:meta
+        {
+            $(
+                ($owned_inner:ty, $borrowed_inner:ty) : (
+                    $(
+                        $(
+                            | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
+                        )?
+                        $outer:ty : ($into_owned:expr, $from_owned:expr, $extract_borrowed:expr)
+                    ),*
+                )
+            ),*
+        }
+    ) => {
+        $crate::pessimize_cast!(
+            $doc_cfg
+            {
+                $(
+                    $owned_inner : (
+                        $(
+                            $(
+                                | $param $( : ( $trait1 $(, $traitN)* ) )? |
+                            )?
+                            $outer : ($into_owned, $from_owned)
+                        ),*
+                    )
+                ),*
+            }
+        );
+        //
+        $($(
+            #[cfg_attr(feature = "nightly", $doc_cfg)]
+            impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
+                type BorrowedPessimize = $borrowed_inner;
+
+                #[inline(always)]
+                fn with_pessimize(&self, f: impl FnOnce(&$borrowed_inner)) {
+                    f(&$extract_borrowed(self))
+                }
+
+                #[inline(always)]
+                fn assume_accessed_impl(&mut self) {
+                    $crate::impl_assume_accessed_via_extract_pessimized(self, |self_: &mut Self| $into_owned(core::mem::take(self_)))
+                }
+            }
+        )*)*
+    };
+}
+
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
 //
 //       Consider splitting PessimizeCast and BorrowPessimize macros
 //
 //       Current candidates are...
-//       - BorrowedPessimize is not Pessimized + extraction via core::mem::take (needed by Vec, String, ffi::OsString)
 //       - where bounds (needed by ptr::* and boxed::Box<T>)
 //       - assume_accessed needs fancy borrows (needed by boxed::Box<T> and ptr::&[mut] T)
 //       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
@@ -893,72 +946,39 @@ mod alloc_feature {
     use core::mem::ManuallyDrop;
     use std_alloc::{string::String, vec::Vec};
 
-    // Vec<T> is basically a thin NonNull<T>, a length and a capacity
-    // FIXME: Migrate to crate::vec, along with associated tests
-    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
-    unsafe impl<T> PessimizeCast for Vec<T> {
-        type Pessimized = (*mut T, usize, usize);
+    pessimize_collection!(
+        doc(cfg(feature = "alloc"))
+        {
+            // Vec<T> is basically a thin NonNull<T>, a length and a capacity
+            // FIXME: Migrate to crate::vec, along with associated tests
+            ((*mut T, usize, usize), (*const T, usize, usize)) : (
+                |T| Vec<T> : (
+                    |self_: Self| {
+                        let mut v = ManuallyDrop::new(self_);
+                        (v.as_mut_ptr(), v.len(), v.capacity())
+                    },
+                    |(ptr, length, capacity)| {
+                        Self::from_raw_parts(ptr, length, capacity)
+                    },
+                    |self_: &Self| {
+                        (self_.as_ptr(), self_.len(), self_.capacity())
+                    }
+                )
+            ),
 
-        #[inline(always)]
-        fn into_pessimize(self) -> Self::Pessimized {
-            let mut v = ManuallyDrop::new(self);
-            (v.as_mut_ptr(), v.len(), v.capacity())
+            // String is basically a Vec<u8> with an UTF-8 validity invariant
+            // FIXME: Migrate to crate::string, along with associated tests
+            (Vec<u8>, (*const u8, usize, usize)) : (
+                String : (
+                    |self_: Self| self_.into_bytes(),
+                    |v| Self::from_utf8_unchecked(v),
+                    |self_: &Self| {
+                        (self_.as_ptr(), self_.len(), self_.capacity())
+                    }
+                )
+            )
         }
-
-        #[inline(always)]
-        unsafe fn from_pessimize((ptr, length, capacity): Self::Pessimized) -> Self {
-            Vec::from_raw_parts(ptr, length, capacity)
-        }
-    }
-    //
-    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
-    impl<T> BorrowPessimize for Vec<T> {
-        type BorrowedPessimize = (*const T, usize, usize);
-
-        #[inline(always)]
-        fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
-            let pessimized = (self.as_ptr(), self.len(), self.capacity());
-            f(&pessimized)
-        }
-
-        #[inline(always)]
-        fn assume_accessed_impl(&mut self) {
-            impl_assume_accessed_via_extract_self(self, core::mem::take)
-        }
-    }
-
-    // String is basically a Vec<u8> with an UTF-8 validity invariant
-    // FIXME: Migrate to crate::string, along with associated tests
-    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
-    unsafe impl PessimizeCast for String {
-        type Pessimized = Vec<u8>;
-
-        #[inline(always)]
-        fn into_pessimize(self) -> Self::Pessimized {
-            self.into_bytes()
-        }
-
-        #[inline(always)]
-        unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-            String::from_utf8_unchecked(x)
-        }
-    }
-    //
-    #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
-    impl BorrowPessimize for String {
-        type BorrowedPessimize = (*const u8, usize, usize);
-
-        #[inline(always)]
-        fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
-            let pessimized = (self.as_ptr(), self.len(), self.capacity());
-            f(&pessimized)
-        }
-
-        #[inline(always)]
-        fn assume_accessed_impl(&mut self) {
-            impl_assume_accessed_via_extract_self(self, core::mem::take)
-        }
-    }
+    );
 }
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a

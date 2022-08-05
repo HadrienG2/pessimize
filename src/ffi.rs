@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::ffi
 
-use crate::{impl_assume_accessed_via_extract_self, BorrowPessimize, PessimizeCast};
+use crate::pessimize_collection;
 use std::ffi::OsString;
 #[cfg(unix)]
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -11,47 +11,23 @@ use std::os::wasi::ffi::{OsStrExt, OsStringExt};
 //       1/OsStr can only be manipulated by reference
 //       2/We already have an impl of Pessimize for all references
 
-// Trivially correct, almost an offload to Vec<u8>: Pessimize implementation
-#[cfg_attr(
-    feature = "nightly",
+// On Unix and WASI, OsString is a glorified Vec<u8>
+pessimize_collection!(
     doc(cfg(all(feature = "std", any(unix, target_os = "wasi"))))
-)]
-unsafe impl PessimizeCast for OsString {
-    type Pessimized = Vec<u8>;
-
-    #[inline(always)]
-    fn into_pessimize(self) -> Self::Pessimized {
-        self.into_vec()
+    {
+        (Vec<u8>, (*const u8, usize, usize)) : (
+            OsString : (
+                |self_: Self| self_.into_vec(),
+                |v| Self::from_vec(v),
+                |self_: &Self| (
+                    self_.as_bytes() as *const [u8] as *const u8,
+                    self_.as_bytes().len(),
+                    self_.capacity()
+                )
+            )
+        )
     }
-
-    #[inline(always)]
-    unsafe fn from_pessimize(x: Self::Pessimized) -> Self {
-        Self::from_vec(x)
-    }
-}
-//
-#[cfg_attr(
-    feature = "nightly",
-    doc(cfg(all(feature = "std", any(unix, target_os = "wasi"))))
-)]
-impl BorrowPessimize for OsString {
-    type BorrowedPessimize = (*const u8, usize, usize);
-
-    #[inline(always)]
-    fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
-        let pessimized = (
-            self.as_bytes() as *const [u8] as *const u8,
-            self.as_bytes().len(),
-            self.capacity(),
-        );
-        f(&pessimized)
-    }
-
-    #[inline(always)]
-    fn assume_accessed_impl(&mut self) {
-        impl_assume_accessed_via_extract_self(self, core::mem::take)
-    }
-}
+);
 
 #[cfg(test)]
 pub(crate) mod tests {
