@@ -114,7 +114,7 @@ mod process;
 mod ptr;
 #[cfg(any(feature = "alloc", test))]
 mod string;
-// TODO: mod sync (atomic, reuse cell tests)
+mod sync;
 // TODO: mod task (Context, RawWaker, RawWakerVTable, Waker)
 // TODO: mod time (Duration)
 // TODO: mod vec (Vec, take from lib.rs and add tests)
