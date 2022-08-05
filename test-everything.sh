@@ -9,6 +9,7 @@ set -euo pipefail
 #       2. clippy + build crate & tests (can be done on a cross -linux target))
 #       3. clippy + build crate + run tests (native target)
 # TODO: Try to run tests via qemu
+# TODO: Add windows, wasi and none coverage
 
 # Runs a cargo command with certain RUSTFLAGS, echoing it beforehand
 # Arguments: rustflags command
