@@ -11,7 +11,7 @@ pessimize_newtypes!(
 );
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::*;
     use crate::tests::{test_unoptimized_value_type, test_value_type};
 

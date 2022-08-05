@@ -109,7 +109,8 @@ mod panic;
 mod path;
 mod pin;
 mod primitive;
-// TODO: mod process (ExitStatus with ExitStatusExt, Output)
+#[cfg(all(any(feature = "std", test), unix))]
+mod process;
 mod ptr;
 // TODO: mod string (String, take from lib.rs and add tests)
 // TODO: mod sync (atomic, reuse cell tests)
