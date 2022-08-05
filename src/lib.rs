@@ -115,9 +115,12 @@ mod ptr;
 #[cfg(any(feature = "alloc", test))]
 mod string;
 mod sync;
-// TODO: mod task (Context, RawWaker, RawWakerVTable, Waker)
-// TODO: mod time (Duration)
-// TODO: mod vec (Vec, take from lib.rs and add tests)
+// TODO: Implement task support once the waker_getters feature is stable
+// NOTE: Implement time support when/if a zero-cost way to construct a Duration
+//       back from seconds and nanoseconds is provided. Currently, we only have
+//       Duration::new(), which pessimistically assumes the worst about nanos.
+#[cfg(any(feature = "alloc", test))]
+mod vec;
 
 /// Optimization barriers provided by this crate
 ///
@@ -945,38 +948,6 @@ macro_rules! pessimize_collections {
 //       Consider exposing the "extract a Pessimized from &Self" functionality
 //       as a trait so that e.g. Vec<T> wrappers can reuse the work done for
 //       Vec<T> if they expose an &Vec<T>.
-
-// Although all Rust collections are basically pointers with extra metadata, we
-// may only implement Pessimize for them when all the metadata is exposed and
-// there is a way to build a collection back from all the raw parts
-#[cfg(any(feature = "alloc", test))]
-mod alloc_feature {
-    use super::*;
-    use core::mem::ManuallyDrop;
-    use std_alloc::vec::Vec;
-
-    pessimize_collections!(
-        doc(cfg(feature = "alloc"))
-        {
-            // Vec<T> is basically a thin NonNull<T>, a length and a capacity
-            // FIXME: Migrate to crate::vec, along with associated tests
-            ((*mut T, usize, usize), (*const T, usize, usize)) : (
-                |T| Vec<T> : (
-                    |self_: Self| {
-                        let mut v = ManuallyDrop::new(self_);
-                        (v.as_mut_ptr(), v.len(), v.capacity())
-                    },
-                    |(ptr, length, capacity)| {
-                        Self::from_raw_parts(ptr, length, capacity)
-                    },
-                    |self_: &Self| {
-                        (self_.as_ptr(), self_.len(), self_.capacity())
-                    }
-                )
-            )
-        }
-    );
-}
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
