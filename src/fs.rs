@@ -1,15 +1,9 @@
 //! Pessimize implementations for std::fs
 
 use crate::pessimize_extractible;
-#[cfg(any(unix, windows))]
 use std::fs::File;
 #[cfg(unix)]
-use std::fs::Permissions;
-#[cfg(unix)]
-use std::os::unix::{
-    fs::PermissionsExt,
-    io::{AsRawFd, FromRawFd, IntoRawFd, RawFd},
-};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
 
@@ -45,6 +39,7 @@ pessimize_file!(
 #[cfg(unix)]
 mod unix {
     use super::*;
+    use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 
     pessimize_extractible!(
         doc(cfg(all(feature = "std", unix)))
@@ -58,23 +53,28 @@ mod unix {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tests::{test_unoptimized_value, test_value};
 
     // FIXME: Can't test File as it doesn't implement the right traits
 
-    fn make_permissions() -> Permissions {
-        std::fs::metadata(file!()).unwrap().permissions()
-    }
+    #[cfg(unix)]
+    mod unix {
+        use super::*;
+        use std::fs::Permissions;
 
-    #[test]
-    fn permissions() {
-        test_value(make_permissions());
-    }
+        fn make_permissions() -> Permissions {
+            std::fs::metadata(file!()).unwrap().permissions()
+        }
 
-    #[test]
-    #[ignore]
-    fn permissions_optim() {
-        test_unoptimized_value(make_permissions());
+        #[test]
+        fn permissions() {
+            test_value(make_permissions());
+        }
+
+        #[test]
+        #[ignore]
+        fn permissions_optim() {
+            test_unoptimized_value(make_permissions());
+        }
     }
 }

@@ -93,7 +93,7 @@ mod cmp;
 #[cfg(all(any(feature = "std", test), any(unix, target_os = "wasi")))]
 mod ffi;
 mod fmt;
-#[cfg(any(feature = "std", test))]
+#[cfg(all(any(feature = "std", test), any(unix, windows)))]
 mod fs;
 #[cfg(any(feature = "std", test))]
 mod io;
