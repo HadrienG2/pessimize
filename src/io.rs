@@ -63,8 +63,8 @@ mod u64_is_pessimize {
 pessimize_zsts!(
     doc(cfg(feature = "std"))
     {
-        Empty: std::io::empty(),
-        Sink: std::io::sink()
+        Empty: (std::io::empty(), false),
+        Sink: (std::io::sink(), false)
     }
 );
 

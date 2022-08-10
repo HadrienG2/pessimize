@@ -42,7 +42,7 @@ pessimize_extractible!(
 pessimize_zsts!(
     allow(missing_docs)
     {
-        RangeFull: RangeFull
+        RangeFull: (RangeFull, false)
     }
 );
 

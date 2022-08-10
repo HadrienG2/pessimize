@@ -18,7 +18,7 @@ pessimize_copy!(
 );
 
 #[cfg(feature = "std")]
-crate::pessimize_zsts!(doc(cfg(feature = "std")) { System: System });
+crate::pessimize_zsts!(doc(cfg(feature = "std")) { System: (System, true) });
 
 #[cfg(test)]
 mod tests {
