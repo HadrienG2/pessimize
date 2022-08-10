@@ -6,8 +6,8 @@ use core::marker::{PhantomData, PhantomPinned};
 pessimize_zsts!(
     allow(missing_docs)
     {
-        |T| PhantomData<T> : (PhantomData, false),
-        PhantomPinned : (PhantomPinned, false)
+        |T| PhantomData<T> : PhantomData,
+        PhantomPinned : PhantomPinned
     }
 );
 

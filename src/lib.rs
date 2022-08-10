@@ -228,12 +228,6 @@ pub fn consume<T: Pessimize>(x: T) {
     assume_read(&x);
 }
 
-/// Assume that all global and thread-local variables have been read
-#[inline(always)]
-pub fn assume_globals_read() {
-    unsafe { core::arch::asm!("", options(preserves_flags, nostack, readonly)) }
-}
-
 /// Force the compiler to assume that any data transitively reachable via a
 /// pointer/reference has been read, and modified if Rust rules allow for it.
 ///
@@ -293,12 +287,6 @@ pub fn assume_accessed<R: Pessimize>(r: &mut R) {
 #[inline(always)]
 pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
     Pessimize::assume_accessed_imut(r)
-}
-
-/// Assume that all global and thread-local variables have been read and modified
-#[inline(always)]
-pub fn assume_globals_accessed() {
-    unsafe { core::arch::asm!("", options(preserves_flags, nostack)) }
 }
 
 /// Convert `Self` back and forth to a `Pessimize` impl (`Pessimize` impl helper)
@@ -726,7 +714,7 @@ macro_rules! pessimize_zsts {
         {
             $(
                 $( | $param:ident $( : $traits:tt )? | )?
-                $name:ty : ($make:expr, $has_global_state:expr)
+                $name:ty : $make:expr
             ),*
         }
     ) => {
@@ -738,17 +726,8 @@ macro_rules! pessimize_zsts {
                         $( | $param $( : $traits )? | )?
                         $name : (
                             |_self| (),
-                            |()| {
-                                if $has_global_state {
-                                    $crate::assume_globals_accessed();
-                                }
-                                $make
-                            },
-                            |_self| {
-                                if $has_global_state {
-                                    $crate::assume_globals_read();
-                                }
-                            }
+                            |()| $make,
+                            |_self| ()
                         )
                     ),*
                 )

@@ -3,7 +3,7 @@
 use crate::pessimize_zsts;
 use core::fmt::Error;
 
-pessimize_zsts!(allow(missing_docs) { Error: (Error, false) });
+pessimize_zsts!(allow(missing_docs) { Error: Error });
 
 #[cfg(test)]
 mod tests {

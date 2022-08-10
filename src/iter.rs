@@ -6,7 +6,7 @@ use core::iter::{Empty, Once, Repeat};
 pessimize_zsts!(
     allow(missing_docs)
     {
-        |T| Empty<T>: (core::iter::empty(), false)
+        |T| Empty<T>: core::iter::empty()
     }
 );
 
