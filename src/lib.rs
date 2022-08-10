@@ -162,11 +162,12 @@ pub unsafe trait Pessimize {
 /// out the redundant computations.
 ///
 /// Although `Pessimize` is implemented for zero-sized types, `hide()` will not
-/// act as an optimization barrier on those types, because there is only one
-/// possible return value so the compiler knows that the output value is the
-/// same as the input value. Since zero-sized types may only hold state through
-/// global and thread-local variables, an `assume_xyz` barrier will be effective
-/// at assuming that the state has been read or modified.
+/// serve its normal purpose of obscuring output on those types, because there
+/// is only one possible return value so the compiler knows that the output
+/// value is the  same as the input value. Since zero-sized types may only hold
+/// state through global and thread-local variables, implementations of
+/// `Pessimize::hide` for stateful ZSTs should feature an
+/// `assume_globals_accessed()` optimization barrier.
 ///
 /// If you need a `hide` alternative for a variable `x` that does not
 /// implement `Pessimize`, you can use `*hide(&x)`, at the cost of forcing

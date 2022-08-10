@@ -2,8 +2,6 @@
 
 use crate::pessimize_copy;
 use core::alloc::Layout;
-#[cfg(feature = "std")]
-use std::alloc::System;
 
 pessimize_copy!(
     allow(missing_docs)
@@ -18,7 +16,35 @@ pessimize_copy!(
 );
 
 #[cfg(feature = "std")]
-crate::pessimize_zsts!(doc(cfg(feature = "std")) { System: System });
+mod std {
+    use crate::{assume_globals_accessed, assume_globals_read, Pessimize};
+    use std::alloc::System;
+
+    // NOTE: Need a manual Pessimize implementation due to use of global state
+    #[cfg_attr(feature = "nightly", feature = "std")]
+    unsafe impl Pessimize for System {
+        #[inline(always)]
+        fn hide(self) -> Self {
+            assume_globals_accessed();
+            Self
+        }
+
+        #[inline(always)]
+        fn assume_read(&self) {
+            assume_globals_read();
+        }
+
+        #[inline(always)]
+        fn assume_accessed(&mut self) {
+            assume_globals_accessed();
+        }
+
+        #[inline(always)]
+        fn assume_accessed_imut(&self) {
+            assume_globals_accessed();
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
