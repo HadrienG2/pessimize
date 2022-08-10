@@ -10,6 +10,8 @@ set -euo pipefail
 #       3. clippy + build crate + run tests (native target)
 # TODO: Try to run tests via qemu
 # TODO: Add windows, wasi and none coverage
+# TODO: Add tests (and, if needed, support) for mips, powerpc64, powerpc64le,
+#       s390x and sparc64
 
 # Runs a cargo command with certain RUSTFLAGS, echoing it beforehand
 # Arguments: rustflags command
