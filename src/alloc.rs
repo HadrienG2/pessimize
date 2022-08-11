@@ -17,7 +17,7 @@ pessimize_copy!(
 
 #[cfg(any(feature = "std", test))]
 mod std {
-    use crate::{assume_globals_accessed, assume_globals_read, Pessimize};
+    use crate::{assume_globals_accessed, Pessimize};
     use std::alloc::System;
 
     // NOTE: Need a manual Pessimize implementation due to use of global state
@@ -30,9 +30,7 @@ mod std {
         }
 
         #[inline(always)]
-        fn assume_read(&self) {
-            assume_globals_read();
-        }
+        fn assume_read(&self) {}
 
         #[inline(always)]
         fn assume_accessed(&mut self) {
