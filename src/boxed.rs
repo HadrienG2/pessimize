@@ -126,8 +126,7 @@ mod tests {
             test_unoptimized_ptrs::<str, _>(make_boxed_str('\0'));
         }
 
-        // FIXME: Box<dyn Trait> cannot easily be tested because we need
-        //        PartialEq for testing and dyn PartialEq is illegal. Find a way
-        //        around this, e.g. a trait implemented for PartialEq types
+        // NOTE: Cannot test the Pessimize impl for trait objects because a
+        //       trait object cannot implement Clone and PartialEq.
     }
 }
