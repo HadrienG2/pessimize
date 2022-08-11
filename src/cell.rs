@@ -95,40 +95,40 @@ pub(crate) mod tests {
     }
 
     #[derive(Debug, Default)]
-    struct UnsafeCellWrapper(UnsafeCell<isize>);
+    struct TestableUnsafeCell(UnsafeCell<isize>);
     //
-    impl UnsafeCellWrapper {
+    impl TestableUnsafeCell {
         fn new(i: isize) -> Self {
             Self(UnsafeCell::new(i))
         }
     }
     //
-    impl Clone for UnsafeCellWrapper {
+    impl Clone for TestableUnsafeCell {
         fn clone(&self) -> Self {
             Self::new(unsafe { *self.0.get() })
         }
     }
     //
-    impl PartialEq for UnsafeCellWrapper {
+    impl PartialEq for TestableUnsafeCell {
         fn eq(&self, other: &Self) -> bool {
             unsafe { *self.0.get() == *other.0.get() }
         }
     }
     //
-    pessimize_newtypes!( allow(missing_docs) { UnsafeCellWrapper{ UnsafeCell<isize> } } );
+    pessimize_newtypes!( allow(missing_docs) { TestableUnsafeCell{ UnsafeCell<isize> } } );
     //
     #[test]
     fn unsafe_cell() {
         test_value_type(
-            UnsafeCellWrapper::new(isize::MIN),
-            UnsafeCellWrapper::new(isize::MAX),
+            TestableUnsafeCell::new(isize::MIN),
+            TestableUnsafeCell::new(isize::MAX),
         );
     }
     //
     #[test]
     #[ignore]
     fn unsafe_cell_optim() {
-        test_unoptimized_value_type::<UnsafeCellWrapper>();
+        test_unoptimized_value_type::<TestableUnsafeCell>();
         test_unoptimized_cell(UnsafeCell::new(0isize), UnsafeCell::get_mut);
     }
 }

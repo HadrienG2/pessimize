@@ -68,19 +68,19 @@ mod tests {
     }
 
     #[derive(Clone, Copy, Debug, Default)]
-    struct SystemWrapper(System);
+    struct TestableSystem(System);
     //
-    impl PartialEq for SystemWrapper {
+    impl PartialEq for TestableSystem {
         fn eq(&self, _other: &Self) -> bool {
             true
         }
     }
     //
-    pessimize_newtypes!( allow(missing_docs) { SystemWrapper{ System } } );
+    pessimize_newtypes!( allow(missing_docs) { TestableSystem{ System } } );
     //
     #[test]
     fn system() {
-        test_value(SystemWrapper(System));
+        test_value(TestableSystem(System));
     }
     //
     #[test]
