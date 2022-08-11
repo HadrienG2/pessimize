@@ -16,7 +16,7 @@ pessimize_copy!(
 );
 
 #[cfg(any(feature = "std", test))]
-mod std {
+mod std_feature {
     use crate::{assume_globals_accessed, Pessimize};
     use std::alloc::System;
 
@@ -47,7 +47,11 @@ mod std {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{test_unoptimized_stateful_zsv, test_unoptimized_value, test_value};
+    use crate::{
+        pessimize_newtypes,
+        tests::{test_unoptimized_stateful_zst, test_unoptimized_value, test_value},
+    };
+    use std::alloc::System;
 
     #[test]
     fn layout() {
@@ -56,18 +60,32 @@ mod tests {
         let prev_usize_pow2 = last_usize_pow2 >> 1;
         test_value(Layout::from_size_align(prev_usize_pow2, prev_usize_pow2).unwrap());
     }
-
+    //
     #[test]
     #[ignore]
     fn layout_optim() {
         test_unoptimized_value(Layout::from_size_align(0, 1).unwrap());
     }
 
-    // TODO: Implement basic correctness tests for System
-
+    #[derive(Clone, Copy, Debug, Default)]
+    struct SystemWrapper(System);
+    //
+    impl PartialEq for SystemWrapper {
+        fn eq(&self, _other: &Self) -> bool {
+            true
+        }
+    }
+    //
+    pessimize_newtypes!( allow(missing_docs) { SystemWrapper{ System } } );
+    //
+    #[test]
+    fn system() {
+        test_value(SystemWrapper(System));
+    }
+    //
     #[test]
     #[ignore]
     fn system_optim() {
-        test_unoptimized_stateful_zsv(::std::alloc::System)
+        test_unoptimized_stateful_zst::<System>();
     }
 }

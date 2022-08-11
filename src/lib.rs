@@ -1013,7 +1013,7 @@ pub(crate) mod tests {
         consume(x);
     }
 
-    // Test that, for a given value, Pessimize seems to work
+    // Same as above, but also assume the value is Unpin
     pub fn test_value<T: Clone + Debug + PartialEq + Pessimize + Unpin>(x: T) {
         test_unpinned_pointers(x.clone());
         test_pinned_value(x);
@@ -1179,6 +1179,10 @@ pub(crate) mod tests {
             unsafe { consume(TEST_GLOBAL_STATE == old_state) };
             x
         });
+    }
+
+    pub fn test_unoptimized_stateful_zst<T: Default + Pessimize>() {
+        test_unoptimized_stateful_zsv(T::default())
     }
 
     // === Tests for types implemented here ===
