@@ -46,6 +46,15 @@
 //! what you want with `hide` if possible, and only reach for other barriers
 //! where the extra expressive power of these primitives is truly needed.
 //!
+//! While the barriers will accept zero-sized types such as `PhantomData`, they
+//! will only be effective for those that access global or thread-local state,
+//! like `std::alloc::System` does. That is because without such external state,
+//! zero-sized objects do not own or provide access to any information, so the
+//! compiler can trivially infer that the optimization barrier cannot read or
+//! modify any internal state. Implementations of `Pessimize` on such types are
+//! only provided to ease automatic derivation of `Pessimize` like tuples (and
+//! hopefully custom structs too in the future).
+//!
 //! The documentation of the top-level functions (`hide`, `assume_read`,
 //! `consume`, `assume_accessed` and `assume_accessed_imut`) contain more
 //! details on the optimization barrier that is being implemented.
@@ -116,7 +125,7 @@ mod ptr;
 mod string;
 mod sync;
 // TODO: Implement task support once the waker_getters feature is stable
-// NOTE: Implement time support when/if a zero-cost way to construct a Duration
+// TODO: Implement time support when/if a zero-cost way to construct a Duration
 //       back from seconds and nanoseconds is provided. Currently, we only have
 //       Duration::new(), which pessimistically assumes the worst about nanos.
 #[cfg(any(feature = "alloc", test))]
@@ -918,7 +927,13 @@ macro_rules! pessimize_collections {
                             $(
                                 | $param $( : ( $trait1 $(, $traitN)* ) )? |
                             )?
-                            $outer : ($into_owned, $from_owned)
+                            $outer : (
+                                $into_owned,
+                                |owned| {
+                                    $crate::assume_globals_accessed();
+                                    $from_owned(owned)
+                                }
+                            )
                         ),*
                     )
                 ),*
@@ -937,6 +952,9 @@ macro_rules! pessimize_collections {
 
                 #[inline(always)]
                 fn assume_accessed_impl(&mut self) {
+                    // With an &mut to a collection, one can trigger a
+                    // reallocation, and thus affect global state.
+                    $crate::assume_globals_accessed();
                     $crate::impl_assume_accessed_via_extract_pessimized(self, |self_: &mut Self| $into_owned(core::mem::take(self_)))
                 }
             }
@@ -1147,23 +1165,15 @@ pub(crate) mod tests {
         test_unoptimized_value(T::default());
     }
 
-    // --- Tests for ZSTs ---
+    // --- Tests for stateful ZSTs (that mediate access to global state) ---
 
-    pub fn test_unoptimized_zst<T: Default + Pessimize>() {
-        use core::cell::Cell;
-
-        // ZSTs don't have inner state to pessimize, but they can provide access
-        // to global and thread-local state.
-        thread_local! {
-            static STATE: Cell<isize> = Cell::new(-42);
-        }
-
-        let old_state = -42isize;
-        assert_unoptimized(T::default(), |mut x| {
-            assume_accessed(&mut x);
-            STATE.with(|state| {
-                consume(state.get() == old_state);
-            });
+    pub fn test_unoptimized_stateful_zsv<T: Pessimize>(x: T) {
+        // ZSTs don't have inner state to pessimize, but some of them
+        // provide access to global state.
+        let old_state = unsafe { TEST_GLOBAL_STATE };
+        assert_unoptimized(x, |mut x| {
+            x = hide(x);
+            unsafe { consume(TEST_GLOBAL_STATE == old_state) };
             x
         });
     }
@@ -1197,3 +1207,7 @@ pub(crate) mod tests {
         crate::ptr::tests::test_unoptimized_ptrs::<[isize; BIG], _>([0isize; BIG]);
     }
 }
+
+/// Global variable used to check if stateful zero-sized types are pessimized
+#[doc(hidden)]
+pub static mut TEST_GLOBAL_STATE: isize = -42;

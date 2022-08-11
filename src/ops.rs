@@ -48,9 +48,7 @@ pessimize_zsts!(
 
 #[cfg(test)]
 mod tests {
-    use core::ops::RangeFull;
-
-    use crate::tests::{test_unoptimized_value, test_unoptimized_zst, test_value};
+    use crate::tests::{test_unoptimized_value, test_value};
 
     #[test]
     fn range() {
@@ -112,9 +110,6 @@ mod tests {
         test_value(..)
     }
 
-    #[test]
-    #[ignore]
-    fn range_full_optim() {
-        test_unoptimized_zst::<RangeFull>()
-    }
+    // NOTE: There is no range_full_optim test because Pessimize does not act as
+    //       an optimization barrier for stateless ZSTs like RangeFull
 }

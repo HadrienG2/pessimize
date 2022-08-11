@@ -15,18 +15,18 @@ pessimize_copy!(
     }
 );
 
-#[cfg(feature = "std")]
+#[cfg(any(feature = "std", test))]
 mod std {
     use crate::{assume_globals_accessed, assume_globals_read, Pessimize};
     use std::alloc::System;
 
     // NOTE: Need a manual Pessimize implementation due to use of global state
-    #[cfg_attr(feature = "nightly", feature = "std")]
+    #[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
     unsafe impl Pessimize for System {
         #[inline(always)]
         fn hide(self) -> Self {
             assume_globals_accessed();
-            Self
+            self
         }
 
         #[inline(always)]
@@ -49,7 +49,7 @@ mod std {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{test_unoptimized_value, test_value};
+    use crate::tests::{test_unoptimized_stateful_zsv, test_unoptimized_value, test_value};
 
     #[test]
     fn layout() {
@@ -65,5 +65,11 @@ mod tests {
         test_unoptimized_value(Layout::from_size_align(0, 1).unwrap());
     }
 
-    // FIXME: Can't test the System impl since System doesn't implement the right traits
+    // TODO: Implement basic correctness tests for System
+
+    #[test]
+    #[ignore]
+    fn system_optim() {
+        test_unoptimized_stateful_zsv(::std::alloc::System)
+    }
 }

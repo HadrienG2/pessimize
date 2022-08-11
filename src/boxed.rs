@@ -1,14 +1,12 @@
 //! Implementation of Pessimize for alloc::boxed
 
-use crate::{assume_accessed, BorrowPessimize, Pessimize, PessimizeCast};
+use crate::{assume_accessed, assume_globals_accessed, BorrowPessimize, Pessimize, PessimizeCast};
 use std_alloc::boxed::Box;
 
-// Box<T> is effectively a NonNull<T> with RAII, so if the NonNull impl is
-// correct, this impl is correct.
 #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
 unsafe impl<T: ?Sized> PessimizeCast for Box<T>
 where
-    *mut T: Pessimize,
+    *const T: Pessimize,
 {
     type Pessimized = *mut T;
 
@@ -19,6 +17,7 @@ where
 
     #[inline(always)]
     unsafe fn from_pessimize(x: *mut T) -> Self {
+        assume_globals_accessed();
         Box::from_raw(x)
     }
 }
@@ -42,6 +41,11 @@ where
         // `assume_accessed` to reliably work.
         let mut inner: &mut T = self.as_mut();
         assume_accessed::<&mut T>(&mut inner);
+
+        // With an &mut Box, one can trigger an allocation, and thus mutate
+        // global allocator state
+        assume_globals_accessed();
+
         // Safe because we avoid drop and the pointer effectively wasn't modified
         let inner_ptr = inner as *mut T;
         unsafe { (self as *mut Self).write(Box::from_raw(inner_ptr)) }

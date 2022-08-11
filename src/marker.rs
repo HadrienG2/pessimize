@@ -14,7 +14,7 @@ pessimize_zsts!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{test_pinned_value, test_unoptimized_zst, test_value};
+    use crate::tests::{test_pinned_value, test_value};
 
     #[test]
     fn phantom_data() {
@@ -22,19 +22,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn phantom_data_optim() {
-        test_unoptimized_zst::<PhantomData<isize>>();
-    }
-
-    #[test]
     fn phantom_pinned() {
         test_pinned_value(PhantomPinned);
     }
 
-    #[test]
-    #[ignore]
-    fn phantom_pinned_optim() {
-        test_unoptimized_zst::<PhantomPinned>();
-    }
+    // NOTE: There are no phantom_data_optim and phantom_pinned_optim tests
+    //       because Pessimize does not act as an optimization barrier for
+    //       stateless ZSTs like phantom types.
 }
