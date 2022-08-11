@@ -17,6 +17,8 @@ where
 
     #[inline(always)]
     unsafe fn from_pessimize(x: *mut T) -> Self {
+        // To simulate creation of a new Box, one must simulate access to the
+        // global memory allocator.
         assume_globals_accessed();
         Box::from_raw(x)
     }

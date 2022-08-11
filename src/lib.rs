@@ -930,6 +930,9 @@ macro_rules! pessimize_collections {
                             $outer : (
                                 $into_owned,
                                 |owned| {
+                                    // To simulate the creation of an unrelated
+                                    // collection, we must simulate access to
+                                    // the global memory allocator.
                                     $crate::assume_globals_accessed();
                                     $from_owned(owned)
                                 }
