@@ -21,6 +21,7 @@ safe_arch = { version = "0.6", optional = true }
 
 [dev-dependencies]
 safe_arch = "0.6"
+tempfile = "3.3"
 
 [package.metadata.docs.rs]
 all-features = true

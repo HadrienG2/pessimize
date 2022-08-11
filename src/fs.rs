@@ -53,9 +53,65 @@ mod unix {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::{test_unoptimized_value, test_value};
+    use super::*;
+    use crate::{
+        pessimize_newtypes,
+        tests::{test_unoptimized_value, test_value},
+    };
+    use std::mem::ManuallyDrop;
 
-    // FIXME: Can't test File as it doesn't implement the right traits
+    #[derive(Debug)]
+    struct TestableFile(ManuallyDrop<File>);
+    //
+    impl TestableFile {
+        fn new() -> Self {
+            Self(ManuallyDrop::new(tempfile::tempfile().unwrap()))
+        }
+    }
+    //
+    impl Clone for TestableFile {
+        fn clone(&self) -> Self {
+            // This is safe because ManuallyDrop avoids double closure
+            #[cfg(unix)]
+            unsafe {
+                Self(ManuallyDrop::new(File::from_raw_fd(self.0.as_raw_fd())))
+            }
+            #[cfg(windows)]
+            unsafe {
+                Self(ManuallyDrop::new(File::from_raw_handle(
+                    self.0.as_raw_handle(),
+                )))
+            }
+        }
+    }
+    //
+    impl PartialEq for TestableFile {
+        fn eq(&self, other: &Self) -> bool {
+            // Going for simple fd equality as there's no way even a defective
+            // Pessimize impl for File would perform filesystem IO.
+            #[cfg(unix)]
+            {
+                self.0.as_raw_fd() == other.0.as_raw_fd()
+            }
+            #[cfg(windows)]
+            {
+                self.0.as_raw_handle() == other.0.as_raw_handle()
+            }
+        }
+    }
+    //
+    pessimize_newtypes!( allow(missing_docs) { TestableFile{ ManuallyDrop<File> } } );
+    //
+    #[test]
+    fn file() {
+        test_value(TestableFile::new())
+    }
+    //
+    #[test]
+    #[ignore]
+    fn file_optim() {
+        test_unoptimized_value(TestableFile::new())
+    }
 
     #[cfg(unix)]
     mod unix {
