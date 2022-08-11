@@ -65,7 +65,10 @@ impl<T: Pessimize> BorrowPessimize for UnsafeCell<T> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::tests::{assert_unoptimized, test_unoptimized_value_type, test_value_type};
+    use crate::{
+        pessimize_newtypes,
+        tests::{assert_unoptimized, test_unoptimized_value_type, test_value_type},
+    };
 
     pub fn test_unoptimized_cell<T: Clone + PartialEq, CellT: Pessimize>(
         mut cell: CellT,
@@ -91,13 +94,41 @@ pub(crate) mod tests {
         test_unoptimized_cell(Cell::new(0isize), Cell::get_mut);
     }
 
-    // FIXME: Can't test UnsafeCell<T> as a value type since it doesn't impl the
-    //        required traits. Whatever solution is chosen will likely also
-    //        enable testing of Box<dyn Trait>.
+    #[derive(Debug, Default)]
+    struct UnsafeCellWrapper(UnsafeCell<isize>);
+    //
+    impl UnsafeCellWrapper {
+        fn new(i: isize) -> Self {
+            Self(UnsafeCell::new(i))
+        }
+    }
+    //
+    impl Clone for UnsafeCellWrapper {
+        fn clone(&self) -> Self {
+            Self::new(unsafe { *self.0.get() })
+        }
+    }
+    //
+    impl PartialEq for UnsafeCellWrapper {
+        fn eq(&self, other: &Self) -> bool {
+            unsafe { *self.0.get() == *other.0.get() }
+        }
+    }
+    //
+    pessimize_newtypes!( allow(missing_docs) { UnsafeCellWrapper{ UnsafeCell<isize> } } );
+    //
+    #[test]
+    fn unsafe_cell() {
+        test_value_type(
+            UnsafeCellWrapper::new(isize::MIN),
+            UnsafeCellWrapper::new(isize::MAX),
+        );
+    }
+    //
     #[test]
     #[ignore]
     fn unsafe_cell_optim() {
-        // FIXME: Add a test_unoptimized_value_type
+        test_unoptimized_value_type::<UnsafeCellWrapper>();
         test_unoptimized_cell(UnsafeCell::new(0isize), UnsafeCell::get_mut);
     }
 }

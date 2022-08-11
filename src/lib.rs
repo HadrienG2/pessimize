@@ -801,7 +801,7 @@ macro_rules! pessimize_newtypes {
                 $(
                     | $param:ident $( : ( $trait1:path $(, $traitN:path)* ) )? |
                 )?
-                $outer:ty { $inner:ident }
+                $outer:ty { $inner:ty }
             ),*
         }
     ) => {
