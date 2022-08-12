@@ -1,7 +1,8 @@
 //! Pessimize implementations for core::cell
 
 use crate::{
-    assume_accessed, assume_accessed_imut, consume, hide, BorrowPessimize, Pessimize, PessimizeCast,
+    assume_accessed, assume_accessed_imut, consume, hide, pessimize_cast, BorrowPessimize,
+    Pessimize,
 };
 use core::cell::{Cell, UnsafeCell};
 
@@ -33,19 +34,17 @@ unsafe impl<T: Copy + Pessimize> Pessimize for Cell<T> {
     }
 }
 
-unsafe impl<T: Pessimize> PessimizeCast for UnsafeCell<T> {
-    type Pessimized = T;
-
-    #[inline(always)]
-    fn into_pessimize(self) -> T {
-        self.into_inner()
+pessimize_cast!(
+    allow(missing_docs)
+    {
+        T : (
+            |T: (Pessimize)| UnsafeCell<T> : (
+                Self::into_inner,
+                Self::new
+            )
+        )
     }
-
-    #[inline(always)]
-    unsafe fn from_pessimize(x: T) -> Self {
-        Self::new(x)
-    }
-}
+);
 //
 impl<T: Pessimize> BorrowPessimize for UnsafeCell<T> {
     type BorrowedPessimize = *mut T;

@@ -6,8 +6,8 @@
 #![allow(clippy::transmute_int_to_bool)]
 
 use crate::{
-    assume_accessed, assume_accessed_imut, assume_read, hide, pessimize_copy, BorrowPessimize,
-    Pessimize, PessimizeCast,
+    assume_accessed, assume_accessed_imut, assume_read, hide, pessimize_cast, pessimize_copy,
+    BorrowPessimize, Pessimize,
 };
 
 pessimize_copy!(
@@ -87,20 +87,17 @@ pessimize_tuples_up_to!(A1, A2, A3, A4, A5, A6, A7, A8);
 //
 // We do make an exception for [T; 1], since that is unfit for SIMD anyway.
 //
-unsafe impl<T: Pessimize> PessimizeCast for [T; 1] {
-    type Pessimized = T;
-
-    #[inline(always)]
-    fn into_pessimize(self) -> T {
-        let [x] = self;
-        x
+pessimize_cast!(
+    allow(missing_docs)
+    {
+        T : (
+            |T: (Pessimize)| [T; 1] : (
+                |[x]: Self| x,
+                |x| [x]
+            )
+        )
     }
-
-    #[inline(always)]
-    unsafe fn from_pessimize(x: T) -> Self {
-        [x]
-    }
-}
+);
 //
 impl<T: Pessimize> BorrowPessimize for [T; 1] {
     type BorrowedPessimize = T;

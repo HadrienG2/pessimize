@@ -1,21 +1,19 @@
 //! Implementations of Pessimize for core::mem
 
-use crate::{assume_accessed, BorrowPessimize, Pessimize, PessimizeCast};
+use crate::{assume_accessed, pessimize_cast, BorrowPessimize, Pessimize};
 use core::mem::ManuallyDrop;
 
-unsafe impl<T: Pessimize> PessimizeCast for ManuallyDrop<T> {
-    type Pessimized = T;
-
-    #[inline(always)]
-    fn into_pessimize(self) -> T {
-        Self::into_inner(self)
+pessimize_cast!(
+    allow(missing_docs)
+    {
+        T : (
+            |T: (Pessimize)| ManuallyDrop<T> : (
+                Self::into_inner,
+                Self::new
+            )
+        )
     }
-
-    #[inline(always)]
-    unsafe fn from_pessimize(inner: T) -> Self {
-        Self::new(inner)
-    }
-}
+);
 //
 impl<T: Pessimize> BorrowPessimize for ManuallyDrop<T> {
     type BorrowedPessimize = T;

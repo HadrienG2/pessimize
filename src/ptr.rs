@@ -144,8 +144,7 @@ mod all_pointers {
     }
 }
 
-// Once we have Pessimize for *const T, we trivially have it
-// for *mut T, which is effectively the same type
+// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
 unsafe impl<T: ?Sized> PessimizeCast for *mut T
 where
     *const T: Pessimize,
@@ -180,10 +179,7 @@ where
     }
 }
 
-// Once we have Pessimize  for *mut T, having it for NonNull<T>
-// is just a matter of asserting that the pointer cannot become null (which is
-// trivially true since hide is the identity function and assume_accessed
-// doesn't actually modify anything)
+// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
 unsafe impl<T: ?Sized> PessimizeCast for NonNull<T>
 where
     *mut T: Pessimize,
@@ -222,6 +218,8 @@ where
 // are just a special kind of read-only pointer.
 macro_rules! pessimize_fn {
     ($res:ident $( , $args:ident )* ) => {
+        // NOTE: Can't use pessimize_cast! macro here as making it support
+        //       multiple generic arguments would be too hard.
         unsafe impl< $res $( , $args )* > PessimizeCast for fn( $($args),* ) -> $res {
             type Pessimized = *const ();
 
@@ -283,6 +281,7 @@ macro_rules! pessimize_references {
         ),*
     ) => {
         $(
+            // NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
             unsafe impl<'a, T: ?Sized> PessimizeCast for $ref_t
                 where NonNull<T>: Pessimize
             {

@@ -10,6 +10,9 @@ use core::{
 // We can only support `Unpin` types because `PessimizeCast::into_pessimize` is
 // a safe function, and with `!Unpin` types this safe function would allow
 // people to violate Pin's contract by moving data out of the Pin's target.
+//
+// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
+//
 unsafe impl<T: ?Sized + Unpin, P: Deref<Target = T> + Pessimize> PessimizeCast for Pin<P> {
     type Pessimized = P;
 

@@ -3,6 +3,7 @@
 use crate::{assume_accessed, assume_globals_accessed, BorrowPessimize, Pessimize, PessimizeCast};
 use std_alloc::boxed::Box;
 
+// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
 #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
 unsafe impl<T: ?Sized> PessimizeCast for Box<T>
 where
