@@ -7,14 +7,17 @@ mod atomic {
 
     macro_rules! pessimize_atomics {
         (
-            $(
-                $inner:ty : $outer:ident $(<$param:ident>)?
-            ),*
+            $doc_cfg:meta
+            {
+                $(
+                    $inner:ty : $outer:ident $(<$param:ident>)?
+                ),*
+            }
         ) => {
             use atomic::{ $($outer),* };
             //
             pessimize_cast!(
-                allow(missing_docs)
+                $doc_cfg
                 {
                     $(
                         $inner : (
@@ -25,6 +28,7 @@ mod atomic {
             );
             //
             $(
+                #[cfg_attr(feature = "nightly", $doc_cfg)]
                 impl $(<$param>)? BorrowPessimize for $outer $(<$param>)? {
                     type BorrowedPessimize = *const Self;
 
@@ -47,15 +51,50 @@ mod atomic {
     }
     //
     #[cfg(target_has_atomic = "8")]
-    pessimize_atomics!(bool: AtomicBool, i8: AtomicI8, u8: AtomicU8);
+    pessimize_atomics!(
+        doc(cfg(target_has_atomic = "8"))
+        {
+            bool: AtomicBool,
+            i8: AtomicI8,
+            u8: AtomicU8
+        }
+    );
     #[cfg(target_has_atomic = "16")]
-    pessimize_atomics!(i16: AtomicI16, u16: AtomicU16);
+    pessimize_atomics!(
+        doc(cfg(target_has_atomic = "16"))
+        {
+            i16: AtomicI16,
+            u16: AtomicU16
+        }
+    );
     #[cfg(target_has_atomic = "32")]
-    pessimize_atomics!(i32: AtomicI32, u32: AtomicU32);
-    #[cfg(target_has_atomic = "64")]
-    pessimize_atomics!(i64: AtomicI64, u64: AtomicU64);
+    pessimize_atomics!(
+        doc(cfg(target_has_atomic = "32"))
+        {
+            i32: AtomicI32,
+            u32: AtomicU32
+        }
+    );
+    // Need a 64-bit Pessimize impl as well as 64-bit atomics. Taking a little
+    // shortcut by taking the pessimistic assumption that you need a 64-bit
+    // arch to be able to hold 64-bit integers into registers.
+    #[cfg(all(target_has_atomic = "64", target_pointer_width = "64"))]
+    pessimize_atomics!(
+        doc(cfg(all(target_has_atomic = "64", target_pointer_width = "64")))
+        {
+            i64: AtomicI64,
+            u64: AtomicU64
+        }
+    );
     #[cfg(target_has_atomic = "ptr")]
-    pessimize_atomics!(isize: AtomicIsize, usize: AtomicUsize, *mut T: AtomicPtr<T>);
+    pessimize_atomics!(
+        doc(cfg(target_has_atomic = "ptr"))
+        {
+            isize: AtomicIsize,
+            usize: AtomicUsize,
+            *mut T: AtomicPtr<T>
+        }
+    );
 
     #[allow(non_snake_case)]
     #[cfg(test)]

@@ -26,7 +26,9 @@ pessimize_once_like!(
     }
 );
 
-// Some wrappers use u64 and require u64: Pessimize
+// Some wrappers use u64 and require u64: Pessimize. Taking a little
+// shortcut by taking the pessimistic assumption that you need a 64-bit
+// arch to be able to hold 64-bit integers into registers
 #[cfg(target_pointer_width = "64")]
 mod u64_is_pessimize {
     use super::*;
