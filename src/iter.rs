@@ -26,4 +26,32 @@ pessimize_once_like!(
     }
 );
 
-// FIXME: Can't test iterators as they don't implement the right traits
+#[cfg(test)]
+#[allow(non_snake_case)]
+mod tests {
+    use super::*;
+    use crate::{pessimize_newtypes, tests::test_value};
+
+    #[derive(Clone, Debug, Default)]
+    struct TestableEmpty(Empty<u8>);
+    //
+    impl PartialEq for TestableEmpty {
+        fn eq(&self, _other: &Self) -> bool {
+            true
+        }
+    }
+    //
+    pessimize_newtypes!( allow(missing_docs) { TestableEmpty{ Empty<u8> } } );
+    //
+    #[test]
+    fn empty() {
+        test_value(TestableEmpty::default());
+    }
+    //
+    // NOTE: There is no empty_optim test because Pessimize does not act
+    //       as an optimization barrier for stateless ZSTs like Empty.
+
+    // NOTE: Can't test Once and Repeat because there is no reliable way to
+    //       extract the inner value from &self, which would be needed to
+    //       implement PartialEq via a newtype.
+}
