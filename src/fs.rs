@@ -72,6 +72,9 @@ mod tests {
     impl Clone for TestableFile {
         fn clone(&self) -> Self {
             // This is safe because ManuallyDrop avoids double closure
+            // (in fact, it leads to a resource leak, but that's okay since we
+            // only create a pair of temp files during test execution and the
+            // OS will clean up after us)
             #[cfg(unix)]
             unsafe {
                 Self(ManuallyDrop::new(File::from_raw_fd(self.0.as_raw_fd())))
