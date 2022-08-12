@@ -95,8 +95,14 @@ mod tests {
 
         #[test]
         fn neon() {
-            test_simd::<f64, 1, F64x1>(f64::MIN, f64::MAX);
-            test_simd::<f64, 2, F64x2>(f64::MIN, f64::MAX);
+            test_simd::<f64, 1, TestableF64x1>(f64::MIN, f64::MAX);
+            test_simd::<f64, 2, TestableF64x2>(f64::MIN, f64::MAX);
+            test_simd::<f64, 2, TestableF64x1x2>(f64::MIN, f64::MAX);
+            test_simd::<f64, 3, TestableF64x1x3>(f64::MIN, f64::MAX);
+            test_simd::<f64, 4, TestableF64x1x4>(f64::MIN, f64::MAX);
+            test_simd::<f64, 4, TestableF64x2x2>(f64::MIN, f64::MAX);
+            test_simd::<f64, 6, TestableF64x2x3>(f64::MIN, f64::MAX);
+            test_simd::<f64, 8, TestableF64x2x4>(f64::MIN, f64::MAX);
             #[cfg(target_feature = "nightly")]
             {
                 test_simd::<f64, 1, Simd<f64, 1>>(f64::MIN, f64::MAX);
@@ -107,8 +113,14 @@ mod tests {
         #[test]
         #[ignore]
         fn neon_optim() {
-            test_unoptimized_value_type::<F64x1>();
-            test_unoptimized_value_type::<F64x2>();
+            test_unoptimized_value_type::<TestableF64x1>();
+            test_unoptimized_value_type::<TestableF64x2>();
+            test_unoptimized_value_type::<TestableF64x1x2>();
+            test_unoptimized_value_type::<TestableF64x1x3>();
+            test_unoptimized_value_type::<TestableF64x1x4>();
+            test_unoptimized_value_type::<TestableF64x2x2>();
+            test_unoptimized_value_type::<TestableF64x2x3>();
+            test_unoptimized_value_type::<TestableF64x2x4>();
             #[cfg(target_feature = "nightly")]
             {
                 test_unoptimized_value_type::<Simd<f64, 1>>();
@@ -118,12 +130,16 @@ mod tests {
 
         // Minimal NEON abstraction layer to be able to reuse main tests
         macro_rules! abstract_float64xN_t {
-            ($name:ident, $inner:ident, $lanes:expr, $load:ident, $store:ident) => {
+            (
+                $(
+                    ($name:ident, $inner:ident, $lanes:expr, $load:ident, $store:ident)
+                ),*
+            ) => {
                 #[derive(Clone, Copy, Debug)]
-                #[repr(transparent)]
                 struct $name($inner);
 
                 impl From<[f64; $lanes]> for $name {
+                    #[inline(always)]
                     fn from(x: [f64; $lanes]) -> Self {
                         // Round trip to $inner ensures SIMD alignment
                         unsafe {
@@ -134,12 +150,14 @@ mod tests {
                 }
 
                 impl Default for $name {
+                    #[inline(always)]
                     fn default() -> Self {
                         Self::from([0.0; $lanes])
                     }
                 }
 
                 impl PartialEq for $name {
+                    #[inline(always)]
                     fn eq(&self, other: &Self) -> bool {
                         let value = |x: &Self| -> [f64; $lanes] {
                             // Round trip to $inner ensures SIMD alignment
@@ -159,9 +177,33 @@ mod tests {
                 pessimize_newtypes!( allow(missing_docs) { $name{ $inner } } );
             };
         }
-        abstract_float64xN_t!(F64x1, float64x1_t, 1, vld1_f64, vst1_f64);
-        abstract_float64xN_t!(F64x2, float64x2_t, 2, vld1q_f64, vst1q_f64);
-
-        // TODO: Use a variant of the same idea to test float64xNxM
+        abstract_float64xN_t!(
+            (TestableF64x1, float64x1_t, 1, vld1_f64, vst1_f64),
+            (TestableF64x2, float64x2_t, 2, vld1q_f64, vst1q_f64),
+            (TestableF64x1x2, float64x1x2_t, 2, vld1_f64_x2, vst1_f64_x2),
+            (TestableF64x1x3, float64x1x3_t, 3, vld1_f64_x3, vst1_f64_x3),
+            (TestableF64x1x4, float64x1x4_t, 4, vld1_f64_x4, vst1_f64_x4),
+            (
+                TestableF64x2x2,
+                float64x2x2_t,
+                4,
+                vld1q_f64_x2,
+                vst1q_f64_x2
+            ),
+            (
+                TestableF64x2x3,
+                float64x2x3_t,
+                6,
+                vld1q_f64_x3,
+                vst1q_f64_x3
+            ),
+            (
+                TestableF64x2x4,
+                float64x2x4_t,
+                8,
+                vld1q_f64_x4,
+                vst1q_f64_x4
+            )
+        );
     }
 }
