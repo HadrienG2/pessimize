@@ -70,7 +70,7 @@ mod atomic {
                 ),*
             ) => {
                 $(
-                    // FIMXE: Can't test AtomicXyz yet as it doesn't implement the right traits
+                    // FIXME: Can't test AtomicXyz yet as it doesn't implement the right traits
                     /* #[test]
                     fn $outer() {
                         test_value_type($outer::new($inner::MIN), $outer::new($inner::MAX));
@@ -79,7 +79,7 @@ mod atomic {
                     #[test]
                     #[ignore]
                     fn $optim_test() {
-                        // FIMXE: Can't test AtomicXyz yet as it doesn't implement the right traits
+                        // FIXME: Can't test AtomicXyz yet as it doesn't implement the right traits
                         // test_unoptimized_value_type::<$outer>();
                         test_unoptimized_cell($outer::new(<$inner>::default()), $outer::get_mut);
                     }
@@ -114,7 +114,7 @@ mod atomic {
             (usize, AtomicUsize, AtomicUsize_optim)
         );
 
-        // FIMXE: Can't test AtomicPtr yet as it doesn't implement the right traits
+        // FIXME: Can't test AtomicPtr yet as it doesn't implement the right traits
         /* #[test]
         fn AtomicPtr() {
             test_value_type(AtomicPtr::<()>::new(core::ptr::null_mut()));
@@ -123,7 +123,7 @@ mod atomic {
         #[test]
         #[ignore]
         fn AtomicPtr_optim() {
-            // FIMXE: Can't test AtomicBool yet as it doesn't implement the right traits
+            // FIXME: Can't test AtomicBool yet as it doesn't implement the right traits
             // test_unoptimized_value_type::<AtomicPtr<()>>();
             test_unoptimized_cell(
                 AtomicPtr::<()>::new(core::ptr::null_mut()),
