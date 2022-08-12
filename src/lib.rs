@@ -438,7 +438,6 @@ pub fn impl_assume_accessed_via_extract_pessimized<T: PessimizeCast>(
 /// The `Drop` impl of the value left in `self_` by `extract_self` will not be
 /// called, make sure that this does not result in a resource leak.
 ///
-// TODO: Remove once pointers are migrated to macros
 #[inline(always)]
 pub fn impl_assume_accessed_via_extract_self<T: PessimizeCast>(
     self_: &mut T,
@@ -963,22 +962,6 @@ macro_rules! pessimize_collections {
         )*)*
     };
 }
-
-// TODO: Once done with std, go through the crate looking for patterns in impls
-//       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
-//
-//       Current candidates are...
-//       - where bounds (needed by ptr::* and boxed::Box<T>)
-//       - assume_accessed needs fancy borrows (needed by boxed::Box<T> and ptr::&[mut] T)
-//       - Pointer getter and get_mut (needed by cell::UnsafeCell<T>)
-//       - Multiple generic args (needed by ptr::fn())
-//       - Making pessimize_once_like implementable atop the main macros
-//       - into_inner, new, Deref and DerefMut (mem::ManuallyDrop<T>)
-//       - Structs with all-pub members, work like tuple structs (arch::x86::CpuidResult, process::Output)
-//
-//       Consider exposing the "extract a Pessimized from &Self" functionality
-//       as a trait so that e.g. Vec<T> wrappers can reuse the work done for
-//       Vec<T> if they expose an &Vec<T>.
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
