@@ -135,46 +135,48 @@ mod tests {
                     ($name:ident, $inner:ident, $lanes:expr, $load:ident, $store:ident)
                 ),*
             ) => {
-                #[derive(Clone, Copy, Debug)]
-                struct $name($inner);
+                $(
+                    #[derive(Clone, Copy, Debug)]
+                    struct $name($inner);
 
-                impl From<[f64; $lanes]> for $name {
-                    #[inline(always)]
-                    fn from(x: [f64; $lanes]) -> Self {
-                        // Round trip to $inner ensures SIMD alignment
-                        unsafe {
-                            let x: $inner = core::mem::transmute(x);
-                            Self(aarch64::$load((&x) as *const $inner as *const f64))
+                    impl From<[f64; $lanes]> for $name {
+                        #[inline(always)]
+                        fn from(x: [f64; $lanes]) -> Self {
+                            // Round trip to $inner ensures SIMD alignment
+                            unsafe {
+                                let x: $inner = core::mem::transmute(x);
+                                Self(aarch64::$load((&x) as *const $inner as *const f64))
+                            }
                         }
                     }
-                }
 
-                impl Default for $name {
-                    #[inline(always)]
-                    fn default() -> Self {
-                        Self::from([0.0; $lanes])
+                    impl Default for $name {
+                        #[inline(always)]
+                        fn default() -> Self {
+                            Self::from([0.0; $lanes])
+                        }
                     }
-                }
 
-                impl PartialEq for $name {
-                    #[inline(always)]
-                    fn eq(&self, other: &Self) -> bool {
-                        let value = |x: &Self| -> [f64; $lanes] {
-                            // Round trip to $inner ensures SIMD alignment
-                            let mut result = Self::from([0.0; $lanes]);
-                            unsafe {
-                                aarch64::$store(
-                                    (&mut result) as *mut Self as *mut f64,
-                                    x.0,
-                                );
-                                core::mem::transmute(result)
-                            }
-                        };
-                        value(self) == value(other)
+                    impl PartialEq for $name {
+                        #[inline(always)]
+                        fn eq(&self, other: &Self) -> bool {
+                            let value = |x: &Self| -> [f64; $lanes] {
+                                // Round trip to $inner ensures SIMD alignment
+                                let mut result = Self::from([0.0; $lanes]);
+                                unsafe {
+                                    aarch64::$store(
+                                        (&mut result) as *mut Self as *mut f64,
+                                        x.0,
+                                    );
+                                    core::mem::transmute(result)
+                                }
+                            };
+                            value(self) == value(other)
+                        }
                     }
-                }
 
-                pessimize_newtypes!( allow(missing_docs) { $name{ $inner } } );
+                    pessimize_newtypes!( allow(missing_docs) { $name{ $inner } } );
+                )*
             };
         }
         abstract_float64xN_t!(
