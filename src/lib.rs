@@ -842,7 +842,6 @@ macro_rules! pessimize_newtypes {
 }
 
 /// Pessimize a type that behaves like core::iter::Once
-// FIXME: Merge into main macro hierarchy.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! pessimize_once_like {
@@ -967,8 +966,6 @@ macro_rules! pessimize_collections {
 
 // TODO: Once done with std, go through the crate looking for patterns in impls
 //       of Pessimize, PessimizeCast and BorrowPessimize, and factor these out.
-//
-//       Consider splitting PessimizeCast and BorrowPessimize macros
 //
 //       Current candidates are...
 //       - where bounds (needed by ptr::* and boxed::Box<T>)
