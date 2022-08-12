@@ -88,6 +88,6 @@ mod tests {
     // NOTE: Can't test inbound sockets because that would require ability to
     //       open inbound network ports (can't be assumed, e.g. Windows firewall
     //       is enabled by default and blocks that), and without that can't test
-    //       outbound sockets too because that would require internet
-    //       connectivity, which cannot be assumed from the testing host.
+    //       outbound sockets either because without a local server that would
+    //       require internet connectivity, which cannot be assumed.
 }
