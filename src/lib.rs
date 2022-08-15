@@ -971,7 +971,7 @@ macro_rules! pessimize_collections {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::ptr::tests::{test_all_pinned_pointers, test_all_pointers, test_unpinned_pointers};
+    use crate::ptr::tests::{test_all_pinned_pointers, test_unpinned_pointers};
     #[cfg(feature = "nightly")]
     use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
     use std::{
@@ -1180,7 +1180,7 @@ pub(crate) mod tests {
         test_value_type::<[isize; BIG]>([isize::MIN; BIG], [isize::MAX; BIG]);
         #[cfg(not(feature = "default_impl"))]
         for inner in [isize::MIN, 0, isize::MAX] {
-            test_all_pointers::<[isize; BIG], _>([inner; BIG]);
+            crate::ptr::tests::test_all_pointers::<[isize; BIG], _>([inner; BIG]);
         }
     }
 
