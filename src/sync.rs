@@ -234,7 +234,7 @@ mod atomic {
                 atomic_u32_optim
             )
         );
-        #[cfg(target_has_atomic = "64")]
+        #[cfg(all(target_has_atomic = "64", target_pointer_width = "64"))]
         test_int_atomics!(
             (
                 i64,
