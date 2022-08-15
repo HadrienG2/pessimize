@@ -95,10 +95,7 @@ mod u64_is_pessimize {
 #[allow(non_snake_case)]
 mod tests {
     use super::*;
-    use crate::{
-        pessimize_newtypes,
-        tests::{test_value, test_value_type},
-    };
+    use crate::{pessimize_newtypes, tests::test_value};
 
     macro_rules! test_zsts {
         (
@@ -139,7 +136,7 @@ mod tests {
     #[cfg(target_pointer_width = "64")]
     mod u64_is_pessimize {
         use super::*;
-        use crate::tests::{test_unoptimized_value, test_unoptimized_value_type};
+        use crate::tests::{test_unoptimized_value, test_unoptimized_value_type, test_value_type};
         use std::io::{Cursor, Take};
 
         #[test]
