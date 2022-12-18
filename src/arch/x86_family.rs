@@ -157,7 +157,7 @@ pub mod avx512 {
                     #[inline(always)]
                     fn hide(mut self) -> Self {
                         unsafe {
-                            asm!("/* {0} */", inout(kreg) self.0, options(preserves_flags, nostack, nomem, pure));
+                            asm!("/* {0} */", inout(kreg) self.0, options(preserves_flags, nostack, nomem));
                         }
                         self
                     }

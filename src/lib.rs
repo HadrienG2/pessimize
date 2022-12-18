@@ -536,7 +536,7 @@ macro_rules! pessimize_asm_values {
                 #[inline(always)]
                 fn hide(mut self) -> Self {
                     unsafe {
-                        core::arch::asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem, pure));
+                        core::arch::asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem));
                     }
                     self
                 }
