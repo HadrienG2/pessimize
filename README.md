@@ -5,7 +5,7 @@ lightweight optimization barriers on stable Rust makes it even more difficult.
 This crate aims to improve upon the statu quo by providing an alternative to
 `std::hint::black_box` which is...
 
-- Available on stable Rust
+- ~~Available on stable Rust~~ (fixed as of Rust 1.66)
 - As lightweight as a library-based approach can be
 - Fine-grained, enabling precise intent statement and thus lower overhead
 - Reliable (no more "this might do nothing on some compiler targets", if it
