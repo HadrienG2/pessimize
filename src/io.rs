@@ -46,20 +46,20 @@ mod u64_is_pessimize {
                 doc(cfg(all(feature = "std", target_pointer_width = "64")))
             )]
             unsafe impl<T: Pessimize $(+ $extra_trait)?> Pessimize for $name<T> {
-                #[inline(always)]
+                #[inline]
                 fn hide(self) -> Self {
                     let metadata = self.$get_metadata();
                     let (inner, metadata) = hide((self.into_inner(), metadata));
                     $from_inner_metadata(inner, metadata)
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_read(&self) {
                     assume_read::<T>(self.get_ref());
                     consume(self.$get_metadata());
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed(&mut self) {
                     assume_accessed::<T>(self.get_mut());
                     let mut metadata = self.$get_metadata();
@@ -67,7 +67,7 @@ mod u64_is_pessimize {
                     self.$set_metadata(metadata);
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed_imut(&self) {
                     assume_accessed_imut::<T>(self.get_ref());
                     consume(self.$get_metadata());

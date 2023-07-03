@@ -16,12 +16,12 @@ use core::{
 unsafe impl<T: ?Sized + Unpin, P: Deref<Target = T> + Pessimize> PessimizeCast for Pin<P> {
     type Pessimized = P;
 
-    #[inline(always)]
+    #[inline]
     fn into_pessimize(self) -> P {
         Self::into_inner(self)
     }
 
-    #[inline(always)]
+    #[inline]
     unsafe fn from_pessimize(p: P) -> Self {
         Self::new(p)
     }
@@ -33,12 +33,12 @@ where
 {
     type BorrowedPessimize = *const T;
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         f(&(self.deref() as *const T))
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         assume_accessed(&mut (self.deref_mut() as *const T))
     }

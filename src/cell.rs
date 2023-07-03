@@ -11,22 +11,22 @@ use core::cell::{Cell, UnsafeCell};
 // NOTE: Can't use PessimizeCast/BorrowPessimize because need to propagate
 //       changes back in `assume_accessed_imut`
 unsafe impl<T: Copy + Pessimize> Pessimize for Cell<T> {
-    #[inline(always)]
+    #[inline]
     fn hide(self) -> Self {
         Cell::new(hide(self.into_inner()))
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_read(&self) {
         consume::<T>(self.get())
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed(&mut self) {
         assume_accessed::<T>(self.get_mut())
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_imut(&self) {
         let inner = self.get();
         assume_accessed_imut::<T>(&inner);
@@ -49,13 +49,13 @@ pessimize_cast!(
 impl<T: Pessimize> BorrowPessimize for UnsafeCell<T> {
     type BorrowedPessimize = *mut T;
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         // Can't safely get an &T out of an &UnsafeCell<T>, must use by-ptr barrier
         f(&self.get());
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         assume_accessed::<T>(self.get_mut())
     }

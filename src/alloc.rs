@@ -23,21 +23,21 @@ mod std_feature {
     // NOTE: Need a manual Pessimize implementation due to use of global state
     #[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
     unsafe impl Pessimize for System {
-        #[inline(always)]
+        #[inline]
         fn hide(self) -> Self {
             assume_globals_accessed();
             self
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_read(&self) {}
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed(&mut self) {
             assume_globals_accessed();
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed_imut(&self) {
             assume_globals_accessed();
         }

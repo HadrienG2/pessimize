@@ -192,7 +192,7 @@ pub unsafe trait Pessimize {
 /// enforce any compiler assumptions concerning the input value, it just turns
 /// it into another value that looks unrelated in the eye of the compiler.
 ///
-#[inline(always)]
+#[inline]
 pub fn hide<T: Pessimize>(x: T) -> T {
     Pessimize::hide(x)
 }
@@ -223,7 +223,7 @@ pub fn hide<T: Pessimize>(x: T) -> T {
 /// leveraging the underlying `readonly` optimization hint. It is hoped that
 /// future versions of rustc will take stronger notice of that hint.
 ///
-#[inline(always)]
+#[inline]
 pub fn assume_read<T: Pessimize>(x: &T) {
     Pessimize::assume_read(x)
 }
@@ -233,13 +233,13 @@ pub fn assume_read<T: Pessimize>(x: &T) {
 /// This is a more ergonomic alternative to `assume_read` in the common case
 /// where the input is `Copy` or will not be needed anymore.
 ///
-#[inline(always)]
+#[inline]
 pub fn consume<T: Pessimize>(x: T) {
     assume_read(&x);
 }
 
 /// Assume that all global and thread-local variables have been read
-#[inline(always)]
+#[inline]
 pub fn assume_globals_read() {
     unsafe { core::arch::asm!("", options(preserves_flags, nostack, readonly)) }
 }
@@ -284,7 +284,7 @@ pub fn assume_globals_read() {
 /// the compiler may or may not manage to infer that these pointers cannot be
 /// used to modify or read their targets where that would be undefined behavior.
 ///
-#[inline(always)]
+#[inline]
 pub fn assume_accessed<R: Pessimize>(r: &mut R) {
     Pessimize::assume_accessed(r)
 }
@@ -300,13 +300,13 @@ pub fn assume_accessed<R: Pessimize>(r: &mut R) {
 /// assume that the slice length has changed, since slice length does not have
 /// internal mutability semantics.
 ///
-#[inline(always)]
+#[inline]
 pub fn assume_accessed_imut<R: Pessimize>(r: &R) {
     Pessimize::assume_accessed_imut(r)
 }
 
 /// Assume that all global and thread-local variables have been read and modified
-#[inline(always)]
+#[inline]
 pub fn assume_globals_accessed() {
     unsafe { core::arch::asm!("", options(preserves_flags, nostack)) }
 }
@@ -402,7 +402,7 @@ pub trait BorrowPessimize: PessimizeCast {
 
 /// Implementation of `BorrowPessimize::with_pessimize` for `Copy` types
 // TODO: Use specializable BorrowPessimize impl once available on stable
-#[inline(always)]
+#[inline]
 pub fn impl_with_pessimize_via_copy<T: Copy + PessimizeCast>(
     self_: &T,
     f: impl FnOnce(&T::Pessimized),
@@ -417,7 +417,7 @@ pub fn impl_with_pessimize_via_copy<T: Copy + PessimizeCast>(
 /// The `Drop` impl of the value left in `self_` by `extract_pessimized` will
 /// not be called, make sure that this does not result in a resource leak.
 ///
-#[inline(always)]
+#[inline]
 pub fn impl_assume_accessed_via_extract_pessimized<T: PessimizeCast>(
     self_: &mut T,
     extract_pessimized: impl FnOnce(&mut T) -> T::Pessimized,
@@ -438,7 +438,7 @@ pub fn impl_assume_accessed_via_extract_pessimized<T: PessimizeCast>(
 /// The `Drop` impl of the value left in `self_` by `extract_self` will not be
 /// called, make sure that this does not result in a resource leak.
 ///
-#[inline(always)]
+#[inline]
 pub fn impl_assume_accessed_via_extract_self<T: PessimizeCast>(
     self_: &mut T,
     extract_self: impl FnOnce(&mut T) -> T,
@@ -450,24 +450,24 @@ pub fn impl_assume_accessed_via_extract_self<T: PessimizeCast>(
 
 // Given a BorrowPessimize impl, we can automatically implement Pessimize
 unsafe impl<T: BorrowPessimize> Pessimize for T {
-    #[inline(always)]
+    #[inline]
     fn hide(self) -> Self {
         // Safe because `from_pessimize` is from the same scope and `hide` is
         // allowed before `from_pessimize`.
         unsafe { Self::from_pessimize(hide(self.into_pessimize())) }
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_read(&self) {
         Self::with_pessimize(self, assume_read)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed(&mut self) {
         Self::assume_accessed_impl(self)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_imut(&self) {
         Self::with_pessimize(self, assume_accessed_imut)
     }
@@ -487,24 +487,24 @@ mod default_impl {
     //       `assume_accessed` in `hide` impl.
     #[doc(cfg(all(feature = "nightly", feature = "default_impl")))]
     unsafe impl<T> Pessimize for T {
-        #[inline(always)]
+        #[inline]
         default fn hide(mut self) -> Self {
             let mut r: &mut Self = &mut self;
             assume_accessed::<&mut T>(&mut r);
             self
         }
 
-        #[inline(always)]
+        #[inline]
         default fn assume_read(&self) {
             consume::<&T>(self)
         }
 
-        #[inline(always)]
+        #[inline]
         default fn assume_accessed(mut self: &mut Self) {
             assume_accessed::<&mut T>(&mut self);
         }
 
-        #[inline(always)]
+        #[inline]
         default fn assume_accessed_imut(&self) {
             assume_accessed_imut::<&T>(&self)
         }
@@ -533,7 +533,7 @@ macro_rules! pessimize_asm_values {
             #[allow(asm_sub_register)]
             #[cfg_attr(feature = "nightly", $doc_cfg)]
             unsafe impl $crate::Pessimize for $value_type {
-                #[inline(always)]
+                #[inline]
                 fn hide(mut self) -> Self {
                     unsafe {
                         core::arch::asm!("/* {0} */", inout($reg) self, options(preserves_flags, nostack, nomem));
@@ -541,19 +541,19 @@ macro_rules! pessimize_asm_values {
                     self
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_read(&self) {
                     unsafe {
                         core::arch::asm!("/* {0} */", in($reg) *self, options(preserves_flags, nostack, nomem))
                     }
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed(&mut self) {
                     Self::assume_read(self)
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed_imut(&self) {
                     Self::assume_read(self)
                 }
@@ -587,12 +587,12 @@ macro_rules! pessimize_cast {
             unsafe impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::PessimizeCast for $outer {
                 type Pessimized = $inner;
 
-                #[inline(always)]
+                #[inline]
                 fn into_pessimize(self) -> $inner {
                     $into(self)
                 }
 
-                #[inline(always)]
+                #[inline]
                 unsafe fn from_pessimize(inner: $inner) -> Self {
                     $from(inner)
                 }
@@ -642,12 +642,12 @@ macro_rules! pessimize_extractible {
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = $inner;
 
-                #[inline(always)]
+                #[inline]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
                     f(&$extract(self))
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed_impl(&mut self) {
                     $crate::impl_assume_accessed_via_extract_pessimized(self, |self_: &mut Self| $extract(self_))
                 }
@@ -826,12 +826,12 @@ macro_rules! pessimize_newtypes {
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = $inner;
 
-                #[inline(always)]
+                #[inline]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
                     f(&self.0)
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed_impl(&mut self) {
                     $crate::assume_accessed(&mut self.0)
                 }
@@ -878,14 +878,14 @@ macro_rules! pessimize_once_like {
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = *const Self;
 
-                #[inline(always)]
+                #[inline]
                 fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
                     // Need at least an &mut Self to access the inner value, so
                     // must use by-reference optimization barrier with &Self
                     f(&(self as *const Self))
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed_impl(&mut self) {
                     let mut value = $extract(self);
                     $crate::assume_accessed(&mut value);
@@ -946,12 +946,12 @@ macro_rules! pessimize_collections {
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = $borrowed_inner;
 
-                #[inline(always)]
+                #[inline]
                 fn with_pessimize(&self, f: impl FnOnce(&$borrowed_inner)) {
                     f(&$extract_borrowed(self))
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed_impl(&mut self) {
                     // With an &mut to a collection, one can trigger a
                     // reallocation, and thus affect global state.

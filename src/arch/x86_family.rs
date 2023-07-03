@@ -154,7 +154,7 @@ pub mod avx512 {
                 //       the PessimizeCast/BorrowPessimize stack is built
                 #[$doc_cfg]
                 unsafe impl Pessimize for Mask<$mask_impl> {
-                    #[inline(always)]
+                    #[inline]
                     fn hide(mut self) -> Self {
                         unsafe {
                             asm!("/* {0} */", inout(kreg) self.0, options(preserves_flags, nostack, nomem));
@@ -162,19 +162,19 @@ pub mod avx512 {
                         self
                     }
 
-                    #[inline(always)]
+                    #[inline]
                     fn assume_read(&self) {
                         unsafe {
                             asm!("/* {0} */", in(kreg) self.0, options(preserves_flags, nostack, nomem))
                         }
                     }
 
-                    #[inline(always)]
+                    #[inline]
                     fn assume_accessed(&mut self) {
                         Self::assume_read(self)
                     }
 
-                    #[inline(always)]
+                    #[inline]
                     fn assume_accessed_imut(&self) {
                         Self::assume_read(self)
                     }

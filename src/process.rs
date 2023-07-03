@@ -31,7 +31,7 @@ pessimize_cast!(
 impl BorrowPessimize for Output {
     type BorrowedPessimize = (ExitStatus, *const u8, usize, usize, *const u8, usize, usize);
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         f(&(
             self.status,
@@ -44,7 +44,7 @@ impl BorrowPessimize for Output {
         ))
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         assume_accessed(&mut self.status);
         assume_accessed(&mut self.stdout);

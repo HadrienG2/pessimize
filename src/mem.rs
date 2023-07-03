@@ -18,12 +18,12 @@ pessimize_cast!(
 impl<T: Pessimize> BorrowPessimize for ManuallyDrop<T> {
     type BorrowedPessimize = T;
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&T)) {
         f(self)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         assume_accessed::<T>(self)
     }

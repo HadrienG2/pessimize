@@ -41,25 +41,25 @@ macro_rules! pessimize_tuple {
         #[allow(non_snake_case)]
         unsafe impl<$($args: Pessimize),*> Pessimize for ($($args,)*) {
             #[allow(clippy::unused_unit)]
-            #[inline(always)]
+            #[inline]
             fn hide(self) -> Self {
                 let ($($args,)*) = self;
                 ( $(hide::<$args>($args),)* )
             }
 
-            #[inline(always)]
+            #[inline]
             fn assume_read(&self) {
                 let ($(ref $args,)*) = self;
                 $( assume_read::<$args>($args) );*
             }
 
-            #[inline(always)]
+            #[inline]
             fn assume_accessed(&mut self) {
                 let ($(ref mut $args,)*) = self;
                 $( assume_accessed::<$args>($args) );*
             }
 
-            #[inline(always)]
+            #[inline]
             fn assume_accessed_imut(&self) {
                 let ($(ref $args,)*) = self;
                 $( assume_accessed_imut::<$args>($args) );*
@@ -102,13 +102,13 @@ pessimize_cast!(
 impl<T: Pessimize> BorrowPessimize for [T; 1] {
     type BorrowedPessimize = T;
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&T)) {
         let [ref x] = self;
         f(x)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         let [ref mut x] = self;
         assume_accessed(x);

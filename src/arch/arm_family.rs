@@ -140,7 +140,7 @@ mod tests {
                     struct $name($inner);
 
                     impl From<[f64; $lanes]> for $name {
-                        #[inline(always)]
+                        #[inline]
                         fn from(x: [f64; $lanes]) -> Self {
                             // Round trip to $inner ensures SIMD alignment
                             unsafe {
@@ -151,14 +151,14 @@ mod tests {
                     }
 
                     impl Default for $name {
-                        #[inline(always)]
+                        #[inline]
                         fn default() -> Self {
                             Self::from([0.0; $lanes])
                         }
                     }
 
                     impl PartialEq for $name {
-                        #[inline(always)]
+                        #[inline]
                         fn eq(&self, other: &Self) -> bool {
                             let value = |x: &Self| -> [f64; $lanes] {
                                 // Round trip to $inner ensures SIMD alignment

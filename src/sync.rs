@@ -32,7 +32,7 @@ mod atomic {
                 impl $(<$param>)? BorrowPessimize for $outer $(<$param>)? {
                     type BorrowedPessimize = *const Self;
 
-                    #[inline(always)]
+                    #[inline]
                     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
                         // While it is possible to extract an inner value from
                         // &self, doing so is not something that LLVM can be
@@ -41,7 +41,7 @@ mod atomic {
                         f(&(self as *const Self))
                     }
 
-                    #[inline(always)]
+                    #[inline]
                     fn assume_accessed_impl(&mut self) {
                         assume_accessed::<$inner>(self.get_mut())
                     }

@@ -11,12 +11,12 @@ where
 {
     type Pessimized = *mut T;
 
-    #[inline(always)]
+    #[inline]
     fn into_pessimize(self) -> *mut T {
         Box::into_raw(self)
     }
 
-    #[inline(always)]
+    #[inline]
     unsafe fn from_pessimize(x: *mut T) -> Self {
         // To simulate creation of a new Box, one must simulate access to the
         // global memory allocator.
@@ -32,13 +32,13 @@ where
 {
     type BorrowedPessimize = *const T;
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         let inner: &T = self.as_ref();
         f(&(inner as *const T))
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         // This reborrow would allow us to mutate, which is needed for
         // `assume_accessed` to reliably work.

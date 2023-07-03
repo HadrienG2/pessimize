@@ -9,7 +9,7 @@ use core::ptr::NonNull;
 
 // Basic logic used to implement Pessimize for pointers
 #[allow(asm_sub_register)]
-#[inline(always)]
+#[inline]
 fn hide_thin_ptr<T: Sized>(mut x: *const T) -> *const T {
     // Safe because it just captures a value and reemits it as is
     unsafe {
@@ -19,14 +19,14 @@ fn hide_thin_ptr<T: Sized>(mut x: *const T) -> *const T {
 }
 //
 #[allow(asm_sub_register)]
-#[inline(always)]
+#[inline]
 fn assume_read_thin_ptr<T: Sized>(x: *const T) {
     // Safe because it just captures a value and does nothing with it
     unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack, readonly)) }
 }
 //
 #[allow(asm_sub_register)]
-#[inline(always)]
+#[inline]
 fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
     // Safe because it just captures a value and does nothing with it
     unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack)) }
@@ -41,22 +41,22 @@ mod thin_pointers {
     // NOTE: This is one of the primitive Pessimize impls on which the
     //       PessimizeCast/BorrowPessimize stack is built
     unsafe impl<T: Sized> Pessimize for *const T {
-        #[inline(always)]
+        #[inline]
         fn hide(self) -> Self {
             hide_thin_ptr(self)
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_read(&self) {
             assume_read_thin_ptr(*self)
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed(&mut self) {
             assume_accessed_thin_ptr(*self as *mut T);
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed_imut(&self) {
             assume_accessed_thin_ptr(*self as *mut T);
         }
@@ -75,7 +75,7 @@ mod all_pointers {
     //       delegate to, is built.
     #[doc(cfg(feature = "nightly"))]
     unsafe impl<T: ?Sized> Pessimize for DynMetadata<T> {
-        #[inline(always)]
+        #[inline]
         fn hide(self) -> Self {
             // Safe because `DynMetadata` is effectively defined to be a thin
             // pointer to an opaque type, which can be converted to `*const ()`
@@ -83,21 +83,21 @@ mod all_pointers {
             unsafe { core::mem::transmute(hide_thin_ptr::<*const ()>(core::mem::transmute(self))) }
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_read(&self) {
             // Safe because `DynMetadata` is effectively defined to be a thin
             // pointer to an opaque type, which can be converted to `*const ()`.
             assume_read_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed(&mut self) {
             // Need to use `assume_accessed` barrier because someone with access
             // to this vtable could call a method that mutates global state
             assume_accessed_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed_imut(&self) {
             // Need to use `assume_accessed` barrier because someone with access
             // to this vtable could call a method that mutates global state
@@ -113,20 +113,20 @@ mod all_pointers {
     where
         T::Metadata: Pessimize,
     {
-        #[inline(always)]
+        #[inline]
         fn hide(self) -> Self {
             let (thin, metadata) = self.to_raw_parts();
             ptr::from_raw_parts(hide_thin_ptr(thin), hide(metadata))
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_read(&self) {
             let (thin, metadata) = self.to_raw_parts();
             assume_read_thin_ptr(thin);
             consume(metadata);
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed(&mut self) {
             let (thin, mut metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
@@ -135,7 +135,7 @@ mod all_pointers {
             *self = ptr::from_raw_parts(thin, metadata)
         }
 
-        #[inline(always)]
+        #[inline]
         fn assume_accessed_imut(&self) {
             let (thin, metadata) = self.to_raw_parts();
             assume_accessed_thin_ptr(thin as *mut ());
@@ -151,12 +151,12 @@ where
 {
     type Pessimized = *const T;
 
-    #[inline(always)]
+    #[inline]
     fn into_pessimize(self) -> *const T {
         self as *const T
     }
 
-    #[inline(always)]
+    #[inline]
     unsafe fn from_pessimize(x: *const T) -> Self {
         x as *mut T
     }
@@ -168,12 +168,12 @@ where
 {
     type BorrowedPessimize = *const T;
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         impl_with_pessimize_via_copy(self, f)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         impl_assume_accessed_via_extract_self(self, |p: &mut *mut T| *p)
     }
@@ -186,12 +186,12 @@ where
 {
     type Pessimized = *mut T;
 
-    #[inline(always)]
+    #[inline]
     fn into_pessimize(self) -> *mut T {
         self.as_ptr()
     }
 
-    #[inline(always)]
+    #[inline]
     unsafe fn from_pessimize(x: *mut T) -> Self {
         NonNull::new_unchecked(x)
     }
@@ -203,12 +203,12 @@ where
 {
     type BorrowedPessimize = *mut T;
 
-    #[inline(always)]
+    #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
         impl_with_pessimize_via_copy(self, f)
     }
 
-    #[inline(always)]
+    #[inline]
     fn assume_accessed_impl(&mut self) {
         impl_assume_accessed_via_extract_self(self, |nn: &mut NonNull<T>| *nn)
     }
@@ -223,12 +223,12 @@ macro_rules! pessimize_fn {
         unsafe impl< $res $( , $args )* > PessimizeCast for fn( $($args),* ) -> $res {
             type Pessimized = *const ();
 
-            #[inline(always)]
+            #[inline]
             fn into_pessimize(self) -> *const () {
                 self as *const ()
             }
 
-            #[inline(always)]
+            #[inline]
             unsafe fn from_pessimize(x: *const ()) -> Self {
                 core::mem::transmute(x)
             }
@@ -237,12 +237,12 @@ macro_rules! pessimize_fn {
         impl< $res $( , $args )* > BorrowPessimize for fn( $($args),* ) -> $res {
             type BorrowedPessimize = *const ();
 
-            #[inline(always)]
+            #[inline]
             fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
                 impl_with_pessimize_via_copy(self, f)
             }
 
-            #[inline(always)]
+            #[inline]
             fn assume_accessed_impl(&mut self) {
                 impl_assume_accessed_via_extract_self(self, |r| *r)
             }
@@ -287,13 +287,13 @@ macro_rules! pessimize_references {
             {
                 type Pessimized = NonNull<T>;
 
-                #[inline(always)]
+                #[inline]
                 fn into_pessimize(self) -> NonNull<T> {
                     NonNull::from(self)
                 }
 
                 #[allow(unused_mut)]
-                #[inline(always)]
+                #[inline]
                 unsafe fn from_pessimize(mut x: NonNull<T>) -> Self {
                     x.$from_nonnull()
                 }
@@ -304,14 +304,14 @@ macro_rules! pessimize_references {
             {
                 type BorrowedPessimize = NonNull<T>;
 
-                #[inline(always)]
+                #[inline]
                 fn with_pessimize(&self, f: impl FnOnce(&Self::BorrowedPessimize)) {
                     let target: &T = &**self;
                     let target_nn: NonNull<T> = NonNull::from(target);
                     f(&target_nn);
                 }
 
-                #[inline(always)]
+                #[inline]
                 fn assume_accessed_impl(&mut self) {
                     // First, we create an owned reference to T via reborrow
                     // If *self is an &mut, this invalidates it as long as the
