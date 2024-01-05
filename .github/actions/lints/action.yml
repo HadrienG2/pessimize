@@ -24,6 +24,15 @@ runs:
       run: |
         echo RUSTFLAGS="-D warnings ${{ inputs.rust-flags }}" >> $GITHUB_ENV
 
+        CARGO_FLAGS="--workspace ${{ inputs.cargo-flags }}"
+        if [[ "${{ inputs.toolchain }}" == 'nightly' ]]; then
+          CARGO_FLAGS="${CARGO_FLAGS} --features=nightly"
+        fi
+        if [[ -n "${{ inputs.cross-target-rust }}" ]]; then
+          CARGO_FLAGS="${CARGO_FLAGS} --target=${{ inputs.cross-target-rust }}"
+        fi
+        echo CARGO_FLAGS="${CARGO_FLAGS}" >> $GITHUB_ENV
+
     - name: Install a cross-compiler using APT
       if: inputs.cross-target-apt != ''
       uses: awalsh128/cache-apt-pkgs-action@latest
@@ -56,11 +65,8 @@ runs:
     - name: Check clippy lints
       shell: bash
       run: |
-        FLAGS="${{ inputs.cargo-flags }}"
-        if [[ ${{ inputs.toolchain }} == 'nightly' ]]; then
-          FLAGS="${FLAGS} --features=nightly"
-        fi
-        if [[ -n ${{ inputs.cross-target-rust }} ]]; then
-          FLAGS="${FLAGS} --target=${{ inputs.cross-target-rust }}"
-        fi
-        cargo clippy --workspace --all-targets ${FLAGS} -- -D warnings
+        cargo clippy ${CARGO_FLAGS} --all-targets -- -D warnings
+
+    - name: Build docs
+      shell: bash
+      run: cargo doc ${CARGO_FLAGS}
