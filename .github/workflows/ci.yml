@@ -1,0 +1,266 @@
+# There are two kinds of continuous integration jobs in this project:
+#
+# - Every code submission or master push passes continuous integration on the
+#   minimal supported Rust version and the current stable Rust version.
+# - Two times a month, a scheduled job makes sure that the code remains
+#   compatible and lint-free on upcoming Rust toolchains (beta and nightly).
+
+name: Continuous Integration
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 12/15 * *'
+
+# Cancel existing jobs on new pushes to the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
+  MINIMAL_RUST: 1.63.0  # Minimal Supported Rust Version
+
+jobs:
+  # Formatting doesn't depend on configuration, and we only care about the
+  # formatting rules of the latest supported Rust version
+  format:
+    # Don't run CI twice when a PR is created from a branch internal to the repo
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Set up stable toolchain
+        if: github.event_name != 'schedule'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+
+      - name: Set up nightly toolchain
+        if: github.event_name == 'schedule'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt
+
+      - name: Check code formatting
+        run: cargo fmt --all --check
+
+  # Lints should cover all cfg code paths
+  #
+  # We only check lints for the latest supported Rust compiler release, which is
+  # nightly. Tests will take care of evaluating 
+  lints:
+    # Don't run CI twice when a PR is created from a branch internal to the repo
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
+
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - nightly
+        cargo-features:
+          # Supported stable configurations
+          - "--no-default-features"
+          - "--no-default-features --features=alloc"
+          - ""  # --features=std
+          - "--features=safe_arch"
+          # Supported nightly configurations = stable configurations + nightly feature
+          - "--no-default-features --features=nightly"
+          - "--no-default-features --features=alloc,nightly"
+          - "--features=nightly"
+          - "--features=safe_arch,nightly"
+        apt-target:
+          - ""  # native = x86_64-linux-gnu
+        target-features:
+          - ""
+        exclude:
+          - toolchain: stable
+            cargo-features: "--no-default-features --features=nightly"
+          - toolchain: stable
+            cargo-features: "--no-default-features --features=alloc,nightly"
+          - toolchain: stable
+            cargo-features: "--features=nightly"
+          - toolchain: stable
+            cargo-features: "--features=safe_arch,nightly"
+          - toolchain: nightly
+            cargo-features: "--no-default-features"
+          - toolchain: nightly
+            cargo-features: "--no-default-features --features=alloc"
+          - toolchain: nightly
+            cargo-features: ""  # --features=std
+          - toolchain: nightly
+            cargo-features: "--features=safe_arch"
+        include:
+          - apt-target: "arm-linux-gnueabi"
+            rust-target: "arm-unknown-linux-gnueabi"
+            target-features: "-C target-feature=-vfp2"
+          - apt-target: "arm-linux-gnueabi"
+            rust-target: "arm-unknown-linux-gnueabi"
+            target-features: "-C target-feature=+vfp2"
+          - apt-target: "aarch64-linux-gnu"
+            rust-target: "aarch64-unknown-linux-gnu"
+            target-features: "-C target-feature=-neon"
+          - apt-target: "aarch64-linux-gnu"
+            rust-target: "aarch64-unknown-linux-gnu"
+            target-features: "-C target-feature=+neon"
+          - apt-target: "i686-linux-gnu"
+            rust-target: "i686-unknown-linux-gnu"
+          - apt-target: ""
+            target-features: "-C target-feature=+avx"
+          - apt-target: ""
+            target-features: "-C target-feature=+avx -C target-feature=+avx2"
+          - toolchain: nightly
+            apt-target: ""
+            target-features: "-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f"
+          - toolchain: nightly
+            apt-target: ""
+            target-features: "-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl"
+          - toolchain: nightly
+            apt-target: ""
+            target-features: "-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16"
+          # FIXME: Would like to test riscv32, but no cross-compiler is
+          #        available for it in the ubuntu repos
+          - apt-target: "riscv64-linux-gnu"
+            rust-target: "riscv64gc-unknown-linux-gnu"
+            target-features: "-C target-feature=-f -C target-feature=-d"
+          - apt-target: "riscv64-linux-gnu"
+            rust-target: "riscv64gc-unknown-linux-gnu"
+            target-features: "-C target-feature=+f -C target-feature=-d"
+          - apt-target: "riscv64-linux-gnu"
+            rust-target: "riscv64gc-unknown-linux-gnu"
+            target-features: "-C target-feature=+f -C target-feature=+d"
+
+    env:
+      RUSTFLAGS: "-D warnings ${{ matrix.target-features }}"
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain for native compilation
+        if: matrix.apt-target == ""
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: clippy
+
+      - name: Install cross-compiler and cross-linker via APT
+        if: matrix.apt-target != ""
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          version: 1.0
+          packages: gcc-12-${{ matrix.apt-target }}
+
+      - name: Set up Rust toolchain for cross-compilation
+        if: matrix.apt-target != ""
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          target: ${{ matrix.rust-target }}
+          components: clippy
+
+      - name: Configure Cargo to use the cross-compiler as a linker
+        if: matrix.apt-target != ""
+        run: |
+          echo "[target.${{ matrix.rust-target}}]" > ~/.cargo/config.toml
+          echo "linker = \"/usr/bin/${{ matrix.apt-target }}-gcc-12\"" >> ~/.cargo/config.toml
+
+      - name: Check clippy lints
+        run: cargo clippy --workspace --all-targets ${{ matrix.cargo-features }} -- -D warnings
+
+
+### TODO: Not adjusted yet
+# 
+# 
+#   # Run the tests on all supported OSes and Rust versions (main CI)
+#   test-contrib:
+#     # Don't run CI twice when a PR is created from a branch internal to the repo
+#     # Don't run in scheduled jobs, that's what test-scheduled is for
+#     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+# 
+#     runs-on: ubuntu-22.04
+# 
+#     strategy:
+#       matrix:
+#         target-flags:
+#           - ""
+#           - "-C target-cpu=native"
+#         rust:
+#           - stable
+#           - $MINIMAL_RUST  # Minimum supported Rust version
+# 
+#     env:
+#       RUSTFLAGS: "-D warnings ${{ matrix.target-flags }}"
+# 
+#     steps:
+#       - name: Checkout sources
+#         uses: actions/checkout@v4
+# 
+#       - uses: awalsh128/cache-apt-pkgs-action@latest
+#         with:
+#           version: 1.0
+#           packages: gcc-12-aarch64-linux-gnu gcc-12-arm-linux-gnueabi gcc-12-arm-linux-gnueabihf gcc-12-i686-linux-gnu gcc-12-riscv64-linux-gnu
+# 
+#       - name: Set up toolchain
+#         uses: actions-rust-lang/setup-rust-toolchain@v1
+#         with:
+#           toolchain: ${{ matrix.rust }}
+# 
+#       - name: Run tests
+#         run: cargo test
+# 
+#       - name: Check that benchmarks build
+#         run: cargo build --benches
+# 
+# 
+#   # Check compatibility with newer Rust/deps versions (scheduled CI)
+#   #
+#   # FIXME: There should be a way to use conditional build matrices without
+#   #        duplicating the whole job recipe...
+#   #
+#   test-scheduled:
+#     if: github.event_name == 'schedule'
+# 
+#     runs-on: ubuntu-22.04
+# 
+#     strategy:
+#       matrix:
+#         rustflags:
+#           - "-D warnings"
+#           - "-D warnings -C target-cpu=native"
+#         rust:
+#           - beta
+#           - nightly
+#           - $MINIMAL_RUST  # Compatibility can be broken by deps updates
+# 
+#     env:
+#       RUSTFLAGS: ${{ matrix.rustflags }}
+# 
+#     steps:
+#       - name: Checkout sources
+#         uses: actions/checkout@v4
+# 
+#       - uses: awalsh128/cache-apt-pkgs-action@latest
+#         with:
+#           version: 1.0
+#           packages: gcc-12-aarch64-linux-gnu gcc-12-arm-linux-gnueabi gcc-12-arm-linux-gnueabihf gcc-12-i686-linux-gnu gcc-12-riscv64-linux-gnu
+# 
+#       - name: Set up toolchain
+#         uses: actions-rust-lang/setup-rust-toolchain@v1
+#         with:
+#           toolchain: ${{ matrix.rust }}
+# 
+#       - name: Run tests
+#         run: cargo test
+# 
+#       - name: Check that benchmarks build
+#         run: cargo build --benches
