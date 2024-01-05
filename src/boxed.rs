@@ -106,7 +106,7 @@ mod tests {
         }
 
         fn make_boxed_str(c: char) -> Box<str> {
-            String::from_iter([c].into_iter()).into()
+            String::from_iter([c]).into()
         }
 
         #[test]
