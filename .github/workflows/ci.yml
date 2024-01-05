@@ -56,127 +56,156 @@ jobs:
   #
   # We only check lints for the latest supported Rust compiler release, which is
   # nightly. Tests will take care of evaluating 
-  lints:
+  #
+  # Native x86_64 compilation...
+  lints-native:
     # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
-
     runs-on: ubuntu-22.04
-
     strategy:
       matrix:
         toolchain:
           - stable
           - nightly
-        cargo-features:
-          # Supported stable configurations
+        cargo-flags:
           - '--no-default-features'
           - '--no-default-features --features=alloc'
           - ''  # --features=std
           - '--features=safe_arch'
-          # Supported nightly configurations = stable configurations + nightly feature
-          - '--no-default-features --features=nightly'
-          - '--no-default-features --features=alloc,nightly'
-          - '--features=nightly'
-          - '--features=safe_arch,nightly'
-        apt-target:
-          - ''  # native = x86_64-linux-gnu
-        target-features:
+        rust-flags:
           - ''
+          - '-C target-feature=+avx'
+          - '-C target-feature=+avx -C target-feature=+avx2'
+          - '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f'
+          - '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl'
+          - '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
         exclude:
           - toolchain: stable
-            cargo-features: '--no-default-features --features=nightly'
+            rust-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f'
           - toolchain: stable
-            cargo-features: '--no-default-features --features=alloc,nightly'
+            rust-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl'
           - toolchain: stable
-            cargo-features: '--features=nightly'
-          - toolchain: stable
-            cargo-features: '--features=safe_arch,nightly'
-          - toolchain: nightly
-            cargo-features: '--no-default-features'
-          - toolchain: nightly
-            cargo-features: '--no-default-features --features=alloc'
-          - toolchain: nightly
-            cargo-features: ''  # --features=std
-          - toolchain: nightly
-            cargo-features: '--features=safe_arch'
-        include:
-          - apt-target: 'arm-linux-gnueabi'
-            rust-target: 'arm-unknown-linux-gnueabi'
-            target-features: '-C target-feature=-vfp2'
-          - apt-target: 'arm-linux-gnueabi'
-            rust-target: 'arm-unknown-linux-gnueabi'
-            target-features: '-C target-feature=+vfp2'
-          - apt-target: 'aarch64-linux-gnu'
-            rust-target: 'aarch64-unknown-linux-gnu'
-            target-features: '-C target-feature=-neon'
-          - apt-target: 'aarch64-linux-gnu'
-            rust-target: 'aarch64-unknown-linux-gnu'
-            target-features: '-C target-feature=+neon'
-          - apt-target: 'i686-linux-gnu'
-            rust-target: 'i686-unknown-linux-gnu'
-          - apt-target: ''
-            target-features: '-C target-feature=+avx'
-          - apt-target: ''
-            target-features: '-C target-feature=+avx -C target-feature=+avx2'
-          - toolchain: nightly
-            apt-target: ''
-            target-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f'
-          - toolchain: nightly
-            apt-target: ''
-            target-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl'
-          - toolchain: nightly
-            apt-target: ''
-            target-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
-          # FIXME: Would like to test riscv32, but no cross-compiler is
-          #        available for it in the ubuntu repos
-          - apt-target: 'riscv64-linux-gnu'
-            rust-target: 'riscv64gc-unknown-linux-gnu'
-            target-features: '-C target-feature=-f -C target-feature=-d'
-          - apt-target: 'riscv64-linux-gnu'
-            rust-target: 'riscv64gc-unknown-linux-gnu'
-            target-features: '-C target-feature=+f -C target-feature=-d'
-          - apt-target: 'riscv64-linux-gnu'
-            rust-target: 'riscv64gc-unknown-linux-gnu'
-            target-features: '-C target-feature=+f -C target-feature=+d'
-
-    env:
-      RUSTFLAGS: '-D warnings ${{ matrix.target-features }}'
-
+            rust-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Set up Rust toolchain for native compilation
-        if: matrix.apt-target == ''
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Check lints
+        uses: ./.github/actions/lints
         with:
           toolchain: ${{ matrix.toolchain }}
-          components: clippy
-
-      - name: Install cross-compiler and cross-linker via APT
-        if: matrix.apt-target != ''
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          version: 1.0
-          packages: gcc-12-${{ matrix.apt-target }}
-
-      - name: Set up Rust toolchain for cross-compilation
-        if: matrix.apt-target != ''
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+          cargo-flags: ${{ matrix.cargo-flags }}
+          rust-flags: ${{ matrix.rust-flags }}
+  #
+  # ARMv7 cross-compilation
+  lints-arm:
+    # Don't run CI twice when a PR is created from a branch internal to the repo
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - nightly
+        cargo-flags:
+          - '--no-default-features'
+          - '--no-default-features --features=alloc'
+          - ''  # --features=std
+          - '--features=safe_arch'
+        rust-flags:
+          - ''
+          - '-C target-feature=-vfp2'
+          - '-C target-feature=+vfp2'
+    steps:
+      - name: Check lints
+        uses: ./.github/actions/lints
         with:
           toolchain: ${{ matrix.toolchain }}
-          target: ${{ matrix.rust-target }}
-          components: clippy
-
-      - name: Configure Cargo to use the cross-compiler as a linker
-        if: matrix.apt-target != ''
-        run: |
-          echo "[target.${{ matrix.rust-target}}]" > ~/.cargo/config.toml
-          echo "linker = \"/usr/bin/${{ matrix.apt-target }}-gcc-12\"" >> ~/.cargo/config.toml
-
-      - name: Check clippy lints
-        run: cargo clippy --workspace --all-targets ${{ matrix.cargo-features }} -- -D warnings
-
+          cargo-flags: ${{ matrix.cargo-flags }}
+          rust-flags: ${{ matrix.rust-flags }}
+          cross-target-apt: 'arm-linux-gnueabi'
+          cross-target-rust: 'arm-unknown-linux-gnueabi'
+  #
+  # AArch64 cross-compilation
+  lints-aarch64:
+    # Don't run CI twice when a PR is created from a branch internal to the repo
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - nightly
+        cargo-flags:
+          - '--no-default-features'
+          - '--no-default-features --features=alloc'
+          - ''  # --features=std
+          - '--features=safe_arch'
+        rust-flags:
+          - ''
+          - '-C target-feature=-neon'
+          - '-C target-feature=+neon'
+    steps:
+      - name: Check lints
+        uses: ./.github/actions/lints
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          cargo-flags: ${{ matrix.cargo-flags }}
+          rust-flags: ${{ matrix.rust-flags }}
+          cross-target-apt: 'aarch64-linux-gnu'
+          cross-target-rust: 'aarch64-unknown-linux-gnu'
+  #
+  # i686 cross-compilation
+  lints-i686:
+    # Don't run CI twice when a PR is created from a branch internal to the repo
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - nightly
+        cargo-flags:
+          - '--no-default-features'
+          - '--no-default-features --features=alloc'
+          - ''  # --features=std
+          - '--features=safe_arch'
+    steps:
+      - name: Check lints
+        uses: ./.github/actions/lints
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          cargo-flags: ${{ matrix.cargo-flags }}
+          cross-target-apt: 'i686-linux-gnu'
+          cross-target-rust: 'i686-unknown-linux-gnu'
+  #
+  # RISC-V 64-bit cross-compilation
+  # FIXME: I'd also like to test riscv32 but ubuntu doesn't provide a cross-compiler
+  lints-riscv64:
+    # Don't run CI twice when a PR is created from a branch internal to the repo
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - nightly
+        cargo-flags:
+          - '--no-default-features'
+          - '--no-default-features --features=alloc'
+          - ''  # --features=std
+          - '--features=safe_arch'
+        rust-flags:
+          - ''
+          - '-C target-feature=-f -C target-feature=-d'
+          - '-C target-feature=+f -C target-feature=-d'
+          - '-C target-feature=+f -C target-feature=+d'
+    steps:
+      - name: Check lints
+        uses: ./.github/actions/lints
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          cargo-flags: ${{ matrix.cargo-flags }}
+          rust-flags: ${{ matrix.rust-flags }}
+          cross-target-apt: 'riscv64-linux-gnu'
+          cross-target-rust: 'riscv64gc-unknown-linux-gnu'
 
 ### TODO: Not adjusted yet
 # 
