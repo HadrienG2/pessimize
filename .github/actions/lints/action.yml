@@ -22,42 +22,42 @@ runs:
     - name: Set up Rust compilation flags
       shell: bash
       run: |
-        echo RUSTFLAGS="-D warnings ${{ matrix.rust-flags }}" >> $GITHUB_ENV
+        echo RUSTFLAGS="-D warnings ${{ inputs.rust-flags }}" >> $GITHUB_ENV
 
     - name: Install a cross-compiler using APT
-      if: matrix.cross-target-apt != ''
+      if: inputs.cross-target-apt != ''
       uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         version: 1.0
-        packages: gcc-12-${{ matrix.cross-target-apt }}
+        packages: gcc-12-${{ inputs.cross-target-apt }}
 
     - name: Set up a Rust toolchain for native compilation
-      if: matrix.cross-target-rust == ''
+      if: inputs.cross-target-rust == ''
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: ${{ matrix.toolchain }}
+        toolchain: ${{ inputs.toolchain }}
         components: clippy
 
     - name: Set up a Rust toolchain for cross-compilation
-      if: matrix.cross-target-rust != ''
+      if: inputs.cross-target-rust != ''
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: ${{ matrix.toolchain }}
-        target: ${{ matrix.cross-target-rust }}
+        toolchain: ${{ inputs.toolchain }}
+        target: ${{ inputs.cross-target-rust }}
         components: clippy
 
     - name: Configure Cargo to use the cross-compiler as a linker
-      if: matrix.cross-target-apt != '' && matrix.cross-target-rust != ''
+      if: inputs.cross-target-apt != '' && inputs.cross-target-rust != ''
       shell: bash
       run: |
-        echo "[target.${{ matrix.cross-target-rust }}]" > ~/.cargo/config.toml
-        echo "linker = \"/usr/bin/${{ matrix.cross-target-apt }}-gcc-12\"" >> ~/.cargo/config.toml
+        echo "[target.${{ inputs.cross-target-rust }}]" > ~/.cargo/config.toml
+        echo "linker = \"/usr/bin/${{ inputs.cross-target-apt }}-gcc-12\"" >> ~/.cargo/config.toml
 
     - name: Check clippy lints
       shell: bash
       run: |
-        FLAGS="${{ matrix.cargo-flags }}"
-        if [[ ${{ matrix.toolchain }} == 'nightly' ]]; then
+        FLAGS="${{ inputs.cargo-flags }}"
+        if [[ ${{ inputs.toolchain }} == 'nightly' ]]; then
           FLAGS="--features nightly ${FLAGS}"
         fi
         cargo clippy --workspace --all-targets ${FLAGS} -- -D warnings
