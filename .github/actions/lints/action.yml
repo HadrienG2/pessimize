@@ -58,6 +58,9 @@ runs:
       run: |
         FLAGS="${{ inputs.cargo-flags }}"
         if [[ ${{ inputs.toolchain }} == 'nightly' ]]; then
-          FLAGS="--features nightly ${FLAGS}"
+          FLAGS="${FLAGS} --features=nightly"
+        fi
+        if [[ -n ${{ inputs.cross-target-rust }} ]]; then
+          FLAGS="${FLAGS} --target=${{ inputs.cross-target-rust }}"
         fi
         cargo clippy --workspace --all-targets ${FLAGS} -- -D warnings
