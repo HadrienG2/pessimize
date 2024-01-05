@@ -89,7 +89,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints/
+        uses: HadrienG2/pessimize/.github/actions/lints@master
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -117,7 +117,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints/
+        uses: HadrienG2/pessimize/.github/actions/lints@master
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -147,7 +147,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints/
+        uses: HadrienG2/pessimize/.github/actions/lints@master
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -173,7 +173,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints/
+        uses: HadrienG2/pessimize/.github/actions/lints@master
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -204,7 +204,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints/
+        uses: HadrienG2/pessimize/.github/actions/lints@master
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
