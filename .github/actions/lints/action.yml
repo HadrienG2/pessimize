@@ -1,0 +1,63 @@
+name: 'Check lints'
+description: 'Make sure the code emits no clippy and rustc lints'
+inputs:
+  toolchain:
+    description: 'Rust toolchain to be used'
+    default: 'stable'
+  cargo-flags:
+    description: 'Extra cargo flags, for enabling/disabling cargo features'
+    default: ''
+  rust-flags:
+    description: 'Extra rustc flags, for enabling/disabling target features'
+    default: ''
+  cross-target-apt:
+    description: 'For cross-compilation, set this to the target name used in ubuntu APT repositories and also set cross-target-rust'
+    default: ''
+  cross-target-rust:
+    description: 'For cross-compilation, set this to the target name used in rustup and also set cross-target-apt'
+    default: ''
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Rust compilation flags
+      shell: bash
+      run: |
+        echo RUSTFLAGS="-D warnings ${{ matrix.rust-flags }}" >> $GITHUB_ENV
+
+    - name: Install a cross-compiler using APT
+      if: matrix.cross-target-apt != ''
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        version: 1.0
+        packages: gcc-12-${{ matrix.cross-target-apt }}
+
+    - name: Set up a Rust toolchain for native compilation
+      if: matrix.cross-target-rust == ''
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ matrix.toolchain }}
+        components: clippy
+
+    - name: Set up a Rust toolchain for cross-compilation
+      if: matrix.cross-target-rust != ''
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: ${{ matrix.toolchain }}
+        target: ${{ matrix.cross-target-rust }}
+        components: clippy
+
+    - name: Configure Cargo to use the cross-compiler as a linker
+      if: matrix.cross-target-apt != '' && matrix.cross-target-rust != ''
+      shell: bash
+      run: |
+        echo "[target.${{ matrix.cross-target-rust }}]" > ~/.cargo/config.toml
+        echo "linker = \"/usr/bin/${{ matrix.cross-target-apt }}-gcc-12\"" >> ~/.cargo/config.toml
+
+    - name: Check clippy lints
+      shell: bash
+      run: |
+        FLAGS="${{ matrix.cargo-flags }}"
+        if [[ ${{ matrix.toolchain }} == 'nightly' ]]; then
+          FLAGS="--features nightly ${FLAGS}"
+        fi
+        cargo clippy --workspace --all-targets ${FLAGS} -- -D warnings
