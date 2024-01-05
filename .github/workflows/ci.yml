@@ -264,6 +264,14 @@ jobs:
             cargo-flags: '--features=nightly'
           - toolchain: stable
             cargo-flags: '--features=safe_arch,nightly'
+          - toolchain: $MINIMAL_RUST
+            cargo-flags: '--no-default-features --features=nightly'
+          - toolchain: $MINIMAL_RUST
+            cargo-flags: '--no-default-features --features=alloc,nightly'
+          - toolchain: $MINIMAL_RUST
+            cargo-flags: '--features=nightly'
+          - toolchain: $MINIMAL_RUST
+            cargo-flags: '--features=safe_arch,nightly'
  
     env:
       RUSTFLAGS: "${{ matrix.rust-flags }}"
