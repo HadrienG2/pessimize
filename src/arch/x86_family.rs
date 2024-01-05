@@ -244,7 +244,7 @@ mod safe_arch_types {
 mod portable_simd {
     use super::*;
     use crate::{pessimize_copy, pessimize_into_from};
-    use core::simd::{Mask, Simd, ToBitMask};
+    use core::simd::{Mask, Simd};
     #[cfg(any(target_feature = "avx512f", doc))]
     use target_arch::{__m512, __m512d, __m512i};
 
@@ -362,14 +362,33 @@ mod portable_simd {
             $doc_cfg:meta
             { $($mask_type:ty),* }
         ) => {
+            // Current core::simd always emits 64-bit bitmaps. If AVX512BW is
+            // available, we have 64-bit kregs and this is fine...
+            #[cfg(target_feature = "avx512bw")]
             pessimize_copy!(
                 $doc_cfg
                 {
                     $(
-                        avx512::Mask<<Self as ToBitMask>::BitMask>: (
+                        avx512::Mask<u64>: (
                             $mask_type: (
                                 |self_: $mask_type| avx512::Mask(self_.to_bitmask()),
                                 |x: Self::Pessimized| Self::from_bitmask(x.0)
+                            )
+                        )
+                    ),*
+                }
+            );
+            // ...but with pure AVX512F, we must truncate the bitmask to 16 bits
+            // as the kregs may not be wider than this.
+            #[cfg(not(target_feature = "avx512bw"))]
+            pessimize_copy!(
+                $doc_cfg
+                {
+                    $(
+                        avx512::Mask<u16>: (
+                            $mask_type: (
+                                |self_: $mask_type| avx512::Mask(self_.to_bitmask() as u16),
+                                |x: Self::Pessimized| Self::from_bitmask(x.0 as _)
                             )
                         )
                     ),*
