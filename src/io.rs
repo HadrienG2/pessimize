@@ -46,6 +46,7 @@ mod u64_is_pessimize {
                 doc(cfg(all(feature = "std", target_pointer_width = "64")))
             )]
             unsafe impl<T: Pessimize $(+ $extra_trait)?> Pessimize for $name<T> {
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 fn hide(self) -> Self {
                     let metadata = self.$get_metadata();

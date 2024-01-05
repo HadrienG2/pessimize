@@ -519,7 +519,7 @@ pub(crate) mod tests {
             // hide() seems to return a different pointer
             assert_unoptimized(p, |mut p| {
                 p = hide(p);
-                consume(p.as_const_ptr() == old_p);
+                consume(std::ptr::eq(p.as_const_ptr(), old_p));
                 p
             });
         }
@@ -677,7 +677,7 @@ pub(crate) mod tests {
 
         // Abstraction of (self as *const T) == (other as *const T)
         fn ptr_eq(&self, other: *const Self::Target) -> bool {
-            self.as_const_ptr() == other
+            std::ptr::eq(self.as_const_ptr(), other)
         }
 
         // Check ptr_eq, then target value against expectation
@@ -730,7 +730,7 @@ pub(crate) mod tests {
         type Target = T;
 
         fn as_const_ptr(&self) -> *const Self::Target {
-            *self as *const T
+            *self
         }
 
         unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {

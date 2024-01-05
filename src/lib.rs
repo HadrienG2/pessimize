@@ -587,11 +587,13 @@ macro_rules! pessimize_cast {
             unsafe impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::PessimizeCast for $outer {
                 type Pessimized = $inner;
 
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 fn into_pessimize(self) -> $inner {
                     $into(self)
                 }
 
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 unsafe fn from_pessimize(inner: $inner) -> Self {
                     $from(inner)
@@ -642,11 +644,13 @@ macro_rules! pessimize_extractible {
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = $inner;
 
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 fn with_pessimize(&self, f: impl FnOnce(&$inner)) {
                     f(&$extract(self))
                 }
 
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 fn assume_accessed_impl(&mut self) {
                     $crate::impl_assume_accessed_via_extract_pessimized(self, |self_: &mut Self| $extract(self_))
@@ -885,6 +889,7 @@ macro_rules! pessimize_once_like {
                     f(&(self as *const Self))
                 }
 
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 fn assume_accessed_impl(&mut self) {
                     let mut value = $extract(self);
@@ -946,11 +951,13 @@ macro_rules! pessimize_collections {
             impl $(< $param $( : $trait1 $( + $traitN )* )? >)? $crate::BorrowPessimize for $outer {
                 type BorrowedPessimize = $borrowed_inner;
 
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 fn with_pessimize(&self, f: impl FnOnce(&$borrowed_inner)) {
                     f(&$extract_borrowed(self))
                 }
 
+                #[allow(clippy::redundant_closure_call)]
                 #[inline]
                 fn assume_accessed_impl(&mut self) {
                     // With an &mut to a collection, one can trigger a
@@ -967,6 +974,10 @@ macro_rules! pessimize_collections {
 //       warning that it will do more harm than good on a larger struct
 
 // TODO: Set up CI in the spirit of test-everything.sh
+
+/// Global variable used to check if stateful zero-sized types are pessimized
+#[doc(hidden)]
+pub static mut TEST_GLOBAL_STATE: isize = -42;
 
 #[cfg(test)]
 pub(crate) mod tests {
@@ -1194,7 +1205,3 @@ pub(crate) mod tests {
         crate::ptr::tests::test_unoptimized_ptrs::<[isize; BIG], _>([0isize; BIG]);
     }
 }
-
-/// Global variable used to check if stateful zero-sized types are pessimized
-#[doc(hidden)]
-pub static mut TEST_GLOBAL_STATE: isize = -42;
