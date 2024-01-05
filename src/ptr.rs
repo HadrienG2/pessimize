@@ -1,5 +1,5 @@
-//! Implementation of Pessimize for pointers and references:
-//! *const T, *mut T, NonNull<T>, &T, &mut T and fn(Args...) -> Res
+//! Implementation of Pessimize for pointers and references: `*const T`, `*mut
+//! T`, `NonNull<T>`, `&T`, `&mut T` and `fn(Args...) -> Res`
 
 use crate::{
     assume_accessed, impl_assume_accessed_via_extract_self, impl_with_pessimize_via_copy,
