@@ -54,8 +54,10 @@ jobs:
 
   # Lints should cover all cfg code paths
   #
-  # We only check lints for the latest supported Rust compiler release, which is
-  # nightly. Tests will take care of evaluating 
+  # We do not check lints for the MSRV, only for the latest supported Rust
+  # stable compiler release and for the nightly compiler (the later is
+  # unfortunate as it means CI will randomly break, but we need it since we have
+  # nightly-specific code paths).
   #
   # Native x86_64 compilation...
   lints-native:
@@ -113,6 +115,7 @@ jobs:
           - ''
           - '-C target-feature=-vfp2'
           - '-C target-feature=+vfp2'
+          - '-C target-feature=+vfp2 -C target-feature=+d32'
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4

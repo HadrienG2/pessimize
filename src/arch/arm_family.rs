@@ -15,9 +15,12 @@ pessimize_asm_values!(allow(missing_docs) { reg: (i8, u8, i16, u16, i32, u32, is
 // no 64-bit GP registers, we try to use dreg instead if available
 #[cfg(target_arch = "aarch64")]
 pessimize_asm_values!(allow(missing_docs) { reg: (i64, u64) });
-#[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
+#[cfg(all(
+    target_arch = "arm",
+    any(all(target_feature = "vfp2", target_feature = "d32"), doc)
+))]
 pessimize_asm_values!(
-    doc(cfg(target_feature = "vfp2"))
+    doc(cfg(all(target_feature = "vfp2", target_feature = "d32")))
     { dreg: (i64, u64) }
 );
 
@@ -30,9 +33,12 @@ pessimize_asm_values!(allow(missing_docs) { reg: (f32, f64) });
 // On 32-bit ARM with VFP2, using sregs and dregs for f32 and f64 is standard
 #[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
 pessimize_asm_values!(allow(missing_docs) { sreg: (f32) });
-#[cfg(all(target_arch = "arm", any(target_feature = "vfp2", doc)))]
+#[cfg(all(
+    target_arch = "arm",
+    any(all(target_feature = "vfp2", target_feature = "d32"), doc)
+))]
 pessimize_asm_values!(
-    doc(cfg(target_feature = "vfp2"))
+    doc(cfg(all(target_feature = "vfp2", target_feature = "d32")))
     { dreg: (f64) }
 );
 // On 32-bit ARM without VFP2, f32 is passed via GP registers
