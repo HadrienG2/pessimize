@@ -69,7 +69,7 @@ mod portable_simd {
     use crate::{arch::arm_family::*, pessimize_into_from};
     use core::simd::Simd;
 
-    #[cfg(target_arch = "aarch64", any(target_feature = "neon", doc))]
+    #[cfg(all(target_arch = "aarch64", any(target_feature = "neon", doc)))]
     pessimize_into_from!(
         doc(cfg(all(feature = "nightly", target_feature = "neon")))
         {
