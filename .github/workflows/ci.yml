@@ -215,89 +215,66 @@ jobs:
           cross-target-apt: 'riscv64-linux-gnu'
           cross-target-rust: 'riscv64gc-unknown-linux-gnu'
 
-### TODO: Not adjusted yet
-# 
-# 
-#   # Run the tests on all supported OSes and Rust versions (main CI)
-#   test-contrib:
-#     # Don't run CI twice when a PR is created from a branch internal to the repo
-#     # Don't run in scheduled jobs, that's what test-scheduled is for
-#     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-# 
-#     runs-on: ubuntu-22.04
-# 
-#     strategy:
-#       matrix:
-#         target-flags:
-#           - ""
-#           - "-C target-cpu=native"
-#         rust:
-#           - stable
-#           - $MINIMAL_RUST  # Minimum supported Rust version
-# 
-#     env:
-#       RUSTFLAGS: "-D warnings ${{ matrix.target-flags }}"
-# 
-#     steps:
-#       - name: Checkout sources
-#         uses: actions/checkout@v4
-# 
-#       - uses: awalsh128/cache-apt-pkgs-action@latest
-#         with:
-#           version: 1.0
-#           packages: gcc-12-aarch64-linux-gnu gcc-12-arm-linux-gnueabi gcc-12-arm-linux-gnueabihf gcc-12-i686-linux-gnu gcc-12-riscv64-linux-gnu
-# 
-#       - name: Set up toolchain
-#         uses: actions-rust-lang/setup-rust-toolchain@v1
-#         with:
-#           toolchain: ${{ matrix.rust }}
-# 
-#       - name: Run tests
-#         run: cargo test
-# 
-#       - name: Check that benchmarks build
-#         run: cargo build --benches
-# 
-# 
-#   # Check compatibility with newer Rust/deps versions (scheduled CI)
-#   #
-#   # FIXME: There should be a way to use conditional build matrices without
-#   #        duplicating the whole job recipe...
-#   #
-#   test-scheduled:
-#     if: github.event_name == 'schedule'
-# 
-#     runs-on: ubuntu-22.04
-# 
-#     strategy:
-#       matrix:
-#         rustflags:
-#           - "-D warnings"
-#           - "-D warnings -C target-cpu=native"
-#         rust:
-#           - beta
-#           - nightly
-#           - $MINIMAL_RUST  # Compatibility can be broken by deps updates
-# 
-#     env:
-#       RUSTFLAGS: ${{ matrix.rustflags }}
-# 
-#     steps:
-#       - name: Checkout sources
-#         uses: actions/checkout@v4
-# 
-#       - uses: awalsh128/cache-apt-pkgs-action@latest
-#         with:
-#           version: 1.0
-#           packages: gcc-12-aarch64-linux-gnu gcc-12-arm-linux-gnueabi gcc-12-arm-linux-gnueabihf gcc-12-i686-linux-gnu gcc-12-riscv64-linux-gnu
-# 
-#       - name: Set up toolchain
-#         uses: actions-rust-lang/setup-rust-toolchain@v1
-#         with:
-#           toolchain: ${{ matrix.rust }}
-# 
-#       - name: Run tests
-#         run: cargo test
-# 
-#       - name: Check that benchmarks build
-#         run: cargo build --benches
+
+
+  # Run the tests on all supported OSes and Rust versions (main CI)
+  #
+  # FIXME: It would be nice to also run the tests for cross-compiled targets
+  #        using some kind of emulation layer
+  test-native:
+    # Don't run CI twice when a PR is created from a branch internal to the repo
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
+ 
+    runs-on: ubuntu-22.04
+ 
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - nightly
+        cargo-flags:
+          # Stable configurations
+          - '--no-default-features'
+          - '--no-default-features --features=alloc'
+          - ''  # --features=std
+          - '--features=safe_arch'
+          # Nightly configuration = stable configuration + nightly feature
+          - '--no-default-features --features=nightly'
+          - '--no-default-features --features=alloc,nightly'
+          - '--features=nightly'
+          - '--features=safe_arch,nightly'
+        rust-flags:
+          - ""
+          - "-C target-cpu=native"
+        exclude:
+          - toolchain: nightly
+            cargo-flags: '--no-default-features'
+          - toolchain: nightly
+            cargo-flags: '--no-default-features --features=alloc'
+          - toolchain: nightly
+            cargo-flags: ''
+          - toolchain: nightly
+            cargo-flags: '--features=safe_arch'
+          - toolchain: stable
+            cargo-flags: '--no-default-features --features=nightly'
+          - toolchain: stable
+            cargo-flags: '--no-default-features --features=alloc,nightly'
+          - toolchain: stable
+            cargo-flags: '--features=nightly'
+          - toolchain: stable
+            cargo-flags: '--features=safe_arch,nightly'
+ 
+    env:
+      RUSTFLAGS: "${{ matrix.rust-flags }}"
+ 
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+ 
+      - name: Set up toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+ 
+      - name: Run tests
+        run: cargo test --workspace ${{ matrix.cargo-flags }}
