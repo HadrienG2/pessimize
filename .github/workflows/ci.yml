@@ -69,99 +69,99 @@ jobs:
           - nightly
         cargo-features:
           # Supported stable configurations
-          - "--no-default-features"
-          - "--no-default-features --features=alloc"
-          - ""  # --features=std
-          - "--features=safe_arch"
+          - '--no-default-features'
+          - '--no-default-features --features=alloc'
+          - ''  # --features=std
+          - '--features=safe_arch'
           # Supported nightly configurations = stable configurations + nightly feature
-          - "--no-default-features --features=nightly"
-          - "--no-default-features --features=alloc,nightly"
-          - "--features=nightly"
-          - "--features=safe_arch,nightly"
+          - '--no-default-features --features=nightly'
+          - '--no-default-features --features=alloc,nightly'
+          - '--features=nightly'
+          - '--features=safe_arch,nightly'
         apt-target:
-          - ""  # native = x86_64-linux-gnu
+          - ''  # native = x86_64-linux-gnu
         target-features:
-          - ""
+          - ''
         exclude:
           - toolchain: stable
-            cargo-features: "--no-default-features --features=nightly"
+            cargo-features: '--no-default-features --features=nightly'
           - toolchain: stable
-            cargo-features: "--no-default-features --features=alloc,nightly"
+            cargo-features: '--no-default-features --features=alloc,nightly'
           - toolchain: stable
-            cargo-features: "--features=nightly"
+            cargo-features: '--features=nightly'
           - toolchain: stable
-            cargo-features: "--features=safe_arch,nightly"
+            cargo-features: '--features=safe_arch,nightly'
           - toolchain: nightly
-            cargo-features: "--no-default-features"
+            cargo-features: '--no-default-features'
           - toolchain: nightly
-            cargo-features: "--no-default-features --features=alloc"
+            cargo-features: '--no-default-features --features=alloc'
           - toolchain: nightly
-            cargo-features: ""  # --features=std
+            cargo-features: ''  # --features=std
           - toolchain: nightly
-            cargo-features: "--features=safe_arch"
+            cargo-features: '--features=safe_arch'
         include:
-          - apt-target: "arm-linux-gnueabi"
-            rust-target: "arm-unknown-linux-gnueabi"
-            target-features: "-C target-feature=-vfp2"
-          - apt-target: "arm-linux-gnueabi"
-            rust-target: "arm-unknown-linux-gnueabi"
-            target-features: "-C target-feature=+vfp2"
-          - apt-target: "aarch64-linux-gnu"
-            rust-target: "aarch64-unknown-linux-gnu"
-            target-features: "-C target-feature=-neon"
-          - apt-target: "aarch64-linux-gnu"
-            rust-target: "aarch64-unknown-linux-gnu"
-            target-features: "-C target-feature=+neon"
-          - apt-target: "i686-linux-gnu"
-            rust-target: "i686-unknown-linux-gnu"
-          - apt-target: ""
-            target-features: "-C target-feature=+avx"
-          - apt-target: ""
-            target-features: "-C target-feature=+avx -C target-feature=+avx2"
+          - apt-target: 'arm-linux-gnueabi'
+            rust-target: 'arm-unknown-linux-gnueabi'
+            target-features: '-C target-feature=-vfp2'
+          - apt-target: 'arm-linux-gnueabi'
+            rust-target: 'arm-unknown-linux-gnueabi'
+            target-features: '-C target-feature=+vfp2'
+          - apt-target: 'aarch64-linux-gnu'
+            rust-target: 'aarch64-unknown-linux-gnu'
+            target-features: '-C target-feature=-neon'
+          - apt-target: 'aarch64-linux-gnu'
+            rust-target: 'aarch64-unknown-linux-gnu'
+            target-features: '-C target-feature=+neon'
+          - apt-target: 'i686-linux-gnu'
+            rust-target: 'i686-unknown-linux-gnu'
+          - apt-target: ''
+            target-features: '-C target-feature=+avx'
+          - apt-target: ''
+            target-features: '-C target-feature=+avx -C target-feature=+avx2'
           - toolchain: nightly
-            apt-target: ""
-            target-features: "-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f"
+            apt-target: ''
+            target-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f'
           - toolchain: nightly
-            apt-target: ""
-            target-features: "-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl"
+            apt-target: ''
+            target-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl'
           - toolchain: nightly
-            apt-target: ""
-            target-features: "-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16"
+            apt-target: ''
+            target-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
           # FIXME: Would like to test riscv32, but no cross-compiler is
           #        available for it in the ubuntu repos
-          - apt-target: "riscv64-linux-gnu"
-            rust-target: "riscv64gc-unknown-linux-gnu"
-            target-features: "-C target-feature=-f -C target-feature=-d"
-          - apt-target: "riscv64-linux-gnu"
-            rust-target: "riscv64gc-unknown-linux-gnu"
-            target-features: "-C target-feature=+f -C target-feature=-d"
-          - apt-target: "riscv64-linux-gnu"
-            rust-target: "riscv64gc-unknown-linux-gnu"
-            target-features: "-C target-feature=+f -C target-feature=+d"
+          - apt-target: 'riscv64-linux-gnu'
+            rust-target: 'riscv64gc-unknown-linux-gnu'
+            target-features: '-C target-feature=-f -C target-feature=-d'
+          - apt-target: 'riscv64-linux-gnu'
+            rust-target: 'riscv64gc-unknown-linux-gnu'
+            target-features: '-C target-feature=+f -C target-feature=-d'
+          - apt-target: 'riscv64-linux-gnu'
+            rust-target: 'riscv64gc-unknown-linux-gnu'
+            target-features: '-C target-feature=+f -C target-feature=+d'
 
     env:
-      RUSTFLAGS: "-D warnings ${{ matrix.target-features }}"
+      RUSTFLAGS: '-D warnings ${{ matrix.target-features }}'
 
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
 
       - name: Set up Rust toolchain for native compilation
-        if: matrix.apt-target == ""
+        if: matrix.apt-target == ''
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
 
       - name: Install cross-compiler and cross-linker via APT
-        if: matrix.apt-target != ""
+        if: matrix.apt-target != ''
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           version: 1.0
           packages: gcc-12-${{ matrix.apt-target }}
 
       - name: Set up Rust toolchain for cross-compilation
-        if: matrix.apt-target != ""
+        if: matrix.apt-target != ''
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
@@ -169,7 +169,7 @@ jobs:
           components: clippy
 
       - name: Configure Cargo to use the cross-compiler as a linker
-        if: matrix.apt-target != ""
+        if: matrix.apt-target != ''
         run: |
           echo "[target.${{ matrix.rust-target}}]" > ~/.cargo/config.toml
           echo "linker = \"/usr/bin/${{ matrix.apt-target }}-gcc-12\"" >> ~/.cargo/config.toml
