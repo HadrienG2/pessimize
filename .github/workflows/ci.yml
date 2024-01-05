@@ -59,7 +59,6 @@ jobs:
   #
   # Native x86_64 compilation...
   lints-native:
-    # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-22.04
     strategy:
@@ -90,7 +89,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints
+        uses: ./.github/actions/lints/
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -98,7 +97,6 @@ jobs:
   #
   # ARMv7 cross-compilation
   lints-arm:
-    # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-22.04
     strategy:
@@ -119,7 +117,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints
+        uses: ./.github/actions/lints/
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -129,7 +127,6 @@ jobs:
   #
   # AArch64 cross-compilation
   lints-aarch64:
-    # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-22.04
     strategy:
@@ -150,7 +147,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints
+        uses: ./.github/actions/lints/
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -160,7 +157,6 @@ jobs:
   #
   # i686 cross-compilation
   lints-i686:
-    # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-22.04
     strategy:
@@ -177,7 +173,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints
+        uses: ./.github/actions/lints/
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
@@ -187,7 +183,6 @@ jobs:
   # RISC-V 64-bit cross-compilation
   # FIXME: I'd also like to test riscv32 but ubuntu doesn't provide a cross-compiler
   lints-riscv64:
-    # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-22.04
     strategy:
@@ -209,7 +204,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check lints
-        uses: ./.github/actions/lints
+        uses: ./.github/actions/lints/
         with:
           toolchain: ${{ matrix.toolchain }}
           cargo-flags: ${{ matrix.cargo-flags }}
