@@ -156,7 +156,10 @@ mod tests {
     //
     #[cfg(any(
         target_arch = "aarch64",
-        all(target_arch = "arm", target_feature = "vfp2"),
+        all(
+            target_arch = "arm",
+            all(target_feature = "vfp2", target_feature = "d32")
+        ),
         target_arch = "riscv64",
         all(target_arch = "x86", target_feature = "sse2"),
         target_arch = "x86_64",
@@ -165,7 +168,10 @@ mod tests {
     //
     #[cfg(any(
         target_arch = "aarch64",
-        all(target_arch = "arm", target_feature = "vfp2"),
+        all(
+            target_arch = "arm",
+            all(target_feature = "vfp2", target_feature = "d32")
+        ),
         all(target_arch = "riscv32", target_feature = "d"),
         target_arch = "riscv64",
         all(target_arch = "x86", target_feature = "sse2"),
