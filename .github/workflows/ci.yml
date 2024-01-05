@@ -87,6 +87,8 @@ jobs:
           - toolchain: stable
             rust-flags: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -114,6 +116,8 @@ jobs:
           - '-C target-feature=-vfp2'
           - '-C target-feature=+vfp2'
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -143,6 +147,8 @@ jobs:
           - '-C target-feature=-neon'
           - '-C target-feature=+neon'
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -168,6 +174,8 @@ jobs:
           - ''  # --features=std
           - '--features=safe_arch'
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -198,6 +206,8 @@ jobs:
           - '-C target-feature=+f -C target-feature=-d'
           - '-C target-feature=+f -C target-feature=+d'
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Check lints
         uses: ./.github/actions/lints
         with:
