@@ -81,11 +81,11 @@ jobs:
           - '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
         exclude:
           - toolchain: stable
-            rust-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f'
+            rust-flags: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f'
           - toolchain: stable
-            rust-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl'
+            rust-flags: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl'
           - toolchain: stable
-            rust-features: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
+            rust-flags: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
     steps:
       - name: Check lints
         uses: ./.github/actions/lints
