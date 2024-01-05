@@ -230,6 +230,7 @@ jobs:
     strategy:
       matrix:
         toolchain:
+          - $MINIMAL_RUST  # Minimal Supported Rust Version
           - stable
           - nightly
         cargo-flags:

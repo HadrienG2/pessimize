@@ -1,9 +1,24 @@
 [package]
 name = "pessimize"
-version = "0.1.0"
+#
+# Release checklist:
+#
+# - Cross-check all public API documentation, update as needed
+# - Update changelog
+# - Update version number in Cargo.toml
+# - Push master, make sure it passes CI
+# - Cargo publish
+# - Roll an annotated git tag
+# - Add a github release
+#
+version = "1.0.0"
+authors = ["Hadrien G. <knights_of_ni@gmx.com>"]
+description = "More efficient Rust compiler optimization barriers"
+keywords = [ "optimization", "barrier", "black-box", "efficient", "benchmarking" ]
+categories = [ "development-tools", "hardware-support", "no-std", "rust-patterns" ]
+license = "MPL-2.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+rust-version = "1.63.0"
 
 [features]
 default = ["std"]
