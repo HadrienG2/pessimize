@@ -24,6 +24,16 @@ env:
   MINIMAL_RUST: 1.63.0  # Minimal Supported Rust Version
 
 jobs:
+  # Workaround for github CI dropping env var expansion in matrix strategy
+  matrix_vars:
+    runs-on: ubuntu-latest
+    outputs:
+      MINIMAL_RUST: ${{ env.MINIMAL_RUST }}
+    steps:
+      - name: Forward env var to output
+        run: echo "MINIMAL_RUST=${{ env.MINIMAL_RUST }}" >> $GITHUB_OUTPUT
+
+
   # Formatting doesn't depend on configuration, and we only care about the
   # formatting rules of the latest supported Rust version
   format:
@@ -51,6 +61,7 @@ jobs:
 
       - name: Check code formatting
         run: cargo fmt --all --check
+
 
   # Lints should cover all cfg code paths
   #
@@ -216,7 +227,6 @@ jobs:
           cross-target-rust: 'riscv64gc-unknown-linux-gnu'
 
 
-
   # Run the tests on all supported OSes and Rust versions (main CI)
   #
   # FIXME: It would be nice to also run the tests for cross-compiled targets
@@ -225,12 +235,14 @@ jobs:
     # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
  
+    needs: matrix_vars
+
     runs-on: ubuntu-22.04
  
     strategy:
       matrix:
         toolchain:
-          - ${{ env.MINIMAL_RUST }}  # Minimal Supported Rust Version
+          - ${{ needs.matrix_vars.outputs.MINIMAL_RUST }}
           - stable
           - nightly
         cargo-flags:
@@ -264,13 +276,13 @@ jobs:
             cargo-flags: '--features=nightly'
           - toolchain: stable
             cargo-flags: '--features=safe_arch,nightly'
-          - toolchain: ${{ env.MINIMAL_RUST }}
+          - toolchain: ${{ needs.matrix_vars.outputs.MINIMAL_RUST }}
             cargo-flags: '--no-default-features --features=nightly'
-          - toolchain: ${{ env.MINIMAL_RUST }}
+          - toolchain: ${{ needs.matrix_vars.outputs.MINIMAL_RUST }}
             cargo-flags: '--no-default-features --features=alloc,nightly'
-          - toolchain: ${{ env.MINIMAL_RUST }}
+          - toolchain: ${{ needs.matrix_vars.outputs.MINIMAL_RUST }}
             cargo-flags: '--features=nightly'
-          - toolchain: ${{ env.MINIMAL_RUST }}
+          - toolchain: ${{ needs.matrix_vars.outputs.MINIMAL_RUST }}
             cargo-flags: '--features=safe_arch,nightly'
  
     env:
