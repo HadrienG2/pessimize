@@ -11,7 +11,7 @@ name = "pessimize"
 # - Roll an annotated git tag
 # - Add a github release
 #
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Hadrien G. <knights_of_ni@gmx.com>"]
 description = "More efficient Rust compiler optimization barriers"
 keywords = [ "optimization", "barrier", "black-box", "efficient", "benchmarking" ]
