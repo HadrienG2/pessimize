@@ -78,7 +78,7 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![cfg_attr(
     feature = "nightly",
-    feature(doc_cfg, stdsimd, portable_simd, ptr_metadata)
+    feature(doc_cfg, portable_simd, ptr_metadata, stdarch_x86_avx512)
 )]
 #![cfg_attr(feature = "default_impl", allow(incomplete_features))]
 #![cfg_attr(feature = "default_impl", feature(specialization))]
