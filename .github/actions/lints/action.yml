@@ -43,7 +43,7 @@ runs:
 
     - name: Install a cross-compiler using APT
       if: inputs.cross-target-apt != ''
-      uses: awalsh128/cache-apt-pkgs-action@v1.4.0
+      uses: awalsh128/cache-apt-pkgs-action@v1.4.1
       with:
         version: 1.0
         packages: gcc-12-${{ inputs.cross-target-apt }}
