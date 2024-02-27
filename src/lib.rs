@@ -988,7 +988,6 @@ pub(crate) mod tests {
     use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
     use std::{
         fmt::Debug,
-        marker::Unpin,
         time::{Duration, Instant},
     };
 

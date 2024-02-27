@@ -1,6 +1,7 @@
 //! Implementations of Pessimize for alloc::string
 
 use crate::pessimize_collections;
+#[cfg(not(any(feature = "std", test)))]
 use std_alloc::{string::String, vec::Vec};
 
 // String is basically a Vec<u8> with an UTF-8 validity invariant
@@ -21,7 +22,6 @@ pessimize_collections!(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tests::{test_unoptimized_value_type, test_value_type};
 
     #[test]

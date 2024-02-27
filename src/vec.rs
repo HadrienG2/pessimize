@@ -2,6 +2,7 @@
 
 use crate::pessimize_collections;
 use core::mem::ManuallyDrop;
+#[cfg(not(any(feature = "std", test)))]
 use std_alloc::vec::Vec;
 
 // Vec<T> is basically a thin NonNull<T>, a length and a capacity
@@ -27,7 +28,6 @@ pessimize_collections!(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tests::{test_unoptimized_value_type, test_value_type};
 
     #[test]
