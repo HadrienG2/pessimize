@@ -374,14 +374,10 @@ pessimize_references!((&'a T, as_ref, reborrow), (&'a mut T, as_mut, reborrow_mu
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::{
-        assume_accessed, assume_accessed_imut, assume_read, consume, hide,
-        tests::assert_unoptimized,
-    };
+    use crate::{assume_accessed_imut, assume_read, consume, hide, tests::assert_unoptimized};
     use std::{
         borrow::{Borrow, BorrowMut},
         fmt::Debug,
-        marker::Unpin,
         ops::Deref,
         pin::Pin,
     };
@@ -650,6 +646,7 @@ pub(crate) mod tests {
         fn as_const_ptr(&self) -> *const Self::Target;
 
         // Like as_const_ptr, but translating back is not UB
+        #[allow(unused)]
         fn to_const_ptr(self) -> *const Self::Target {
             self.as_const_ptr()
         }
@@ -668,6 +665,7 @@ pub(crate) mod tests {
         // obtained in the same scope or a parent scope, and stop using the
         // *const T as soon as the original pointer is back..
         //
+        #[allow(unused)]
         unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self;
 
         // Abstraction of &**self

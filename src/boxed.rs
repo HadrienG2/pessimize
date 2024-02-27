@@ -1,6 +1,7 @@
 //! Implementation of Pessimize for alloc::boxed
 
 use crate::{assume_accessed, assume_globals_accessed, BorrowPessimize, Pessimize, PessimizeCast};
+#[cfg(not(any(feature = "std", test)))]
 use std_alloc::boxed::Box;
 
 // NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
@@ -57,7 +58,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tests::{test_unoptimized_value_type, test_value_type};
 
     // --- Boxed value ---

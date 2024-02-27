@@ -2,7 +2,6 @@
 
 use crate::{assume_accessed, BorrowPessimize, Pessimize, PessimizeCast};
 use core::{
-    marker::Unpin,
     ops::{Deref, DerefMut},
     pin::Pin,
 };
