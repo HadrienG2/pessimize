@@ -150,7 +150,7 @@ mod tests {
                         fn from(x: [f64; $lanes]) -> Self {
                             // Round trip to $inner ensures SIMD alignment
                             unsafe {
-                                let x: $inner = core::mem::transmute::<Self, $inner>(x);
+                                let x = core::mem::transmute::<[f64; $lanes], $inner>(x);
                                 Self(aarch64::$load((&x) as *const $inner as *const f64))
                             }
                         }
@@ -167,7 +167,7 @@ mod tests {
                         #[inline]
                         fn eq(&self, other: &Self) -> bool {
                             let value = |x: &Self| -> [f64; $lanes] {
-                                // Round trip to $inner ensures SIMD alignment
+                                // Round trip to Self ensures SIMD alignment
                                 let mut result = Self::from([0.0; $lanes]);
                                 unsafe {
                                     aarch64::$store(
