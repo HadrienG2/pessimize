@@ -80,28 +80,33 @@ mod all_pointers {
             // Safe because `DynMetadata` is effectively defined to be a thin
             // pointer to an opaque type, which can be converted to `*const ()`
             // and back, and `hide_thin_ptr` doesn't modify the pointer.
-            unsafe { core::mem::transmute(hide_thin_ptr::<*const ()>(core::mem::transmute(self))) }
+            unsafe {
+                core::mem::transmute::<*const (), Self>(hide_thin_ptr(core::mem::transmute::<
+                    Self,
+                    *const (),
+                >(self)))
+            }
         }
 
         #[inline]
         fn assume_read(&self) {
             // Safe because `DynMetadata` is effectively defined to be a thin
             // pointer to an opaque type, which can be converted to `*const ()`.
-            assume_read_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
+            assume_read_thin_ptr(unsafe { core::mem::transmute::<Self, *const ()>(*self) })
         }
 
         #[inline]
         fn assume_accessed(&mut self) {
             // Need to use `assume_accessed` barrier because someone with access
             // to this vtable could call a method that mutates global state
-            assume_accessed_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
+            assume_accessed_thin_ptr(unsafe { core::mem::transmute::<Self, *const ()>(*self) })
         }
 
         #[inline]
         fn assume_accessed_imut(&self) {
             // Need to use `assume_accessed` barrier because someone with access
             // to this vtable could call a method that mutates global state
-            assume_accessed_thin_ptr::<*const ()>(unsafe { core::mem::transmute(*self) })
+            assume_accessed_thin_ptr(unsafe { core::mem::transmute::<Self, *const ()>(*self) })
         }
     }
 
@@ -230,7 +235,7 @@ macro_rules! pessimize_fn {
 
             #[inline]
             unsafe fn from_pessimize(x: *const ()) -> Self {
-                core::mem::transmute(x)
+                core::mem::transmute::<*const (), Self>(x)
             }
         }
         //
@@ -311,6 +316,7 @@ macro_rules! pessimize_references {
                     f(&target_nn);
                 }
 
+                #[allow(unknown_lints, clippy::missing_transmute_annotations)]
                 #[inline]
                 fn assume_accessed_impl(&mut self) {
                     // First, we create an owned reference to T via reborrow
@@ -353,7 +359,7 @@ macro_rules! pessimize_references {
                     //   a way that could create new UB at the optimizer level.
                     //
                     // So we extend the reborrow's lifteime to allow for this.
-                    let extended: Self = unsafe { core::mem::transmute(reborrow) };
+                    let extended: Self = unsafe { core::mem::transmute::<_, Self>(reborrow) };
                     *self = extended;
                 }
             }
