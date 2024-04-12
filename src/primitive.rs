@@ -17,7 +17,7 @@ pessimize_copy!(
             bool: (
                 Self::into,
                 // Safe because the inner u8 is not modified by Pessimize ops
-                core::mem::transmute
+                core::mem::transmute::<u8, Self>
             )
         ),
         u32: (
