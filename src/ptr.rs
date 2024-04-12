@@ -99,14 +99,14 @@ mod all_pointers {
         fn assume_accessed(&mut self) {
             // Need to use `assume_accessed` barrier because someone with access
             // to this vtable could call a method that mutates global state
-            assume_accessed_thin_ptr(unsafe { core::mem::transmute::<Self, *const ()>(*self) })
+            assume_accessed_thin_ptr(unsafe { core::mem::transmute::<Self, *mut ()>(*self) })
         }
 
         #[inline]
         fn assume_accessed_imut(&self) {
             // Need to use `assume_accessed` barrier because someone with access
             // to this vtable could call a method that mutates global state
-            assume_accessed_thin_ptr(unsafe { core::mem::transmute::<Self, *const ()>(*self) })
+            assume_accessed_thin_ptr(unsafe { core::mem::transmute::<Self, *mut ()>(*self) })
         }
     }
 
