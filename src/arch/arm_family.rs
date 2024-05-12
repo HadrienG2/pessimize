@@ -98,6 +98,8 @@ mod tests {
     mod neon {
         use super::*;
         use core::arch::aarch64;
+        #[cfg(feature = "nightly")]
+        use core::simd::Simd;
 
         #[test]
         fn neon() {
