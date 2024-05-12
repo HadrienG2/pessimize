@@ -109,7 +109,7 @@ mod tests {
             test_simd::<f64, 4, TestableF64x2x2>(f64::MIN, f64::MAX);
             test_simd::<f64, 6, TestableF64x2x3>(f64::MIN, f64::MAX);
             test_simd::<f64, 8, TestableF64x2x4>(f64::MIN, f64::MAX);
-            #[cfg(target_feature = "nightly")]
+            #[cfg(feature = "nightly")]
             {
                 test_simd::<f64, 1, Simd<f64, 1>>(f64::MIN, f64::MAX);
                 test_simd::<f64, 2, Simd<f64, 2>>(f64::MIN, f64::MAX);
@@ -127,7 +127,7 @@ mod tests {
             test_unoptimized_value_type::<TestableF64x2x2>();
             test_unoptimized_value_type::<TestableF64x2x3>();
             test_unoptimized_value_type::<TestableF64x2x4>();
-            #[cfg(target_feature = "nightly")]
+            #[cfg(feature = "nightly")]
             {
                 test_unoptimized_value_type::<Simd<f64, 1>>();
                 test_unoptimized_value_type::<Simd<f64, 2>>();
