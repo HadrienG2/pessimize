@@ -40,7 +40,7 @@ jobs:
     # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout sources
@@ -73,7 +73,7 @@ jobs:
   # Native x86_64 compilation...
   lints-native:
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         toolchain:
@@ -111,7 +111,7 @@ jobs:
   # ARMv7 cross-compilation
   lints-arm:
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         toolchain:
@@ -142,7 +142,7 @@ jobs:
   # AArch64 cross-compilation
   lints-aarch64:
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         toolchain:
@@ -172,7 +172,7 @@ jobs:
   # i686 cross-compilation
   lints-i686:
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         toolchain:
@@ -198,7 +198,7 @@ jobs:
   # FIXME: I'd also like to test riscv32 but ubuntu doesn't provide a cross-compiler
   lints-riscv64:
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         toolchain:
@@ -237,7 +237,7 @@ jobs:
  
     needs: matrix_vars
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
  
     strategy:
       matrix:
