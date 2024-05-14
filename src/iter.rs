@@ -48,10 +48,10 @@ mod tests {
         test_value(TestableEmpty::default());
     }
     //
-    // NOTE: There is no empty_optim test because Pessimize does not act
-    //       as an optimization barrier for stateless ZSTs like Empty.
+    // There is no empty_optim test because Pessimize does not act as an
+    // optimization barrier for stateless ZSTs like Empty.
 
-    // NOTE: Can't test Once and Repeat because there is no reliable way to
-    //       extract the inner value from &self, which would be needed to
-    //       implement PartialEq via a newtype.
+    // Can't test Once and Repeat because there is no reliable way to extract
+    // the inner value from &self, which would be needed to implement PartialEq
+    // via a newtype.
 }

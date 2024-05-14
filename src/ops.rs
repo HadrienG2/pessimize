@@ -3,7 +3,7 @@
 use crate::{pessimize_extractible, pessimize_zsts, Pessimize};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
-// NOTE: Requiring a Clone bound because all useful Range indices are Clone
+// Requiring a Clone bound because all useful Range indices are Clone
 pessimize_extractible!(
     allow(missing_docs)
     {
@@ -110,6 +110,6 @@ mod tests {
         test_value(..)
     }
 
-    // NOTE: There is no range_full_optim test because Pessimize does not act as
-    //       an optimization barrier for stateless ZSTs like RangeFull
+    // There is no range_full_optim test because Pessimize does not act as an
+    // optimization barrier for stateless ZSTs like RangeFull
 }

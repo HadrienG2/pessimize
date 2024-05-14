@@ -10,8 +10,7 @@ use core::{
 // a safe function, and with `!Unpin` types this safe function would allow
 // people to violate Pin's contract by moving data out of the Pin's target.
 //
-// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
-//
+// Can't use pessimize_cast! here because making it support ?Sized is too hard
 unsafe impl<T: ?Sized + Unpin, P: Deref<Target = T> + Pessimize> PessimizeCast for Pin<P> {
     type Pessimized = P;
 
@@ -43,4 +42,4 @@ where
     }
 }
 
-// NOTE: Pin is tested in the ptr module, alongside other pointer types
+// Pin is tested in the ptr module, alongside other pointer types

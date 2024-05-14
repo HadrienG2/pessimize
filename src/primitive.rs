@@ -36,8 +36,8 @@ pessimize_copy!(
 //
 macro_rules! pessimize_tuple {
     ($($args:ident),*) => {
-        // NOTE: Can't use PessimizeCast/BorrowPessimize here because need to
-        //       apply optimization barrier to multiple inner types.
+        // Can't use PessimizeCast/BorrowPessimize here because need to apply
+        // optimization barrier to multiple inner types.
         #[allow(non_snake_case)]
         unsafe impl<$($args: Pessimize),*> Pessimize for ($($args,)*) {
             #[allow(clippy::unused_unit)]

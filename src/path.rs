@@ -7,9 +7,10 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::wasi::ffi::OsStrExt;
 use std::{ffi::OsString, path::PathBuf};
 
-// NOTE: No need to implement Pessimize for Path because...
-//       1/Path can only be manipulated by reference
-//       2/We already have an impl of Pessimize for all references
+// No need to implement Pessimize for Path because...
+//
+// 1. Path can only be manipulated by reference
+// 2. We already have an impl of Pessimize for all references
 
 // PathBuf is a glorified OsString, so if we can pessimize the former...
 pessimize_collections!(

@@ -20,7 +20,7 @@ mod std_feature {
     use crate::{assume_globals_accessed, Pessimize};
     use std::alloc::System;
 
-    // NOTE: Need a manual Pessimize implementation due to use of global state
+    // Need a manual Pessimize implementation due to use of global state
     #[cfg_attr(feature = "nightly", doc(cfg(feature = "std")))]
     unsafe impl Pessimize for System {
         #[inline]

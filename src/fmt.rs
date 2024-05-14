@@ -15,6 +15,6 @@ mod tests {
         test_value(Error);
     }
 
-    // NOTE: There is no error_optim test because Pessimize does not act as an
-    //       optimization barrier for stateless ZSTs like fmt::Error.
+    // There is no error_optim test because Pessimize does not act as an
+    // optimization barrier for stateless ZSTs like fmt::Error.
 }
