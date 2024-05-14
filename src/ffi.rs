@@ -7,9 +7,10 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 #[cfg(all(not(unix), target_os = "wasi"))]
 use std::os::wasi::ffi::{OsStrExt, OsStringExt};
 
-// NOTE: No need to implement Pessimize for OsStr because...
-//       1/OsStr can only be manipulated by reference
-//       2/We already have an impl of Pessimize for all references
+// No need to implement Pessimize for OsStr because...
+//
+// 1. OsStr can only be manipulated by reference
+// 2. We already have an impl of Pessimize for all references
 
 // On Unix and WASI, OsString is a glorified Vec<u8>
 pessimize_collections!(

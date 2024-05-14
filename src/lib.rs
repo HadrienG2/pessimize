@@ -484,8 +484,8 @@ unsafe impl<T: BorrowPessimize> Pessimize for T {
 mod default_impl {
     use super::*;
 
-    // NOTE: Can't use PessimizeCast/BorrowPessimize here because need to use
-    //       `assume_accessed` in `hide` impl.
+    // Can't use PessimizeCast/BorrowPessimize here because need to use
+    // `assume_accessed` in `hide` impl.
     #[doc(cfg(all(feature = "nightly", feature = "default_impl")))]
     unsafe impl<T> Pessimize for T {
         #[inline]
@@ -529,8 +529,8 @@ macro_rules! pessimize_asm_values {
         }
     ) => {
         $($(
-            // NOTE: This is one of the primitive Pessimize impls on which the
-            //       PessimizeCast/BorrowPessimize stack is built
+            // This is one of the primitive Pessimize impls on which the
+            // PessimizeCast/BorrowPessimize stack is built
             #[allow(asm_sub_register)]
             #[cfg_attr(feature = "nightly", $doc_cfg)]
             unsafe impl $crate::Pessimize for $value_type {
@@ -973,8 +973,6 @@ macro_rules! pessimize_collections {
 
 // TODO: Provide a Derive macro to derive Pessimize for a small struct, with a
 //       warning that it will do more harm than good on a larger struct
-
-// TODO: Set up CI in the spirit of test-everything.sh
 
 /// Global variable used to check if stateful zero-sized types are pessimized
 #[doc(hidden)]

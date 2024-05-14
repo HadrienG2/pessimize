@@ -19,8 +19,8 @@ pessimize_copy!(
             )
         )
 
-        // NOTE: Will not pessimize IPv6 types as doing that efficiently would
-        //       require native u128 support
+        // Will not pessimize IPv6 types as doing that efficiently would require
+        // native u128 support, which no mainstream hardware has.
     }
 );
 
@@ -85,9 +85,9 @@ mod tests {
         test_unoptimized_value(SocketAddrV4::new(Ipv4Addr::from(u32::MAX), u16::MAX));
     }
 
-    // NOTE: Can't test inbound sockets because that would require ability to
-    //       open inbound network ports (can't be assumed, e.g. Windows firewall
-    //       is enabled by default and blocks that), and without that can't test
-    //       outbound sockets either because without a local server that would
-    //       require internet connectivity, which cannot be assumed.
+    // Can't test inbound sockets because that would require ability to open
+    // inbound network ports (can't be assumed, e.g. Windows firewall is enabled
+    // by default and blocks that), and without that can't test outbound sockets
+    // either because without a local server that would require internet
+    // connectivity, which cannot be assumed.
 }

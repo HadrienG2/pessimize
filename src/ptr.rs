@@ -38,8 +38,9 @@ mod thin_pointers {
     use super::*;
 
     // Safe because the functions above are implemented as expected
-    // NOTE: This is one of the primitive Pessimize impls on which the
-    //       PessimizeCast/BorrowPessimize stack is built
+    //
+    // This is one of the primitive Pessimize impls on which the
+    // PessimizeCast/BorrowPessimize stack is built
     unsafe impl<T: Sized> Pessimize for *const T {
         #[inline]
         fn hide(self) -> Self {
@@ -70,9 +71,10 @@ mod all_pointers {
     use core::ptr::{self, DynMetadata, Pointee};
 
     // DynMetadata is a pointer to a trait object's vtable
-    // NOTE: Can't use PessimizeCast/BorrowPessimize because this is one of the
-    //       building blocks on which the `*const ()`, which we would want to
-    //       delegate to, is built.
+    //
+    // Can't use PessimizeCast/BorrowPessimize because this is one of the
+    // building blocks on which the `*const ()`, which we would want to delegate
+    // to, is built.
     #[doc(cfg(feature = "nightly"))]
     unsafe impl<T: ?Sized> Pessimize for DynMetadata<T> {
         #[inline]
@@ -111,8 +113,9 @@ mod all_pointers {
     }
 
     // Safe if the toplevel functions & DynMetadata impl operate as expected
-    // NOTE: This is one of the primitive Pessimize impls on which the
-    //       PessimizeCast/BorrowPessimize stack is built
+    //
+    // This is one of the primitive Pessimize impls on which the
+    // PessimizeCast/BorrowPessimize stack is built
     #[doc(cfg(feature = "nightly"))]
     unsafe impl<T: Pointee + ?Sized> Pessimize for *const T
     where
@@ -149,7 +152,7 @@ mod all_pointers {
     }
 }
 
-// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
+// Can't use pessimize_cast! because making it support ?Sized is too hard
 unsafe impl<T: ?Sized> PessimizeCast for *mut T
 where
     *const T: Pessimize,
@@ -184,7 +187,7 @@ where
     }
 }
 
-// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
+// Can't use pessimize_cast! because making it support ?Sized is too hard
 unsafe impl<T: ?Sized> PessimizeCast for NonNull<T>
 where
     *mut T: Pessimize,
@@ -223,8 +226,8 @@ where
 // are just a special kind of read-only pointer.
 macro_rules! pessimize_fn {
     ($res:ident $( , $args:ident )* ) => {
-        // NOTE: Can't use pessimize_cast! macro here as making it support
-        //       multiple generic arguments would be too hard.
+        // Can't use pessimize_cast! macro here as making it support multiple
+        // generic arguments would be too hard.
         unsafe impl< $res $( , $args )* > PessimizeCast for fn( $($args),* ) -> $res {
             type Pessimized = *const ();
 
@@ -286,7 +289,8 @@ macro_rules! pessimize_references {
         ),*
     ) => {
         $(
-            // NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
+            // Can't use pessimize_cast! because making it support ?Sized is too
+            // hard
             unsafe impl<'a, T: ?Sized> PessimizeCast for $ref_t
                 where NonNull<T>: Pessimize
             {

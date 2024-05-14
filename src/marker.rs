@@ -26,7 +26,7 @@ mod tests {
         test_pinned_value(PhantomPinned);
     }
 
-    // NOTE: There are no phantom_data_optim and phantom_pinned_optim tests
-    //       because Pessimize does not act as an optimization barrier for
-    //       stateless ZSTs like phantom types.
+    // There are no phantom_data_optim and phantom_pinned_optim tests because
+    // Pessimize does not act as an optimization barrier for stateless ZSTs like
+    // phantom types.
 }

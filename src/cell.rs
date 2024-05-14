@@ -8,8 +8,9 @@ use core::cell::{Cell, UnsafeCell};
 
 // TODO: Once specialization is available, provide a default implementation for
 //       all Cell<T> that goes through as_ptr().
-// NOTE: Can't use PessimizeCast/BorrowPessimize because need to propagate
-//       changes back in `assume_accessed_imut`
+//
+// Can't use PessimizeCast/BorrowPessimize because need to propagate changes
+// back in `assume_accessed_imut`
 unsafe impl<T: Copy + Pessimize> Pessimize for Cell<T> {
     #[inline]
     fn hide(self) -> Self {

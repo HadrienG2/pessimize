@@ -38,9 +38,9 @@ mod u64_is_pessimize {
 
     macro_rules! pessimize_wrapper {
         ($name:ident, $get_metadata:ident, $set_metadata:ident, $from_inner_metadata:expr $(, $extra_trait:path)?) => {
-            // NOTE: Can't use PessimizeCast/BorrowPessimize skeleton here
-            //       because we need to call assume_read/assume_accessed_imut
-            //       for two different types, T and u64.
+            // Can't use PessimizeCast/BorrowPessimize skeleton here because we
+            // need to call assume_read/assume_accessed_imut for two different
+            // types, T and u64.
             #[cfg_attr(
                 feature = "nightly",
                 doc(cfg(all(feature = "std", target_pointer_width = "64")))
@@ -121,18 +121,17 @@ mod tests {
                     test_value($name::default());
                 }
 
-                // NOTE: There is no _optim test because Pessimize does not act
-                //       as an optimization barrier for stateless ZSTs like
-                //       Empty and Sink.
+                // There is no _optim test because Pessimize does not act as an
+                // optimization barrier for stateless ZSTs like Empty and Sink.
             )*
         };
     }
     //
     test_zsts!((TestableEmpty, Empty), (TestableSink, Sink));
 
-    // NOTE: Can't test Repeat because there is no reliable way to extract the
-    //       inner u8 from &self, which would be needed to implement PartialEq
-    //       via a newtype.
+    // Can't test Repeat because there is no reliable way to extract the inner
+    // u8 from &self, which would be needed to implement PartialEq via a
+    // newtype.
 
     #[cfg(target_pointer_width = "64")]
     mod u64_is_pessimize {

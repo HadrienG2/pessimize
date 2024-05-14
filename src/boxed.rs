@@ -4,7 +4,7 @@ use crate::{assume_accessed, assume_globals_accessed, BorrowPessimize, Pessimize
 #[cfg(not(any(feature = "std", test)))]
 use std_alloc::boxed::Box;
 
-// NOTE: Can't use pessimize_cast! because making it support ?Sized is too hard
+// Can't use pessimize_cast! here because making it support ?Sized is too hard
 #[cfg_attr(feature = "nightly", doc(cfg(feature = "alloc")))]
 unsafe impl<T: ?Sized> PessimizeCast for Box<T>
 where
@@ -127,7 +127,7 @@ mod tests {
             test_unoptimized_ptrs::<str, _>(make_boxed_str('\0'));
         }
 
-        // NOTE: Cannot test the Pessimize impl for trait objects because a
-        //       trait object cannot implement Clone and PartialEq.
+        // Cannot test the Pessimize impl for trait objects because a trait
+        // object cannot implement Clone and PartialEq.
     }
 }
