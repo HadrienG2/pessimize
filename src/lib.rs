@@ -61,9 +61,8 @@
 //!
 //! # When to use this crate
 //!
-//! You should consider use of this crate over `core::hint::black_box`, or
-//! third party cousins thereof, because...
-//! - It works on stable Rust
+//! You should consider use of this crate over `core::hint::black_box`, or third
+//! party cousins thereof, because...
 //! - It has a better-defined API contract with stronger guarantees (unlike
 //!   `core::hint::black_box`, where "do nothing" is a valid implementation).
 //! - It exposes finer-grained operations, which clarify your code's intent and

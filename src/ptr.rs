@@ -94,7 +94,9 @@ mod thin_pointers {
         #[inline]
         fn assume_accessed_imut(&self) {
             assume_accessed_thin_ptr(self.cast::<()>().cast_mut());
-            // NOTE: It's not legal to change the length of a slice from &self
+            // No need to do an optimization barrier on the length, it's not
+            // legal to change the length of a slice from &self and no
+            // internally mutable state is transitively reachable via the length
         }
     }
 
