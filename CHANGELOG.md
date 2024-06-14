@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _There are no unreleased changes in the pipeline at the moment._
 
 
+## [2.0.0] - 2024-06-14
+
+### Added
+
+- Implement Pessimize for slices.
+
+### Changed
+
+- Bumped MSRV to 1.79.0.
+
+
 ## [1.0.1] - 2024-02-12
 
 ### Fixed
