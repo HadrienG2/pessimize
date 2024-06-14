@@ -32,10 +32,11 @@ fn assume_accessed_thin_ptr<T: Sized>(x: *mut T) {
     unsafe { core::arch::asm!("/* {0} */", in(reg) x, options(preserves_flags, nostack)) }
 }
 
-// Implementation of Pessimize for thin *const T
+// Implementation of Pessimize for thin *const T and *const [T]
 #[cfg(not(feature = "nightly"))]
 mod thin_pointers {
     use super::*;
+    use core::ptr;
 
     // Safe because the functions above are implemented as expected
     //
@@ -61,6 +62,44 @@ mod thin_pointers {
         fn assume_accessed_imut(&self) {
             assume_accessed_thin_ptr(*self as *mut T);
         }
+    }
+
+    // Safe because the functions above are implemented as expected
+    //
+    // This is one of the primitive Pessimize impls on which the
+    // PessimizeCast/BorrowPessimize stack is built
+    unsafe impl<T: Sized> Pessimize for *const [T] {
+        #[inline]
+        fn hide(self) -> Self {
+            let (data, len) = slice_to_raw_parts(self);
+            ptr::slice_from_raw_parts(hide_thin_ptr(data), crate::hide(len))
+        }
+
+        #[inline]
+        fn assume_read(&self) {
+            let (data, len) = slice_to_raw_parts(*self);
+            assume_read_thin_ptr(data.cast::<()>());
+            crate::consume(len)
+        }
+
+        #[inline]
+        fn assume_accessed(&mut self) {
+            let (data, mut len) = slice_to_raw_parts(*self);
+            assume_accessed_thin_ptr(data.cast::<()>().cast_mut());
+            assume_accessed(&mut len);
+            // Correct because hide is identity and assume_accessed doesn't modify
+            *self = ptr::slice_from_raw_parts(data, len)
+        }
+
+        #[inline]
+        fn assume_accessed_imut(&self) {
+            assume_accessed_thin_ptr(self.cast::<()>().cast_mut());
+            // NOTE: It's not legal to change the length of a slice from &self
+        }
+    }
+
+    fn slice_to_raw_parts<T>(slice: *const [T]) -> (*const T, usize) {
+        (slice.cast::<T>(), slice.len())
     }
 }
 //
