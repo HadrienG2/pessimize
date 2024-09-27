@@ -68,7 +68,8 @@ jobs:
 
       - name: Look for unused dependencies with cargo-machete
         run: |
-          cargo binstall -y cargo-machete
+          # FIXME: --force used as a workaround for https://github.com/Swatinem/rust-cache/issues/204
+          cargo binstall -y --force cargo-machete
           cargo machete
 
 
@@ -243,11 +244,11 @@ jobs:
   test-native:
     # Don't run CI twice when a PR is created from a branch internal to the repo
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name != github.repository
- 
+
     needs: matrix_vars
 
     runs-on: ubuntu-22.04
- 
+
     strategy:
       matrix:
         toolchain:
@@ -293,18 +294,18 @@ jobs:
             cargo-flags: '--features=nightly'
           - toolchain: ${{ needs.matrix_vars.outputs.MINIMAL_RUST }}
             cargo-flags: '--features=safe_arch,nightly'
- 
+
     env:
       RUSTFLAGS: "${{ matrix.rust-flags }}"
- 
+
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
- 
+
       - name: Set up toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
- 
+
       - name: Run tests
         run: cargo test --workspace ${{ matrix.cargo-flags }}
