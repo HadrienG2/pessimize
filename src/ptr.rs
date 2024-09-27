@@ -12,6 +12,7 @@ use core::ptr::NonNull;
 #[inline]
 fn hide_thin_ptr<T: Sized>(mut x: *const T) -> *const T {
     // Safe because it just captures a value and reemits it as is
+    #[allow(unknown_lints, clippy::pointers_in_nomem_asm_block)]
     unsafe {
         core::arch::asm!("/* {0} */", inout(reg) x, options(preserves_flags, nostack, nomem));
     }
