@@ -743,7 +743,7 @@ pub(crate) mod tests {
         }
     }
     //
-    impl<'a, T: ?Sized> PtrLike for &'a T
+    impl<T: ?Sized> PtrLike for &T
     where
         *const T: Pessimize,
     {
@@ -758,7 +758,7 @@ pub(crate) mod tests {
         }
     }
     //
-    impl<'a, T: ?Sized> PtrLike for &'a mut T
+    impl<T: ?Sized> PtrLike for &mut T
     where
         *const T: Pessimize,
     {
