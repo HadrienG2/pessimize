@@ -3,7 +3,10 @@
 //! Integers, floats and SIMD types are taken care of by the arch module, since
 //! the CPU register in which they should end up is arch-specific.
 
-#![allow(clippy::transmute_int_to_bool)]
+// In bool's pessimize impl, we need to use a transmute from u8 to bool on the
+// way back because the i == 1 alternative advocated by rustc and clippy is not
+// minimally costly (it requires a test), and pessimize needs that by design.
+#![allow(clippy::transmute_int_to_bool, unknown_lints, unnecessary_transmutes)]
 
 use crate::{
     assume_accessed, assume_accessed_imut, assume_read, hide, pessimize_cast, pessimize_copy,
