@@ -76,10 +76,6 @@
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![cfg_attr(feature = "nightly", feature(doc_cfg, portable_simd, ptr_metadata))]
-#![cfg_attr(
-    all(feature = "nightly", target_arch = "x86_64"),
-    feature(stdarch_x86_avx512)
-)]
 #![cfg_attr(feature = "default_impl", allow(incomplete_features))]
 #![cfg_attr(feature = "default_impl", feature(specialization))]
 #![deny(missing_docs)]
