@@ -43,9 +43,8 @@ runs:
 
     - name: Install a cross-compiler using APT
       if: inputs.cross-target-apt != ''
-      uses: awalsh128/cache-apt-pkgs-action@latest
+      uses: Eeems-Org/apt-cache-action@v1
       with:
-        version: 1.0
         packages: gcc-12-${{ inputs.cross-target-apt }}
 
     - name: Set up a Rust toolchain for native compilation
