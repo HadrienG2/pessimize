@@ -8,7 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_There are no unreleased changes in the pipeline at the moment._
+### Changed
+
+- AVX-512 types do not require the `nightly` feature anymore
+- Bumped MSRV to 1.89.0.
 
 
 ## [2.0.1] - 2025-05-04
@@ -34,7 +37,7 @@ _There are no unreleased changes in the pipeline at the moment._
 
 ### Fixed
 
-- Adapt nightly feature to latest nightly changes.
+- Adapt `nightly` feature to latest nightly changes.
 
 
 ## [1.0.0] - 2024-01-05
