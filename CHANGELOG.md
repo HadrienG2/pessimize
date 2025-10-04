@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _There are no unreleased changes in the pipeline at the moment._
 
 
+## [3.0.0] - 2025-10-04
+
+### Changed
+
+- AVX-512 types do not require the `nightly` feature anymore
+- Bumped MSRV to 1.89.0.
+
+
 ## [2.0.1] - 2025-05-04
 
 ### Fixed
@@ -34,7 +42,7 @@ _There are no unreleased changes in the pipeline at the moment._
 
 ### Fixed
 
-- Adapt nightly feature to latest nightly changes.
+- Adapt `nightly` feature to latest nightly changes.
 
 
 ## [1.0.0] - 2024-01-05
@@ -44,7 +52,8 @@ _There are no unreleased changes in the pipeline at the moment._
 - First tagged release of pessimize.
 
 
-[Unreleased]: https://github.com/HadrienG2/pessimize/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/HadrienG2/pessimize/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/HadrienG2/pessimize/compare/v2.0.1...v3.0.0
 [2.0.1]: https://github.com/HadrienG2/pessimize/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/HadrienG2/pessimize/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/HadrienG2/pessimize/compare/v1.0.0...v1.0.1
