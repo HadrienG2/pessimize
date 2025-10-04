@@ -105,7 +105,6 @@ pub mod avx512 {
     use target_arch::__m512bh;
     #[cfg(any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc))]
     use target_arch::{__m128bh, __m256bh};
-    use target_arch::{__m512, __m512d, __m512i};
 
     // Basic register type support
     pessimize_asm_values!(
