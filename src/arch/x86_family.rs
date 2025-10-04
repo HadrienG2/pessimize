@@ -791,6 +791,7 @@ mod tests {
     #[cfg(target_feature = "avx512bw")]
     #[test]
     fn avx512bw() {
+        use safe_arch::m512i;
         test_simd::<i8, 64, m512i>(i8::MIN, i8::MAX);
         test_simd::<u8, 64, m512i>(u8::MIN, u8::MAX);
         test_simd::<i16, 32, m512i>(i16::MIN, i16::MAX);
