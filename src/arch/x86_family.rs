@@ -11,11 +11,6 @@ use target_arch::CpuidResult;
 use target_arch::__m128;
 #[cfg(any(target_feature = "avx2", doc))]
 use target_arch::__m256i;
-#[cfg(all(
-    feature = "nightly",
-    any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc)
-))]
-use target_arch::{__m128bh, __m256bh};
 #[cfg(any(target_feature = "sse2", doc))]
 use target_arch::{__m128d, __m128i};
 #[cfg(any(target_feature = "avx", doc))]
@@ -98,17 +93,16 @@ pessimize_asm_values!(
 );
 
 /// AVX-512 specific functionality
-#[cfg_attr(
-    feature = "nightly",
-    doc(cfg(all(feature = "nightly", target_feature = "avx512f")))
-)]
-#[cfg(all(feature = "nightly", any(target_feature = "avx512f", doc)))]
+#[doc(cfg(target_feature = "avx512f"))]
+#[cfg(any(target_feature = "avx512f", doc))]
 pub mod avx512 {
     use super::*;
     use crate::Pessimize;
     use core::arch::asm;
     #[cfg(any(target_feature = "avx512bf16", doc))]
     use target_arch::__m512bh;
+    #[cfg(any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc))]
+    use target_arch::{__m128bh, __m256bh};
     use target_arch::{__m512, __m512d, __m512i};
 
     // Basic register type support
@@ -731,6 +725,9 @@ mod tests {
         }
     }
 
+    // This is nightly-only even though the rest of avx512 is not nightly only
+    // anymore because we can't easily test without safe_arch or portable_simd
+    // and portable_simd doesn't have support for AVX-512 yet.
     #[cfg(all(feature = "nightly", target_feature = "avx512f"))]
     mod avx512 {
         use super::*;

@@ -6,7 +6,7 @@
 [![Continuous
 Integration](https://img.shields.io/github/actions/workflow/status/HadrienG2/pessimize/ci.yml?branch=master)](https://github.com/HadrienG2/pessimize/actions?query=workflow%3A%22Continuous+Integration%22)
 ![Requires rustc
-1.79.0+](https://img.shields.io/badge/rustc-1.79.0+-lightgray.svg)
+1.89.0+](https://img.shields.io/badge/rustc-1.89.0+-lightgray.svg)
 
 Microbenchmarking is a subtle exercise to begin with, and the lack of
 lightweight optimization barriers on stable Rust makes it even more difficult.
