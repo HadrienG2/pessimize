@@ -11,15 +11,12 @@ use target_arch::CpuidResult;
 use target_arch::__m128;
 #[cfg(any(target_feature = "avx2", doc))]
 use target_arch::__m256i;
-#[cfg(all(
-    feature = "nightly",
-    any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc)
-))]
-use target_arch::{__m128bh, __m256bh};
 #[cfg(any(target_feature = "sse2", doc))]
 use target_arch::{__m128d, __m128i};
 #[cfg(any(target_feature = "avx", doc))]
 use target_arch::{__m256, __m256d};
+#[cfg(any(target_feature = "avx512f", doc))]
+use target_arch::{__m512, __m512d, __m512i};
 
 pessimize_asm_values!(allow(missing_docs) { reg_byte: (i8, u8), reg: (i16, u16, i32, u32, isize, usize) });
 
@@ -98,18 +95,16 @@ pessimize_asm_values!(
 );
 
 /// AVX-512 specific functionality
-#[cfg_attr(
-    feature = "nightly",
-    doc(cfg(all(feature = "nightly", target_feature = "avx512f")))
-)]
-#[cfg(all(feature = "nightly", any(target_feature = "avx512f", doc)))]
+#[cfg(any(target_feature = "avx512f", doc))]
+#[cfg_attr(feature = "nightly", doc(cfg(target_feature = "avx512f")))]
 pub mod avx512 {
     use super::*;
     use crate::Pessimize;
     use core::arch::asm;
     #[cfg(any(target_feature = "avx512bf16", doc))]
     use target_arch::__m512bh;
-    use target_arch::{__m512, __m512d, __m512i};
+    #[cfg(any(all(target_feature = "avx512vl", target_feature = "avx512bf16"), doc))]
+    use target_arch::{__m128bh, __m256bh};
 
     // Basic register type support
     pessimize_asm_values!(
@@ -152,7 +147,7 @@ pub mod avx512 {
             $(
                 // This is one of the primitive Pessimize impls on which
                 // the PessimizeCast/BorrowPessimize stack is built
-                #[$doc_cfg]
+                #[cfg_attr(feature = "nightly", $doc_cfg)]
                 unsafe impl Pessimize for Mask<$mask_impl> {
                     #[inline]
                     fn hide(mut self) -> Self {
@@ -206,6 +201,8 @@ mod safe_arch_types {
     use safe_arch::{m128d, m128i};
     #[cfg(any(target_feature = "avx", doc))]
     use safe_arch::{m256, m256d};
+    #[cfg(any(target_feature = "avx512f", doc))]
+    use safe_arch::{m512, m512d, m512i};
 
     #[cfg(any(target_feature = "sse", doc))]
     pessimize_newtypes!(
@@ -235,6 +232,16 @@ mod safe_arch_types {
     pessimize_newtypes!(
         doc(cfg(all(feature = "safe_arch", target_feature = "avx2")))
         { m256i{ __m256i } }
+    );
+
+    #[cfg(any(target_feature = "avx512f", doc))]
+    pessimize_newtypes!(
+        doc(cfg(all(feature = "safe_arch", target_feature = "avx512f")))
+        {
+            m512{ __m512 },
+            m512d{ __m512d },
+            m512i{ __m512i }
+        }
     );
 }
 
@@ -731,12 +738,18 @@ mod tests {
         }
     }
 
-    #[cfg(all(feature = "nightly", target_feature = "avx512f"))]
-    mod avx512 {
-        use super::*;
-
-        #[test]
-        fn avx512f() {
+    #[cfg(target_feature = "avx512f")]
+    #[test]
+    fn avx512f() {
+        use safe_arch::{m512, m512d, m512i};
+        test_simd::<i32, 16, m512i>(i32::MIN, i32::MAX);
+        test_simd::<u32, 16, m512i>(u32::MIN, u32::MAX);
+        test_simd::<f32, 16, m512>(f32::MIN, f32::MAX);
+        test_simd::<i64, 8, m512i>(i64::MIN, i64::MAX);
+        test_simd::<u64, 8, m512i>(u64::MIN, u64::MAX);
+        test_simd::<f64, 8, m512d>(f64::MIN, f64::MAX);
+        #[cfg(feature = "nightly")]
+        {
             portable_simd_tests!(
                 (i32, 16),
                 (u32, 16),
@@ -746,21 +759,21 @@ mod tests {
                 (f64, 8)
             );
             portable_mask_tests!((i32, 16), (i64, 8));
-            #[cfg(target_arch = "x86")]
-            {
-                portable_simd_tests!((isize, 16), (usize, 16));
-                portable_mask_tests!((isize, 16));
-            }
-            #[cfg(target_arch = "x86_64")]
-            {
-                portable_simd_tests!((isize, 8), (usize, 8));
-                portable_mask_tests!((isize, 8));
-            }
+            portable_simd_tests!((isize, 8), (usize, 8));
+            portable_mask_tests!((isize, 8));
         }
+    }
 
-        #[test]
-        #[ignore]
-        fn avx512f_optim() {
+    #[cfg(target_feature = "avx512f")]
+    #[test]
+    #[ignore]
+    fn avx512f_optim() {
+        use safe_arch::{m512, m512d, m512i};
+        test_unoptimized_value_type::<m512>();
+        test_unoptimized_value_type::<m512d>();
+        test_unoptimized_value_type::<m512i>();
+        #[cfg(feature = "nightly")]
+        {
             portable_simd_tests_optim!(
                 (i32, 16),
                 (u32, 16),
@@ -770,26 +783,33 @@ mod tests {
                 (f64, 8)
             );
             portable_mask_tests_optim!((i32, 16), (i64, 8));
-            #[cfg(target_arch = "x86")]
-            {
-                portable_simd_tests_optim!((isize, 16), (usize, 16));
-                portable_mask_tests_optim!((isize, 16));
-            }
-            #[cfg(target_arch = "x86_64")]
-            {
-                portable_simd_tests_optim!((isize, 8), (usize, 8));
-                portable_mask_tests_optim!((isize, 8));
-            }
+            portable_simd_tests_optim!((isize, 8), (usize, 8));
+            portable_mask_tests_optim!((isize, 8));
         }
+    }
 
-        #[cfg(target_feature = "avx512bw")]
-        #[test]
-        fn avx512bw() {
+    #[cfg(target_feature = "avx512bw")]
+    #[test]
+    fn avx512bw() {
+        use safe_arch::m512i;
+        test_simd::<i8, 64, m512i>(i8::MIN, i8::MAX);
+        test_simd::<u8, 64, m512i>(u8::MIN, u8::MAX);
+        test_simd::<i16, 32, m512i>(i16::MIN, i16::MAX);
+        test_simd::<u16, 32, m512i>(u16::MIN, u16::MAX);
+        #[cfg(feature = "nightly")]
+        {
             portable_simd_tests!((i8, 64), (u8, 64), (i16, 32), (u16, 32));
             portable_mask_tests!((i8, 64), (i16, 32));
         }
+    }
 
-        #[cfg(target_feature = "avx512bw")]
+    // This is nightly-only even though the rest of avx512 is not nightly only
+    // anymore because we can't easily test without safe_arch or portable_simd
+    // and portable_simd doesn't have support for AVX-512 yet.
+    #[cfg(all(feature = "nightly", target_feature = "avx512bw"))]
+    mod avx512 {
+        use super::*;
+
         #[test]
         #[ignore]
         fn avx512bw_optim() {
