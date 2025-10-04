@@ -317,7 +317,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ hashFiles(cpuinfo.key) }}
+          cache-key: ${{ hashFiles('cpuinfo.key') }}
 
       - name: Run tests
         run: cargo test --workspace ${{ matrix.cargo-flags }}
