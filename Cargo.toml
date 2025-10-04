@@ -11,10 +11,10 @@ name = "pessimize"
 # - Roll an annotated git tag
 # - Add a github release
 #
-version = "2.0.1"
+version = "3.0.0"
 authors = ["Hadrien G. <knights_of_ni@gmx.com>"]
 edition = "2021"
-rust-version = "1.79.0"
+rust-version = "1.89.0"
 description = "More efficient Rust compiler optimization barriers"
 repository = "https://github.com/HadrienG2/pessimize/"
 license = "MPL-2.0"
@@ -36,11 +36,11 @@ nightly = []
 default_impl = ["nightly"]
 
 [dependencies]
-safe_arch = { version = "0.7", optional = true }
+safe_arch = { version = "0.9", optional = true }
 
 [dev-dependencies]
-safe_arch = "0.7"
-tempfile = "3.20"
+safe_arch = "0.9"
+tempfile = "3.23"
 
 [package.metadata.docs.rs]
 all-features = true
