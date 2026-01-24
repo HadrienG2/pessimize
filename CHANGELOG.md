@@ -15,7 +15,7 @@ _There are no unreleased changes in the pipeline at the moment._
 
 ### Changed
 
-- Updated `safe_arch` dep to v1.0.
+- Updated dependencies to latest versions.
 
 
 ## [3.0.0] - 2025-10-04
