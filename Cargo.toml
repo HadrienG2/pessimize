@@ -11,7 +11,7 @@ name = "pessimize"
 # - Roll an annotated git tag
 # - Add a github release
 #
-version = "3.0.1"
+version = "3.0.2"
 authors = ["Hadrien G. <knights_of_ni@gmx.com>"]
 edition = "2021"
 rust-version = "1.89.0"
@@ -26,12 +26,21 @@ maintenance = { status = "passively-maintained" }
 
 [features]
 default = ["std"]
+
 # Assume availability of dynamic memory allocation
 alloc = []
+
 # Assume availability of the full standard library
 std = ["alloc"]
+
 # Use experimental language features only available in the nightly compiler
+#
+# This feature is not subjected to normal semver guarantees: it may break as a
+# result of updating the nightly version you use, and the nightly API may change
+# without warning in bugfix releases in a fashion that fixes broken builds on
+# newer nightlies at the expense of breaking the build on older nightlies.
 nightly = []
+
 # Provide a default implementation of Pessimize for all types (requires nightly)
 default_impl = ["nightly"]
 

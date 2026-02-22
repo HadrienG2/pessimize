@@ -978,7 +978,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::ptr::tests::{test_all_pinned_pointers, test_unpinned_pointers};
     #[cfg(feature = "nightly")]
-    use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+    use std::simd::{Simd, SimdElement};
     use std::{
         fmt::Debug,
         time::{Duration, Instant},
@@ -1036,7 +1036,6 @@ pub(crate) mod tests {
         min: Scalar,
         max: Scalar,
     ) where
-        LaneCount<LANES>: SupportedLaneCount,
         Simd<Scalar, LANES>: Pessimize,
     {
         test_simd::<Scalar, LANES, Simd<Scalar, LANES>>(min, max)
