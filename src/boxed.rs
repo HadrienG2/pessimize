@@ -1,6 +1,6 @@
 //! Implementation of Pessimize for alloc::boxed
 
-use crate::{assume_accessed, assume_globals_accessed, BorrowPessimize, Pessimize, PessimizeCast};
+use crate::{BorrowPessimize, Pessimize, PessimizeCast, assume_accessed, assume_globals_accessed};
 #[cfg(not(any(feature = "std", test)))]
 use std_alloc::boxed::Box;
 
@@ -80,7 +80,7 @@ mod tests {
         use super::*;
         use crate::{
             ptr::tests::{test_all_pointers, test_unoptimized_ptrs},
-            tests::{test_unoptimized_value, BIG},
+            tests::{BIG, test_unoptimized_value},
         };
 
         fn make_boxed_slice(value: isize) -> Box<[isize]> {

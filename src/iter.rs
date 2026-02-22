@@ -1,6 +1,6 @@
 //! Pessimize implementations for core::iter
 
-use crate::{pessimize_once_like, pessimize_zsts, Pessimize};
+use crate::{Pessimize, pessimize_once_like, pessimize_zsts};
 use core::iter::{Empty, Once, Repeat};
 
 pessimize_zsts!(

@@ -1,6 +1,6 @@
 //! Pessimize implementations for core::cmp
 
-use crate::{pessimize_newtypes, Pessimize};
+use crate::{Pessimize, pessimize_newtypes};
 use core::cmp::Reverse;
 
 pessimize_newtypes!(

@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::pin
 
-use crate::{assume_accessed, BorrowPessimize, Pessimize, PessimizeCast};
+use crate::{BorrowPessimize, Pessimize, PessimizeCast, assume_accessed};
 use core::{
     ops::{Deref, DerefMut},
     pin::Pin,

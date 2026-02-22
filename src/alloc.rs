@@ -17,7 +17,7 @@ pessimize_copy!(
 
 #[cfg(any(feature = "std", test))]
 mod std_feature {
-    use crate::{assume_globals_accessed, Pessimize};
+    use crate::{Pessimize, assume_globals_accessed};
     use std::alloc::System;
 
     // Need a manual Pessimize implementation due to use of global state

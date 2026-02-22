@@ -2,7 +2,7 @@
 
 /// Implementations of Pessimize for core::sync::atomic
 mod atomic {
-    use crate::{assume_accessed, pessimize_cast, BorrowPessimize};
+    use crate::{BorrowPessimize, assume_accessed, pessimize_cast};
     use core::sync::atomic;
 
     macro_rules! pessimize_atomics {

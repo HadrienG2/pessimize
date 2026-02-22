@@ -6,11 +6,11 @@ use crate::{pessimize_asm_values, pessimize_copy};
 use core::arch::x86 as target_arch;
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64 as target_arch;
-use target_arch::CpuidResult;
 #[cfg(any(target_feature = "sse", doc))]
 use target_arch::__m128;
 #[cfg(any(target_feature = "avx2", doc))]
 use target_arch::__m256i;
+use target_arch::CpuidResult;
 #[cfg(any(target_feature = "sse2", doc))]
 use target_arch::{__m128d, __m128i};
 #[cfg(any(target_feature = "avx", doc))]
@@ -425,8 +425,8 @@ mod tests {
     #[cfg(feature = "nightly")]
     use crate::tests::test_portable_simd;
     use crate::{
-        tests::{test_simd, test_unoptimized_value, test_unoptimized_value_type, test_value},
         Pessimize,
+        tests::{test_simd, test_unoptimized_value, test_unoptimized_value_type, test_value},
     };
     #[cfg(feature = "nightly")]
     use std::{

@@ -9,8 +9,8 @@
 #![allow(clippy::transmute_int_to_bool, unknown_lints, unnecessary_transmutes)]
 
 use crate::{
-    assume_accessed, assume_accessed_imut, assume_read, hide, pessimize_cast, pessimize_copy,
-    BorrowPessimize, Pessimize,
+    BorrowPessimize, Pessimize, assume_accessed, assume_accessed_imut, assume_read, hide,
+    pessimize_cast, pessimize_copy,
 };
 
 pessimize_copy!(
