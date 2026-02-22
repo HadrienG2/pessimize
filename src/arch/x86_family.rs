@@ -431,13 +431,12 @@ mod tests {
     #[cfg(feature = "nightly")]
     use std::{
         fmt::Debug,
-        simd::{LaneCount, Mask, MaskElement, Simd, SupportedLaneCount},
+        simd::{Mask, MaskElement, Simd},
     };
 
     #[cfg(feature = "nightly")]
     fn test_portable_simd_mask<T: Debug + MaskElement + PartialEq + Unpin, const LANES: usize>()
     where
-        LaneCount<LANES>: SupportedLaneCount,
         Mask<T, LANES>: Pessimize,
     {
         test_simd::<bool, LANES, Mask<T, LANES>>(false, true)

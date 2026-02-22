@@ -1036,7 +1036,6 @@ pub(crate) mod tests {
         min: Scalar,
         max: Scalar,
     ) where
-        LaneCount<LANES>: SupportedLaneCount,
         Simd<Scalar, LANES>: Pessimize,
     {
         test_simd::<Scalar, LANES, Simd<Scalar, LANES>>(min, max)
