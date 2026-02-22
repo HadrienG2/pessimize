@@ -20,13 +20,14 @@ pessimize_copy!(
             bool: (
                 Self::into,
                 // Safe because the inner u8 is not modified by Pessimize ops
-                core::mem::transmute::<u8, Self>
+                |x| unsafe { core::mem::transmute::<u8, Self>(x) }
             )
         ),
         u32: (
             char: (
                 Self::into,
-                char::from_u32_unchecked
+                // Safe because the inner u32 is not modified by Pessimize ops
+                |x| unsafe { char::from_u32_unchecked(x) }
             )
         )
     }
@@ -52,19 +53,19 @@ macro_rules! pessimize_tuple {
 
             #[inline]
             fn assume_read(&self) {
-                let ($(ref $args,)*) = self;
+                let ($($args,)*) = self;
                 $( assume_read::<$args>($args) );*
             }
 
             #[inline]
             fn assume_accessed(&mut self) {
-                let ($(ref mut $args,)*) = self;
+                let ($($args,)*) = self;
                 $( assume_accessed::<$args>($args) );*
             }
 
             #[inline]
             fn assume_accessed_imut(&self) {
-                let ($(ref $args,)*) = self;
+                let ($($args,)*) = self;
                 $( assume_accessed_imut::<$args>($args) );*
             }
         }
@@ -107,13 +108,13 @@ impl<T: Pessimize> BorrowPessimize for [T; 1] {
 
     #[inline]
     fn with_pessimize(&self, f: impl FnOnce(&T)) {
-        let [ref x] = self;
+        let [x] = self;
         f(x)
     }
 
     #[inline]
     fn assume_accessed_impl(&mut self) {
-        let [ref mut x] = self;
+        let [x] = self;
         assume_accessed(x);
     }
 }

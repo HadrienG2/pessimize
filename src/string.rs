@@ -11,7 +11,7 @@ pessimize_collections!(
         (Vec<u8>, (*const u8, usize, usize)) : (
             String : (
                 Self::into_bytes,
-                Self::from_utf8_unchecked,
+                |bytes| unsafe { Self::from_utf8_unchecked(bytes) },
                 |self_: &Self| {
                     (self_.as_ptr(), self_.len(), self_.capacity())
                 }

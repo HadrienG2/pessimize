@@ -8,7 +8,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, RawHandle};
 
 macro_rules! pessimize_file {
-    ($fd:ty, $as_fd:path, $into_fd:path, $from_fd:path) => {
+    ($fd:ty, $as_fd:path, $into_fd:path, $from_fd:expr) => {
         pessimize_extractible!(
             doc(cfg(all(feature = "std", any(unix, windows))))
             {
@@ -25,7 +25,7 @@ pessimize_file!(
     RawFd,
     AsRawFd::as_raw_fd,
     IntoRawFd::into_raw_fd,
-    FromRawFd::from_raw_fd
+    |fd| unsafe { FromRawFd::from_raw_fd(fd) }
 );
 //
 #[cfg(windows)]
@@ -33,7 +33,7 @@ pessimize_file!(
     RawHandle,
     AsRawHandle::as_raw_handle,
     IntoRawHandle::into_raw_handle,
-    FromRawHandle::from_raw_handle
+    |handle| unsafe { FromRawHandle::from_raw_handle(handle) }
 );
 
 #[cfg(unix)]

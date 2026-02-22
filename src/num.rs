@@ -23,7 +23,7 @@ macro_rules! pessimize_nonzero {
             allow(missing_docs)
             {
                 $(
-                    $inner : ($outer : (Self::into, Self::new_unchecked))
+                    $inner : ($outer : (Self::into, |i| unsafe { Self::new_unchecked(i) }))
                 ),*
             }
         );

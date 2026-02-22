@@ -26,7 +26,7 @@ pessimize_copy!(
 
 #[cfg(any(unix, windows))]
 macro_rules! pessimize_sockets {
-    ($fd:ty, $as_fd:path, $into_fd:path, $from_fd:path) => {
+    ($fd:ty, $as_fd:path, $into_fd:path, $from_fd:expr) => {
         pessimize_extractible!(
             doc(cfg(all(feature = "std", any(unix, windows))))
             {
@@ -45,7 +45,7 @@ pessimize_sockets!(
     RawFd,
     AsRawFd::as_raw_fd,
     IntoRawFd::into_raw_fd,
-    FromRawFd::from_raw_fd
+    |fd| unsafe { FromRawFd::from_raw_fd(fd) }
 );
 //
 #[cfg(windows)]
@@ -53,7 +53,7 @@ pessimize_sockets!(
     RawSocket,
     AsRawSocket::as_raw_handle,
     IntoRawSocket::into_raw_handle,
-    FromRawSocket::from_raw_handle
+    |handle| unsafe { FromRawSocket::from_raw_handle(handle) }
 );
 
 #[cfg(test)]

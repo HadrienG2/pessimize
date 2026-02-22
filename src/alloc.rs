@@ -9,7 +9,7 @@ pessimize_copy!(
         (usize, usize): (
             Layout: (
                 |self_: Layout| (self_.size(), self_.align()),
-                |(size, align)| Self::from_size_align_unchecked(size, align)
+                |(size, align)| unsafe { Self::from_size_align_unchecked(size, align) }
             )
         )
     }
