@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_There are no unreleased changes in the pipeline at the moment._
+- Move to 2024 edition of Rust.
 
 
 ## [3.0.2] - 2026-02-22

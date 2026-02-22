@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::panic
 
-use crate::{pessimize_newtypes, Pessimize};
+use crate::{Pessimize, pessimize_newtypes};
 use core::panic::AssertUnwindSafe;
 
 pessimize_newtypes!(

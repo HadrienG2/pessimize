@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::ops
 
-use crate::{pessimize_extractible, pessimize_zsts, Pessimize};
+use crate::{Pessimize, pessimize_extractible, pessimize_zsts};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
 
 // Requiring a Clone bound because all useful Range indices are Clone

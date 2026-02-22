@@ -33,7 +33,7 @@ pessimize_once_like!(
 mod u64_is_pessimize {
     use super::*;
     use crate::assume_read;
-    use crate::{assume_accessed, assume_accessed_imut, consume, hide, Pessimize};
+    use crate::{Pessimize, assume_accessed, assume_accessed_imut, consume, hide};
     use std::io::{Cursor, Take};
 
     macro_rules! pessimize_wrapper {

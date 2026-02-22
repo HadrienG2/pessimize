@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for core::mem
 
-use crate::{assume_accessed, pessimize_cast, BorrowPessimize, Pessimize};
+use crate::{BorrowPessimize, Pessimize, assume_accessed, pessimize_cast};
 use core::mem::ManuallyDrop;
 
 pessimize_cast!(

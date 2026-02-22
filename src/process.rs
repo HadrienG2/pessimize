@@ -1,6 +1,6 @@
 //! Implementations of Pessimize for std::process
 
-use crate::{assume_accessed, pessimize_cast, pessimize_copy, BorrowPessimize};
+use crate::{BorrowPessimize, assume_accessed, pessimize_cast, pessimize_copy};
 use std::{
     os::unix::process::ExitStatusExt,
     process::{ExitStatus, Output},

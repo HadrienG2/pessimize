@@ -1,8 +1,8 @@
 //! Pessimize implementations for core::cell
 
 use crate::{
-    assume_accessed, assume_accessed_imut, consume, hide, pessimize_cast, BorrowPessimize,
-    Pessimize,
+    BorrowPessimize, Pessimize, assume_accessed, assume_accessed_imut, consume, hide,
+    pessimize_cast,
 };
 use core::cell::{Cell, UnsafeCell};
 

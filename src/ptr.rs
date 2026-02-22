@@ -2,8 +2,8 @@
 //! T`, `NonNull<T>`, `&T`, `&mut T` and `fn(Args...) -> Res`
 
 use crate::{
-    assume_accessed, impl_assume_accessed_via_extract_self, impl_with_pessimize_via_copy,
-    BorrowPessimize, Pessimize, PessimizeCast,
+    BorrowPessimize, Pessimize, PessimizeCast, assume_accessed,
+    impl_assume_accessed_via_extract_self, impl_with_pessimize_via_copy,
 };
 use core::ptr::NonNull;
 
@@ -243,7 +243,7 @@ where
 
     #[inline]
     unsafe fn from_pessimize(x: *mut T) -> Self {
-        NonNull::new_unchecked(x)
+        unsafe { NonNull::new_unchecked(x) }
     }
 }
 //
@@ -280,7 +280,7 @@ macro_rules! pessimize_fn {
 
             #[inline]
             unsafe fn from_pessimize(x: *const ()) -> Self {
-                core::mem::transmute::<*const (), Self>(x)
+                unsafe { core::mem::transmute::<*const (), Self>(x) }
             }
         }
         //
@@ -346,7 +346,7 @@ macro_rules! pessimize_references {
                 #[allow(unused_mut)]
                 #[inline]
                 unsafe fn from_pessimize(mut x: NonNull<T>) -> Self {
-                    x.$from_nonnull()
+                    unsafe { x.$from_nonnull() }
                 }
             }
             //
@@ -444,15 +444,15 @@ pub(crate) mod tests {
         expected_target: &Value,
     ) {
         let old_p = p.as_const_ptr();
-        assert!(p.deep_eq(old_p, expected_target));
+        assert!(unsafe { p.deep_eq(old_p, expected_target) });
         p = hide(p);
-        assert!(p.deep_eq(old_p, expected_target));
+        assert!(unsafe { p.deep_eq(old_p, expected_target) });
         assume_read(&p);
-        assert!(p.deep_eq(old_p, expected_target));
+        assert!(unsafe { p.deep_eq(old_p, expected_target) });
         assume_accessed(&mut p);
-        assert!(p.deep_eq(old_p, expected_target));
+        assert!(unsafe { p.deep_eq(old_p, expected_target) });
         assume_accessed_imut(&p);
-        assert!(p.deep_eq(old_p, expected_target));
+        assert!(unsafe { p.deep_eq(old_p, expected_target) });
         consume(p)
     }
 
@@ -539,7 +539,7 @@ pub(crate) mod tests {
         assert_unoptimized(component, |component| {
             let old_component = component;
             let const_ptr = rebuild(component);
-            let fat_ptr = hide(Ptr::from_const_ptr(const_ptr));
+            let fat_ptr = hide(unsafe { Ptr::from_const_ptr(const_ptr) });
             let component = extract(fat_ptr.to_const_ptr());
             consume(component == old_component);
             component
@@ -722,7 +722,7 @@ pub(crate) mod tests {
 
         // Abstraction of &**self
         unsafe fn unsafe_deref(&self) -> &Self::Target {
-            &*self.as_const_ptr()
+            unsafe { &*self.as_const_ptr() }
         }
 
         // Abstraction of (self as *const T) == (other as *const T)
@@ -739,7 +739,7 @@ pub(crate) mod tests {
         where
             Self::Target: PartialEq,
         {
-            self.ptr_eq(other) && self.unsafe_deref() == expected_target
+            self.ptr_eq(other) && unsafe { self.unsafe_deref() == expected_target }
         }
     }
     //
@@ -754,7 +754,7 @@ pub(crate) mod tests {
         }
 
         unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            &*ptr
+            unsafe { &*ptr }
         }
     }
     //
@@ -769,7 +769,7 @@ pub(crate) mod tests {
         }
 
         unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            &mut *(ptr as *mut T)
+            unsafe { &mut *(ptr as *mut T) }
         }
     }
     //
@@ -814,7 +814,7 @@ pub(crate) mod tests {
         }
 
         unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            Self::new_unchecked(ptr as *mut Self::Target)
+            unsafe { Self::new_unchecked(ptr as *mut Self::Target) }
         }
     }
     //
@@ -829,7 +829,7 @@ pub(crate) mod tests {
         }
 
         unsafe fn from_const_ptr(ptr: *const Self::Target) -> Self {
-            Self::new(<&'a mut T>::from_const_ptr(ptr))
+            unsafe { Self::new(<&'a mut T>::from_const_ptr(ptr)) }
         }
     }
 }

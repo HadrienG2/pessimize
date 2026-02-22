@@ -1,8 +1,8 @@
 //! Implementations of Pessimize for core::num
 
-use crate::{pessimize_copy, pessimize_newtypes, Pessimize};
+use crate::{Pessimize, pessimize_copy, pessimize_newtypes};
 use core::num::{
-    NonZeroI16, NonZeroI32, NonZeroI8, NonZeroIsize, NonZeroU16, NonZeroU32, NonZeroU8,
+    NonZeroI8, NonZeroI16, NonZeroI32, NonZeroIsize, NonZeroU8, NonZeroU16, NonZeroU32,
     NonZeroUsize, Wrapping,
 };
 #[cfg(any(
@@ -23,7 +23,7 @@ macro_rules! pessimize_nonzero {
             allow(missing_docs)
             {
                 $(
-                    $inner : ($outer : (Self::into, Self::new_unchecked))
+                    $inner : ($outer : (Self::into, |i| unsafe { Self::new_unchecked(i) }))
                 ),*
             }
         );

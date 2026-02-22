@@ -16,7 +16,7 @@ pessimize_collections!(
                     (v.as_mut_ptr(), v.len(), v.capacity())
                 },
                 |(ptr, length, capacity)| {
-                    Self::from_raw_parts(ptr, length, capacity)
+                    unsafe { Self::from_raw_parts(ptr, length, capacity) }
                 },
                 |self_: &Self| {
                     (self_.as_ptr(), self_.len(), self_.capacity())

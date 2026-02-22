@@ -9,7 +9,7 @@ pessimize_copy!(
         (usize, usize): (
             Layout: (
                 |self_: Layout| (self_.size(), self_.align()),
-                |(size, align)| Self::from_size_align_unchecked(size, align)
+                |(size, align)| unsafe { Self::from_size_align_unchecked(size, align) }
             )
         )
     }
@@ -17,7 +17,7 @@ pessimize_copy!(
 
 #[cfg(any(feature = "std", test))]
 mod std_feature {
-    use crate::{assume_globals_accessed, Pessimize};
+    use crate::{Pessimize, assume_globals_accessed};
     use std::alloc::System;
 
     // Need a manual Pessimize implementation due to use of global state
