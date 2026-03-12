@@ -75,7 +75,14 @@
 //! - It needs a lot of tricky unsafe code.
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-#![cfg_attr(feature = "nightly", feature(doc_cfg, portable_simd, ptr_metadata))]
+#![cfg_attr(feature = "nightly", feature(doc_cfg, ptr_metadata))]
+#![cfg_attr(
+    all(
+        feature = "nightly",
+        not(any(target_arch = "riscv32", target_arch = "riscv64"))
+    ),
+    feature(portable_simd)
+)]
 #![cfg_attr(feature = "default_impl", allow(incomplete_features))]
 #![cfg_attr(feature = "default_impl", feature(specialization))]
 #![deny(missing_docs)]
@@ -977,7 +984,10 @@ pub static mut TEST_GLOBAL_STATE: isize = -42;
 pub(crate) mod tests {
     use super::*;
     use crate::ptr::tests::{test_all_pinned_pointers, test_unpinned_pointers};
-    #[cfg(feature = "nightly")]
+    #[cfg(all(
+        feature = "nightly",
+        not(any(target_arch = "riscv32", target_arch = "riscv64"))
+    ))]
     use std::simd::{Simd, SimdElement};
     use std::{
         fmt::Debug,
@@ -1028,7 +1038,10 @@ pub(crate) mod tests {
 
     // Run test_value_type for a portable_simd::Simd type
     #[allow(unused)]
-    #[cfg(feature = "nightly")]
+    #[cfg(all(
+        feature = "nightly",
+        not(any(target_arch = "riscv32", target_arch = "riscv64"))
+    ))]
     pub fn test_portable_simd<
         Scalar: Debug + Default + PartialEq + SimdElement + Unpin,
         const LANES: usize,
