@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up stable toolchain
         if: github.event_name != 'schedule'
@@ -112,7 +112,7 @@ jobs:
             rust-flags: '-C target-feature=+avx -C target-feature=+avx2 -C target-feature=+avx512f -C target-feature=+avx512bw -C target-feature=+avx512vl -C target-feature=+avx512bf16'
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -141,7 +141,7 @@ jobs:
           - '-C target-feature=+vfp2 -C target-feature=+d32'
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -171,7 +171,7 @@ jobs:
           - '-C target-feature=+neon'
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -197,7 +197,7 @@ jobs:
           - '--features=safe_arch'
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -228,7 +228,7 @@ jobs:
           - '-C target-feature=+f -C target-feature=+d'
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Check lints
         uses: ./.github/actions/lints
         with:
@@ -302,7 +302,7 @@ jobs:
 
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Cargo doesn't know when to rebuild a target-cpu=native cache when it's
       # migrated across machines, so a CI node must not be exposed to the target
