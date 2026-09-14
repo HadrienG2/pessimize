@@ -49,14 +49,14 @@ runs:
 
     - name: Set up a Rust toolchain for native compilation
       if: inputs.cross-target-rust == ''
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v2
       with:
         toolchain: ${{ inputs.toolchain }}
         components: clippy
 
     - name: Set up a Rust toolchain for cross-compilation
       if: inputs.cross-target-rust != ''
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+      uses: actions-rust-lang/setup-rust-toolchain@v2
       with:
         toolchain: ${{ inputs.toolchain }}
         target: ${{ inputs.cross-target-rust }}
