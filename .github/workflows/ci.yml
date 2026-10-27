@@ -167,7 +167,6 @@ jobs:
           - '--features=safe_arch'
         rust-flags:
           - ''
-          - '-C target-feature=-neon'
           - '-C target-feature=+neon'
     steps:
       - name: Checkout sources
